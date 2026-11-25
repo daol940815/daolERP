@@ -43,20 +43,20 @@ export default function DoubleCountPage() {
     <div className="max-w-5xl mx-auto">
       <div className="flex items-start justify-between mb-1">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">이중계상 검사</h1>
-          <p className="text-sm mt-1 text-gray-500">
+          <h1 className="text-2xl font-bold text-slate-900">이중계상 검사</h1>
+          <p className="text-sm mt-1 text-slate-600">
             같은 지출이 세금계산서·통장·법인카드 중 두 경로로 비용에 잡힌 건을 교차 검사합니다. 0건 유지가 목표입니다.
           </p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => { const a = document.createElement('a'); a.href = '/api/reports/double-count/export'; a.click() }}
             disabled={loading}
-            className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+            className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
             title="요약·상세 두 시트. 상세에는 확정 계정, 상대 계산서, 권장 조치가 들어갑니다">
             ↓ 엑셀
           </button>
           <button onClick={load} disabled={loading}
-            className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50">
+            className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-50">
             {loading ? '검사 중...' : '↻ 다시 검사'}
           </button>
         </div>
@@ -80,16 +80,16 @@ export default function DoubleCountPage() {
       )}
 
       {loading ? (
-        <p className="text-gray-400 text-sm py-10 text-center">검사 중...</p>
+        <p className="text-slate-500 text-sm py-10 text-center">검사 중...</p>
       ) : findings.length === 0 ? (
         <div className="text-center py-16 border border-green-200 bg-green-50 rounded-xl">
           <p className="text-green-700 font-medium">이중계상 의심 건이 없습니다 ✓</p>
           <p className="text-xs text-green-600 mt-1">분류 작업 후에도 수시로 재검사해 0건을 유지하세요.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto border border-gray-200 rounded-lg">
+        <div className="overflow-x-auto border border-slate-300 rounded-lg">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-xs">
+            <thead className="bg-slate-50 text-slate-600 text-xs">
               <tr>
                 <th className="px-3 py-2 text-left">검사</th>
                 <th className="px-3 py-2 text-left">일자</th>
@@ -100,9 +100,9 @@ export default function DoubleCountPage() {
                 <th className="px-3 py-2 text-left">내용 / 권장 조치</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-200">
               {findings.map((f, i) => (
-                <tr key={i} className="hover:bg-gray-50">
+                <tr key={i} className="hover:bg-slate-50">
                   <td className="px-3 py-2 text-xs whitespace-nowrap">
                     <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">{CHECK_LABEL[f.check]}</span>
                   </td>
@@ -113,18 +113,18 @@ export default function DoubleCountPage() {
                       className="text-sky-700 hover:underline" title={`${f.source} 원본 레코드 보기`}>
                       {f.label || '(적요 없음)'}
                     </Link>
-                    <span className="ml-1 text-[0.6875rem] text-gray-400">{f.source}</span>
+                    <span className="ml-1 text-xs text-slate-500">{f.source}</span>
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{won(f.amount)}</td>
-                  <td className="px-3 py-2 text-xs text-gray-700 whitespace-nowrap">{f.account_name ?? '-'}</td>
+                  <td className="px-3 py-2 text-xs text-slate-800 whitespace-nowrap">{f.account_name ?? '-'}</td>
                   <td className="px-3 py-2 text-xs whitespace-nowrap">
                     {f.invoice_id ? (
                       <Link href={`/source/tax_invoice/${f.invoice_id}`} className="text-sky-700 hover:underline" title="매입 계산서 원본 보기">
                         {f.invoice_date} · {won(f.invoice_amount ?? 0)}{f.invoice_account ? ` · ${f.invoice_account}` : ''}
                       </Link>
-                    ) : <span className="text-gray-400">매칭된 계산서</span>}
+                    ) : <span className="text-slate-500">매칭된 계산서</span>}
                   </td>
-                  <td className="px-3 py-2 text-xs text-gray-600">
+                  <td className="px-3 py-2 text-xs text-slate-700">
                     {f.detail}
                     <p className="text-sky-800 mt-0.5">→ {f.action}</p>
                   </td>

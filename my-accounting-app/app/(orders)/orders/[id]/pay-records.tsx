@@ -185,21 +185,21 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
     <div className="flex gap-1">
       {list.map(v => (
         <button key={v} type="button" onClick={() => set(v)}
-          className={`px-3 py-1.5 rounded-lg text-xs border ${cur === v ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+          className={`px-3 py-1.5 rounded-lg text-xs border ${cur === v ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>
           {label[v]}
         </button>
       ))}
     </div>
   )
 
-  const inputCls = 'w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
-  const labelCls = 'block text-[0.6875rem] text-gray-500 mb-1'
+  const inputCls = 'w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const labelCls = 'block text-xs text-slate-600 mb-1'
 
   return (
-    <div className="mb-3 pb-3 border-b border-gray-100">
+    <div className="mb-3 pb-3 border-b border-slate-200">
       <div className="flex items-center gap-2 flex-wrap mb-2">
-        <span className="text-xs font-semibold text-gray-700">결제 기록</span>
-        <span className="text-[0.6875rem] text-gray-400">결제한 내용을 적어 두면 회계에서 실제 입금 · 카드 매출과 매칭합니다</span>
+        <span className="text-xs font-semibold text-slate-800">결제 기록</span>
+        <span className="text-xs text-slate-500">결제한 내용을 적어 두면 회계에서 실제 입금 · 카드 매출과 매칭합니다</span>
         {pendingHere > 0 && (
           <span className="text-xs px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
             매칭 대기 <b className="tabular-nums">{won(pendingHere)}원</b>
@@ -215,17 +215,17 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
       </div>
 
       {open && (
-        <div className="mb-3 p-3 rounded-xl border border-slate-300 bg-slate-50">
+        <div className="mb-3 p-3 rounded-xl border border-slate-400 bg-slate-50">
           <div className="flex gap-1 flex-wrap mb-3">
             {METHODS.map(m => (
               <button key={m.key} type="button" onClick={() => setMethod(m.key)}
-                className={`px-3 py-1.5 rounded-lg text-xs border ${method === m.key ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+                className={`px-3 py-1.5 rounded-lg text-xs border ${method === m.key ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>
                 {m.label}
               </button>
             ))}
           </div>
           {kinds && method !== 'transfer' && (
-            <div className="mb-3 p-2.5 rounded-lg border border-slate-200 bg-white">
+            <div className="mb-3 p-2.5 rounded-lg border border-slate-300 bg-white">
               <div className="flex gap-x-6 gap-y-2 flex-wrap">
                 {method === 'card' && (
                   <div>
@@ -238,7 +238,7 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
                   {pick(vat, REC_VATS, REC_VAT_LABEL, setVat)}
                 </div>
               </div>
-              <div className="mt-1.5 text-[0.6875rem] text-gray-400">
+              <div className="mt-1.5 text-xs text-slate-500">
                 {method === 'card'
                   ? '단말기 = 카드 단말기로 결제 · 수기 = 카드번호를 받아 결제 창구에서 입력. 과세와 면세 품목이 섞여 결제가 둘로 나뉘었으면 기록도 두 건으로 남깁니다.'
                   : '과세 = 세금계산서 · 면세 = 계산서. 둘 다 발행했으면 기록도 두 건으로 남깁니다.'}
@@ -280,21 +280,21 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
           </div>
 
           <label className={labelCls}>주문별 금액 — 합계가 결제 금액이 됩니다</label>
-          <div className="rounded-lg border border-gray-200 bg-white divide-y divide-gray-100">
+          <div className="rounded-lg border border-slate-300 bg-white divide-y divide-slate-200">
             {picked.map(c => (
               <div key={c.order_id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm flex-wrap">
                 <b className="tabular-nums">{c.order_no ?? '-'}</b>
-                {c.order_id !== orderId && <span className="text-xs text-gray-500 truncate max-w-[12rem]">{c.customer_name}</span>}
-                <span className="text-[0.6875rem] text-gray-400">미결제 {won(c.unpaid)}</span>
+                {c.order_id !== orderId && <span className="text-xs text-slate-600 truncate max-w-[12rem]">{c.customer_name}</span>}
+                <span className="text-xs text-slate-500">미결제 {won(c.unpaid)}</span>
                 <span className="ml-auto flex items-center gap-1.5">
                   <input value={alloc[c.order_id] ? won(num(alloc[c.order_id])) : ''} inputMode="numeric"
                     onChange={e => setAlloc(a => ({ ...a, [c.order_id]: e.target.value.replace(/[^\d]/g, '') }))}
                     className="w-28 border border-amber-300 bg-amber-50 rounded-lg px-2 py-1 text-sm text-right font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-slate-900" />
                   <button type="button" onClick={() => setAlloc(a => ({ ...a, [c.order_id]: String(c.unpaid) }))}
-                    className="text-[0.6875rem] px-1.5 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">전액</button>
+                    className="text-xs px-1.5 py-1 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">전액</button>
                   {c.order_id !== orderId && (
                     <button type="button" onClick={() => setAlloc(a => { const n = { ...a }; delete n[c.order_id]; return n })}
-                      className="text-[0.6875rem] px-1.5 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">빼기</button>
+                      className="text-xs px-1.5 py-1 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">빼기</button>
                   )}
                 </span>
               </div>
@@ -303,27 +303,27 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             {others.length > 0 && (
               <button type="button" onClick={() => setShowOthers(v => !v)}
-                className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white text-gray-600 hover:bg-gray-50">
+                className="text-xs px-2 py-1 border border-slate-400 rounded-lg bg-white text-slate-700 hover:bg-slate-50">
                 {showOthers ? '다른 주문 접기' : `같은 매출처의 다른 주문 추가 (${others.length}건)`}
               </button>
             )}
-            <span className="ml-auto text-sm text-gray-700">결제 금액 <b className="tabular-nums">{won(total)}원</b>
-              {picked.length > 1 && <span className="text-xs text-gray-400"> · 주문 {picked.length}건</span>}</span>
+            <span className="ml-auto text-sm text-slate-800">결제 금액 <b className="tabular-nums">{won(total)}원</b>
+              {picked.length > 1 && <span className="text-xs text-slate-500"> · 주문 {picked.length}건</span>}</span>
           </div>
           {showOthers && others.length > 0 && (
-            <div className="mt-2 rounded-lg border border-gray-200 bg-white divide-y divide-gray-100 max-h-48 overflow-y-auto">
+            <div className="mt-2 rounded-lg border border-slate-300 bg-white divide-y divide-slate-200 max-h-48 overflow-y-auto">
               {others.map(c => (
                 <button key={c.order_id} type="button" onClick={() => setAlloc(a => ({ ...a, [c.order_id]: String(c.unpaid) }))}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-sm text-left hover:bg-gray-50">
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-sm text-left hover:bg-slate-50">
                   <b className="tabular-nums">{c.order_no ?? '-'}</b>
-                  <span className="text-xs text-gray-400 tabular-nums">{c.order_date}</span>
-                  <span className="text-xs text-gray-500 truncate">{c.customer_name}</span>
-                  <span className="ml-auto text-xs text-gray-600 tabular-nums">미결제 {won(c.unpaid)}</span>
+                  <span className="text-xs text-slate-500 tabular-nums">{c.order_date}</span>
+                  <span className="text-xs text-slate-600 truncate">{c.customer_name}</span>
+                  <span className="ml-auto text-xs text-slate-700 tabular-nums">미결제 {won(c.unpaid)}</span>
                 </button>
               ))}
             </div>
           )}
-          <div className="mt-2 text-[0.6875rem] text-gray-400">
+          <div className="mt-2 text-xs text-slate-500">
             카드번호 전체 · 유효기간은 적지 않습니다(승인번호와 뒤 4자리로 대조). 기록만으로는 미수가 줄지 않고, 매칭된 뒤에 줄어듭니다.
           </div>
           {majorChanged && (
@@ -333,7 +333,7 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
           )}
           {err && <div className="mt-1.5 text-xs text-red-600">{err}</div>}
           <div className="flex justify-end gap-2 mt-2.5">
-            <button onClick={() => setOpen(false)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white">취소</button>
+            <button onClick={() => setOpen(false)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm bg-white">취소</button>
             <button onClick={submit} disabled={busy || total <= 0 || kindNeeded || (majorChanged && !reasonReady(reason))}
               title={kindNeeded ? (method === 'card' ? '카드 결제 방식과 과세 구분을 고르세요' : '과세 구분을 고르세요') : undefined}
               className="px-3 py-1.5 rounded-lg text-sm bg-slate-900 text-white font-semibold hover:bg-slate-700 disabled:opacity-40">
@@ -351,8 +351,8 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
         return (
           <div className="mb-3 p-3 rounded-xl border border-orange-300 bg-orange-50">
             <div className="flex items-center gap-2 flex-wrap mb-2">
-              <b className="text-sm text-gray-900">{act.type === 'cancel' ? '결제 취소 기록' : line ? '취소 줄 삭제' : '결제 기록 삭제'}</b>
-              <span className="text-xs text-gray-600">{SHORT[act.rec.method]} {act.rec.pay_date} · {clueOf(act.rec)} · {won(line ? line.amount : act.rec.amount)}원</span>
+              <b className="text-sm text-slate-900">{act.type === 'cancel' ? '결제 취소 기록' : line ? '취소 줄 삭제' : '결제 기록 삭제'}</b>
+              <span className="text-xs text-slate-700">{SHORT[act.rec.method]} {act.rec.pay_date} · {clueOf(act.rec)} · {won(line ? line.amount : act.rec.amount)}원</span>
             </div>
             {act.type === 'cancel' ? (<>
               <div className="flex items-end gap-3 flex-wrap mb-2.5">
@@ -363,19 +363,19 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
                 <div className="flex gap-1">
                   {([[true, '전액 취소'], [false, '부분 취소']] as const).map(([v, label]) => (
                     <button key={label} type="button" onClick={() => setCancelFull(v)}
-                      className={`px-3 py-1.5 rounded-lg text-xs border ${cancelFull === v ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>{label}</button>
+                      className={`px-3 py-1.5 rounded-lg text-xs border ${cancelFull === v ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>{label}</button>
                   ))}
                 </div>
-                <span className="text-sm text-gray-700">취소 금액 <b className="tabular-nums text-red-700">−{won(cancelTotal)}원</b></span>
+                <span className="text-sm text-slate-800">취소 금액 <b className="tabular-nums text-red-700">−{won(cancelTotal)}원</b></span>
               </div>
               {!cancelFull && (
-                <div className="mb-2.5 rounded-lg border border-gray-200 bg-white divide-y divide-gray-100">
+                <div className="mb-2.5 rounded-lg border border-slate-300 bg-white divide-y divide-slate-200">
                   {act.rec.orders.map(o => {
                     const left = Math.max(0, o.amount - canceledOf(act.rec, o.order_id))
                     return (
                       <div key={o.order_id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm flex-wrap">
                         <b className="tabular-nums">{o.order_no ?? '-'}</b>
-                        <span className="text-[0.6875rem] text-gray-400">취소 가능 {won(left)}</span>
+                        <span className="text-xs text-slate-500">취소 가능 {won(left)}</span>
                         <input value={cancelAlloc[o.order_id] ? won(num(cancelAlloc[o.order_id])) : ''} inputMode="numeric"
                           onChange={e => setCancelAlloc(a => ({ ...a, [o.order_id]: e.target.value.replace(/[^\d]/g, '') }))}
                           className="ml-auto w-28 border border-amber-300 bg-amber-50 rounded-lg px-2 py-1 text-sm text-right font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-slate-900" />
@@ -385,20 +385,20 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
                 </div>
               )}
               <ReasonPicker kind="cancel" value={actReason} onChange={setActReason} label="취소 사유" />
-              <div className="mt-2 text-[0.6875rem] text-gray-500">
+              <div className="mt-2 text-xs text-slate-600">
                 실제로 {act.rec.method === 'card' ? '카드 승인을 취소' : act.rec.method === 'invoice' ? '취소 계산서를 발행' : '돈을 돌려준'}한 경우에만 남깁니다. 기록을 잘못 적은 것이면 &quot;삭제&quot;를 쓰세요.
                 취소만으로는 미수가 바뀌지 않고, 회계가 {act.rec.method === 'card' ? '카드 매출의 취소 내역' : act.rec.method === 'invoice' ? '홈택스 취소 계산서' : '통장 출금'}과 매칭하면 바뀝니다.
               </div>
             </>) : (<>
               <ReasonPicker kind="delete" value={actReason} onChange={setActReason} label="삭제 사유" />
-              <div className="mt-2 text-[0.6875rem] text-gray-500">
+              <div className="mt-2 text-xs text-slate-600">
                 {line ? '잘못 남긴 취소 줄을 없앱니다.' : '잘못 적은 기록을 없앱니다. 실제로 결제했다가 되돌린 것이면 삭제가 아니라 "취소"를 쓰세요.'}
                 {!line && act.rec.orders.length > 1 && ` 주문 ${act.rec.orders.length}건에 걸친 기록이며 모두에서 지워집니다.`}
               </div>
             </>)}
             {actErr && <div className="mt-1.5 text-xs text-red-600">{actErr}</div>}
             <div className="flex justify-end gap-2 mt-2.5">
-              <button onClick={() => setAct(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white">닫기</button>
+              <button onClick={() => setAct(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm bg-white">닫기</button>
               <button onClick={submitAct} disabled={actBusy || !reasonReady(actReason) || (act.type === 'cancel' && cancelTotal <= 0)}
                 className="px-3 py-1.5 rounded-lg text-sm bg-slate-900 text-white font-semibold hover:bg-slate-700 disabled:opacity-40">
                 {actBusy ? '처리 중...' : act.type === 'cancel' ? '취소 기록 저장' : '삭제'}
@@ -409,12 +409,12 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
       })()}
 
       {data.records.length === 0 ? (
-        !open && <div className="text-xs text-gray-400 py-1">결제 기록이 아직 없습니다.</div>
+        !open && <div className="text-xs text-slate-500 py-1">결제 기록이 아직 없습니다.</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[40rem]">
             <thead>
-              <tr className="text-left text-[0.6875rem] text-gray-500 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-600 border-b border-slate-300">
                 <th className="py-1.5 pr-2 font-normal">결제일</th>
                 <th className="py-1.5 pr-2 font-normal">수단</th>
                 {kinds && <th className="py-1.5 pr-2 font-normal">구분</th>}
@@ -434,87 +434,87 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
                 const cancelTip = (r.cancels ?? []).map(c => `취소 ${c.pay_date} −${won(c.amount)}원 · ${c.reason_text ?? '사유 없음'} · ${c.created_by_name ?? ''}`).join('\n')
                 return (
                   <Fragment key={r.id}>
-                  <tr className={`border-b border-gray-100 align-top ${dead ? 'text-gray-400' : ''}`}>
+                  <tr className={`border-b border-slate-200 align-top ${dead ? 'text-slate-500' : ''}`}>
                     <td className="py-1.5 pr-2 tabular-nums whitespace-nowrap">{r.pay_date}</td>
                     <td className="py-1.5 pr-2">
-                      <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${BADGE[r.method]}`}>{SHORT[r.method]}</span>
+                      <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${BADGE[r.method]}`}>{SHORT[r.method]}</span>
                     </td>
                     {kinds && (
-                      <td className="py-1.5 pr-2 text-xs text-gray-700 whitespace-nowrap">
-                        {r.method === 'transfer' ? <span className="text-gray-300">-</span>
+                      <td className="py-1.5 pr-2 text-xs text-slate-800 whitespace-nowrap">
+                        {r.method === 'transfer' ? <span className="text-slate-400">-</span>
                           : kindLabel(r) ?? (<>
-                            <span className="inline-block px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-[0.6875rem] text-gray-500">미기재</span>
-                            {r.confirmed_at && r.source_kind && <div className="text-[0.6875rem] text-emerald-700 mt-0.5">원본: {r.source_kind}</div>}
+                            <span className="inline-block px-1.5 py-0.5 rounded border border-slate-300 bg-slate-50 text-xs text-slate-600">미기재</span>
+                            {r.confirmed_at && r.source_kind && <div className="text-xs text-emerald-700 mt-0.5">원본: {r.source_kind}</div>}
                           </>)}
                       </td>
                     )}
-                    <td className="py-1.5 pr-2 text-xs text-gray-700">
+                    <td className="py-1.5 pr-2 text-xs text-slate-800">
                       {clueOf(r)}
-                      {r.memo && <div className="text-[0.6875rem] text-gray-400">{r.memo}</div>}
+                      {r.memo && <div className="text-xs text-slate-500">{r.memo}</div>}
                     </td>
                     <td className="py-1.5 pr-2 text-right tabular-nums whitespace-nowrap">
                       <b className={dead ? 'line-through font-normal' : ''}>{won(mine)}</b>
                       {otherNos.length > 0 && (
-                        <div className="text-[0.6875rem] text-gray-400" title={otherNos.join(', ')}>결제 {won(r.amount)}원 · 다른 주문 {otherNos.length}건 포함</div>
+                        <div className="text-xs text-slate-500" title={otherNos.join(', ')}>결제 {won(r.amount)}원 · 다른 주문 {otherNos.length}건 포함</div>
                       )}
                     </td>
-                    <td className="py-1.5 pr-2 text-xs text-gray-700 whitespace-nowrap">
+                    <td className="py-1.5 pr-2 text-xs text-slate-800 whitespace-nowrap">
                       {r.created_by_name ?? '-'}
-                      <div className="text-[0.6875rem] text-gray-400 tabular-nums">{stamp(r.created_at)}</div>
+                      <div className="text-xs text-slate-500 tabular-nums">{stamp(r.created_at)}</div>
                     </td>
                     <td className="py-1.5 pr-2 text-xs whitespace-nowrap">
                       {dead ? (
-                        <span title={cancelTip} className="inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-slate-200 text-slate-600 cursor-help">취소됨</span>
+                        <span title={cancelTip} className="inline-block px-1.5 py-0.5 rounded text-xs font-semibold bg-slate-200 text-slate-700 cursor-help">취소됨</span>
                       ) : r.confirmed_at ? (<>
-                        <span className="inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-green-100 text-green-800">매칭 완료</span>
-                        <div className="text-[0.6875rem] text-gray-400 tabular-nums">{r.confirmed_by_name ?? ''} {stamp(r.confirmed_at)}</div>
+                        <span className="inline-block px-1.5 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">매칭 완료</span>
+                        <div className="text-xs text-slate-500 tabular-nums">{r.confirmed_by_name ?? ''} {stamp(r.confirmed_at)}</div>
                       </>) : (
-                        <span className="inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-amber-100 text-amber-800">매칭 대기</span>
+                        <span className="inline-block px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">매칭 대기</span>
                       )}
                       {!r.confirmed_at && r.last_release && (
                         <div><span title={`매칭 해제 사유: ${r.last_release.text}\n${r.last_release.by ?? ''} · ${stamp(r.last_release.at)}`}
-                          className="inline-block mt-0.5 px-1.5 py-0.5 rounded border border-gray-200 text-[0.6875rem] text-gray-500 cursor-help">매칭 해제됨</span></div>
+                          className="inline-block mt-0.5 px-1.5 py-0.5 rounded border border-slate-300 text-xs text-slate-600 cursor-help">매칭 해제됨</span></div>
                       )}
                       {!dead && canceled > 0 && (
-                        <div><span title={cancelTip} className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-orange-100 text-orange-800 cursor-help">부분 취소 · 남은 {won(r.amount - canceled)}</span></div>
+                        <div><span title={cancelTip} className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-800 cursor-help">부분 취소 · 남은 {won(r.amount - canceled)}</span></div>
                       )}
                       {r.reason_text && (
-                        <div><span title={`수정 사유: ${r.reason_text}`} className="inline-block mt-0.5 px-1.5 py-0.5 rounded border border-gray-200 text-[0.6875rem] text-gray-500 cursor-help">수정됨</span></div>
+                        <div><span title={`수정 사유: ${r.reason_text}`} className="inline-block mt-0.5 px-1.5 py-0.5 rounded border border-slate-300 text-xs text-slate-600 cursor-help">수정됨</span></div>
                       )}
                     </td>
                     <td className="py-1.5 text-right whitespace-nowrap">
                       {data.can_record && !r.confirmed_at && canceled === 0 && (<>
-                        <button onClick={() => openForm(r)} className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 mr-1">수정</button>
+                        <button onClick={() => openForm(r)} className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50 mr-1">수정</button>
                       </>)}
                       {data.can_record && data.cancelable && !dead && (
                         <button onClick={() => openAct('cancel', r)} title="실제로 결제를 되돌린 경우 — 기록은 지워지지 않고 취소 줄이 남습니다"
-                          className="text-[0.6875rem] px-2 py-0.5 border border-orange-300 rounded text-orange-700 hover:bg-orange-50 mr-1">취소</button>
+                          className="text-xs px-2 py-0.5 border border-orange-300 rounded text-orange-700 hover:bg-orange-50 mr-1">취소</button>
                       )}
                       {data.can_record && !r.confirmed_at && canceled === 0 && (
-                        <button onClick={() => remove(r)} title="잘못 적은 기록을 없앱니다" className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">삭제</button>
+                        <button onClick={() => remove(r)} title="잘못 적은 기록을 없앱니다" className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">삭제</button>
                       )}
-                      {r.confirmed_at && !data.cancelable && <span className="text-[0.6875rem] text-gray-400">잠김</span>}
+                      {r.confirmed_at && !data.cancelable && <span className="text-xs text-slate-500">잠김</span>}
                     </td>
                   </tr>
                   {(r.cancels ?? []).map(c => {
                     const cMine = c.orders.find(o => o.order_id === orderId)?.amount ?? 0
                     const tip = `취소 사유: ${c.reason_text ?? '없음'}\n기록: ${c.created_by_name ?? ''} ${stamp(c.created_at)}${c.confirmed_at ? `\n매칭: ${c.confirmed_by_name ?? ''} ${stamp(c.confirmed_at)}` : ''}`
                     return (
-                      <tr key={c.id} className="border-b border-gray-100 align-top bg-orange-50/60">
-                        <td className="py-1.5 pr-2 pl-3 tabular-nums whitespace-nowrap text-gray-600">└ {c.pay_date}</td>
-                        <td className="py-1.5 pr-2"><span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-orange-100 text-orange-800">취소</span></td>
+                      <tr key={c.id} className="border-b border-slate-200 align-top bg-orange-50/60">
+                        <td className="py-1.5 pr-2 pl-3 tabular-nums whitespace-nowrap text-slate-700">└ {c.pay_date}</td>
+                        <td className="py-1.5 pr-2"><span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-800">취소</span></td>
                         {kinds && <td className="py-1.5 pr-2"></td>}
-                        <td className="py-1.5 pr-2 text-xs text-gray-600">{c.reason_text ?? ''}</td>
+                        <td className="py-1.5 pr-2 text-xs text-slate-700">{c.reason_text ?? ''}</td>
                         <td className="py-1.5 pr-2 text-right tabular-nums whitespace-nowrap text-red-700"><b>−{won(cMine)}</b>
-                          {c.amount !== cMine && <div className="text-[0.6875rem] text-gray-400">취소 {won(c.amount)}원 중</div>}
+                          {c.amount !== cMine && <div className="text-xs text-slate-500">취소 {won(c.amount)}원 중</div>}
                         </td>
-                        <td className="py-1.5 pr-2 text-xs text-gray-700 whitespace-nowrap">{c.created_by_name ?? '-'}<div className="text-[0.6875rem] text-gray-400 tabular-nums">{stamp(c.created_at)}</div></td>
+                        <td className="py-1.5 pr-2 text-xs text-slate-800 whitespace-nowrap">{c.created_by_name ?? '-'}<div className="text-xs text-slate-500 tabular-nums">{stamp(c.created_at)}</div></td>
                         <td className="py-1.5 pr-2 text-xs whitespace-nowrap">
-                          <span title={tip} className={`inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold cursor-help ${c.confirmed_at ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{c.confirmed_at ? '취소 매칭 완료' : '취소 대기'}</span>
+                          <span title={tip} className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold cursor-help ${c.confirmed_at ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{c.confirmed_at ? '취소 매칭 완료' : '취소 대기'}</span>
                         </td>
                         <td className="py-1.5 text-right whitespace-nowrap">
                           {data.can_record && !c.confirmed_at && (
-                            <button onClick={() => openAct('delete', r, c.id)} className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">삭제</button>
+                            <button onClick={() => openAct('delete', r, c.id)} className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">삭제</button>
                           )}
                         </td>
                       </tr>

@@ -31,14 +31,14 @@ const COLOR: Record<ScheduleKind, string> = {
   tax: 'bg-sky-100 text-sky-700',
   company: 'bg-emerald-100 text-emerald-700',
   meeting: 'bg-orange-100 text-orange-700',
-  other: 'bg-gray-100 text-gray-600',
+  other: 'bg-slate-100 text-slate-700',
   birthday: 'bg-fuchsia-100 text-fuchsia-700',
   holiday: 'bg-rose-100 text-rose-600',
 }
 const DOT: Record<ScheduleKind, string> = {
   leave: 'bg-red-500', leave_pending: 'bg-red-200', parttime: 'bg-violet-500',
   loan: 'bg-amber-500', payroll: 'bg-yellow-500', tax: 'bg-sky-500',
-  company: 'bg-emerald-500', meeting: 'bg-orange-500', other: 'bg-gray-400',
+  company: 'bg-emerald-500', meeting: 'bg-orange-500', other: 'bg-slate-400',
   birthday: 'bg-fuchsia-500', holiday: 'bg-rose-300',
 }
 // 자금 항목 — 회계 권한이 없으면 서버가 아예 안 보내므로 칩도 숨긴다
@@ -119,17 +119,17 @@ export default function CalendarTab() {
     <div>
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1">
-          <button onClick={() => moveMonth(-1)} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">이전</button>
+          <button onClick={() => moveMonth(-1)} className="px-2 py-1 border border-slate-400 rounded text-xs hover:bg-slate-50">이전</button>
           <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-            className="border border-gray-300 rounded-lg px-2 py-1 text-sm" />
-          <button onClick={() => moveMonth(1)} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">다음</button>
-          <button onClick={() => setMonth(kstMonthNow())} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50 ml-1">이번 달</button>
+            className="border border-slate-400 rounded-lg px-2 py-1 text-sm" />
+          <button onClick={() => moveMonth(1)} className="px-2 py-1 border border-slate-400 rounded text-xs hover:bg-slate-50">다음</button>
+          <button onClick={() => setMonth(kstMonthNow())} className="px-2 py-1 border border-slate-400 rounded text-xs hover:bg-slate-50 ml-1">이번 달</button>
         </div>
-        <div className="flex border border-gray-300 rounded-lg overflow-hidden text-xs font-medium">
+        <div className="flex border border-slate-400 rounded-lg overflow-hidden text-xs font-medium">
           <button onClick={() => setView('month')}
-            className={`px-3 py-1.5 ${view === 'month' ? 'bg-slate-900 text-white' : 'hover:bg-gray-50'}`}>월 캘린더</button>
+            className={`px-3 py-1.5 ${view === 'month' ? 'bg-slate-900 text-white' : 'hover:bg-slate-50'}`}>월 캘린더</button>
           <button onClick={() => setView('timeline')}
-            className={`px-3 py-1.5 ${view === 'timeline' ? 'bg-slate-900 text-white' : 'hover:bg-gray-50'}`}>기간 타임라인</button>
+            className={`px-3 py-1.5 ${view === 'timeline' ? 'bg-slate-900 text-white' : 'hover:bg-slate-50'}`}>기간 타임라인</button>
         </div>
       </div>
 
@@ -145,7 +145,7 @@ export default function CalendarTab() {
           return (
             <button key={k} onClick={() => toggle(k)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                on ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}>
+                on ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-600 hover:bg-slate-50'}`}>
               <span className={`w-2 h-2 rounded-sm ${DOT[k]}`} />
               {KIND_LABEL[k]} {n}
             </button>
@@ -153,18 +153,18 @@ export default function CalendarTab() {
         })}
       </div>
 
-      {loading ? <div className="text-center py-20 text-gray-400">로딩 중...</div> : data && (
+      {loading ? <div className="text-center py-20 text-slate-500">로딩 중...</div> : data && (
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-4">
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="bg-white border border-slate-300 rounded-xl p-4">
             {view === 'month' ? (
               <>
                 <div className="grid grid-cols-7 gap-1">
                   {DOW_LABEL.map((d, i) => (
-                    <div key={d} className={`text-[0.6875rem] font-semibold text-center py-1 ${
-                      i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>{d}</div>
+                    <div key={d} className={`text-xs font-semibold text-center py-1 ${
+                      i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-slate-600'}`}>{d}</div>
                   ))}
                   {cells.map((date, i) => {
-                    if (!date) return <div key={`e${i}`} className="min-h-[86px] rounded-lg bg-gray-50/60" />
+                    if (!date) return <div key={`e${i}`} className="min-h-[86px] rounded-lg bg-slate-50/60" />
                     const dow = dayOfWeek(date)
                     const hol = data.holidays[date]
                     const evs = (byDate[date] ?? []).slice().sort(sortEvents)
@@ -173,21 +173,21 @@ export default function CalendarTab() {
                         className={`min-h-[86px] text-left rounded-lg border p-1.5 transition-colors ${
                           date === pickDate ? 'border-slate-900 ring-1 ring-slate-900'
                           : hol ? 'bg-rose-50 border-rose-200'
-                          : 'border-gray-200 hover:border-gray-300'} ${date === data.today ? 'ring-2 ring-slate-900' : ''}`}>
+                          : 'border-slate-300 hover:border-slate-400'} ${date === data.today ? 'ring-2 ring-slate-900' : ''}`}>
                         <div className="flex items-baseline gap-1">
                           <span className={`text-xs font-semibold ${
-                            hol || dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-gray-600'}`}>
+                            hol || dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-slate-700'}`}>
                             {Number(date.slice(8, 10))}
                           </span>
-                          {hol && <span className="text-[0.625rem] text-rose-600 font-medium truncate">{hol}</span>}
+                          {hol && <span className="text-xs text-rose-600 font-medium truncate">{hol}</span>}
                         </div>
                         {evs.filter(e => e.kind !== 'holiday').slice(0, 3).map((e, j) => (
-                          <span key={j} className={`block rounded px-1 py-0.5 mt-0.5 text-[0.625rem] truncate ${COLOR[e.kind]}`}>
+                          <span key={j} className={`block rounded px-1 py-0.5 mt-0.5 text-xs truncate ${COLOR[e.kind]}`}>
                             {label(e)}
                           </span>
                         ))}
                         {evs.filter(e => e.kind !== 'holiday').length > 3 && (
-                          <span className="block text-[0.625rem] text-gray-400 mt-0.5">
+                          <span className="block text-xs text-slate-500 mt-0.5">
                             +{evs.filter(e => e.kind !== 'holiday').length - 3}건
                           </span>
                         )}
@@ -195,7 +195,7 @@ export default function CalendarTab() {
                     )
                   })}
                 </div>
-                <p className="text-[0.6875rem] text-gray-400 mt-2">
+                <p className="text-xs text-slate-500 mt-2">
                   날짜를 누르면 오른쪽에 그날 상세가 열립니다. 세무 마감과 대출 상환일이 주말·공휴일이면
                   다음 영업일로 옮겨 표시하고 원래 기한을 함께 적습니다.
                 </p>
@@ -206,20 +206,20 @@ export default function CalendarTab() {
           </div>
 
           {/* 오른쪽 — 선택한 날 상세 또는 다가오는 일정 */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4 h-fit">
+          <div className="bg-white border border-slate-300 rounded-xl p-4 h-fit">
             {pickDate ? (<>
               <div className="flex items-center justify-between">
-                <h2 className="font-bold text-gray-900 text-sm">
+                <h2 className="font-bold text-slate-900 text-sm">
                   {pickDate.slice(5)} ({DOW_LABEL[dayOfWeek(pickDate)]})
                 </h2>
-                <button onClick={() => setPickDate(null)} className="text-xs text-gray-400 hover:text-gray-700">닫기</button>
+                <button onClick={() => setPickDate(null)} className="text-xs text-slate-500 hover:text-slate-800">닫기</button>
               </div>
               {data.holidays[pickDate] && (
                 <p className="text-xs text-rose-600 font-medium mt-1">{data.holidays[pickDate]}</p>
               )}
               <div className="mt-2 space-y-1.5">
                 {pickEvents.filter(e => e.kind !== 'holiday').map((e, i) => (
-                  <div key={i} className="border border-gray-100 rounded-lg px-2.5 py-1.5">
+                  <div key={i} className="border border-slate-200 rounded-lg px-2.5 py-1.5">
                     <div className="flex items-center gap-1.5">
                       <span className={`w-2 h-2 rounded-sm ${DOT[e.kind]}`} />
                       <span className="text-xs font-medium">{e.who ? `${e.who} · ` : ''}{e.title}</span>
@@ -227,28 +227,28 @@ export default function CalendarTab() {
                         <span className="ml-auto text-xs tabular-nums font-semibold">{won(e.amount)}</span>
                       )}
                     </div>
-                    {e.note && <p className="text-[0.6875rem] text-gray-400 mt-0.5">{e.note}</p>}
+                    {e.note && <p className="text-xs text-slate-500 mt-0.5">{e.note}</p>}
                   </div>
                 ))}
                 {!pickEvents.filter(e => e.kind !== 'holiday').length && (
-                  <p className="text-xs text-gray-400 py-4 text-center">일정이 없습니다.</p>
+                  <p className="text-xs text-slate-500 py-4 text-center">일정이 없습니다.</p>
                 )}
               </div>
             </>) : (<>
-              <h2 className="font-bold text-gray-900 text-sm">다가오는 일정 <span className="text-xs font-normal text-gray-400">2주</span></h2>
+              <h2 className="font-bold text-slate-900 text-sm">다가오는 일정 <span className="text-xs font-normal text-slate-500">2주</span></h2>
               <div className="mt-2 space-y-1.5">
                 {upcoming.filter(u => u.ev.kind !== 'holiday').map((u, i) => (
                   <div key={i} className="flex items-center gap-1.5 text-xs">
-                    <span className="tabular-nums text-gray-400 w-10 shrink-0">{u.date.slice(5)}</span>
+                    <span className="tabular-nums text-slate-500 w-10 shrink-0">{u.date.slice(5)}</span>
                     <span className={`w-2 h-2 rounded-sm shrink-0 ${DOT[u.ev.kind]}`} />
                     <span className="truncate">{u.ev.who ? `${u.ev.who} · ` : ''}{u.ev.title}</span>
                     {u.ev.amount != null && (
-                      <span className="ml-auto tabular-nums text-gray-600 shrink-0">{won(u.ev.amount)}</span>
+                      <span className="ml-auto tabular-nums text-slate-700 shrink-0">{won(u.ev.amount)}</span>
                     )}
                   </div>
                 ))}
                 {!upcoming.filter(u => u.ev.kind !== 'holiday').length && (
-                  <p className="text-xs text-gray-400 py-4 text-center">2주 안에 예정된 일정이 없습니다.</p>
+                  <p className="text-xs text-slate-500 py-4 text-center">2주 안에 예정된 일정이 없습니다.</p>
                 )}
               </div>
             </>)}
@@ -276,7 +276,7 @@ function Timeline({ data, events }: { data: Res; events: ScheduleEvent[] }) {
     return Array.from(m.entries())
   }, [events])
 
-  if (!rows.length) return <p className="text-sm text-gray-400 py-12 text-center">표시할 일정이 없습니다.</p>
+  if (!rows.length) return <p className="text-sm text-slate-500 py-12 text-center">표시할 일정이 없습니다.</p>
 
   return (
     <div className="overflow-x-auto">
@@ -286,20 +286,20 @@ function Timeline({ data, events }: { data: Res; events: ScheduleEvent[] }) {
           {dates.map(d => (
             <span key={d} className={`text-[0.5625rem] text-center ${
               data.holidays[d] || dayOfWeek(d) === 0 ? 'text-red-400'
-              : dayOfWeek(d) === 6 ? 'text-blue-400' : 'text-gray-400'}`}>
+              : dayOfWeek(d) === 6 ? 'text-blue-400' : 'text-slate-500'}`}>
               {col(d)}
             </span>
           ))}
         </div>
         {rows.map(([who, evs]) => (
-          <div key={who} className="grid items-center border-t border-gray-100"
+          <div key={who} className="grid items-center border-t border-slate-200"
             style={{ gridTemplateColumns: `110px repeat(${last}, 1fr)` }}>
-            <span className="text-xs font-semibold text-gray-700 py-1.5 pr-2 truncate">{who}</span>
+            <span className="text-xs font-semibold text-slate-800 py-1.5 pr-2 truncate">{who}</span>
             <div className="relative col-span-full col-start-2 h-7">
               <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${last}, 1fr)` }}>
                 {dates.map(d => (
-                  <i key={d} className={`border-r border-gray-50 ${
-                    data.holidays[d] ? 'bg-rose-50' : [0, 6].includes(dayOfWeek(d)) ? 'bg-gray-50' : ''}`} />
+                  <i key={d} className={`border-r border-slate-200 ${
+                    data.holidays[d] ? 'bg-rose-50' : [0, 6].includes(dayOfWeek(d)) ? 'bg-slate-50' : ''}`} />
                 ))}
               </div>
               {/* 휴가는 주말·공휴일에서 막대를 끊는다 (그날은 휴가가 아니라 쉬는 날) */}
@@ -310,7 +310,7 @@ function Timeline({ data, events }: { data: Res; events: ScheduleEvent[] }) {
                   const en = col(b > dates[last - 1] ? dates[last - 1] : b)
                   return (
                     <div key={`${i}-${j}`}
-                      className={`absolute top-1 h-5 rounded text-[0.625rem] leading-5 px-1.5 truncate ${COLOR[e.kind]}`}
+                      className={`absolute top-1 h-5 rounded text-xs leading-5 px-1.5 truncate ${COLOR[e.kind]}`}
                       style={{ left: `${((s - 1) / last) * 100}%`, width: `${((en - s + 1) / last) * 100}%` }}
                       title={`${e.title}${e.note ? ` — ${e.note}` : ''}`}>
                       {e.title}
@@ -321,7 +321,7 @@ function Timeline({ data, events }: { data: Res; events: ScheduleEvent[] }) {
           </div>
         ))}
       </div>
-      <p className="text-[0.6875rem] text-gray-400 mt-2">
+      <p className="text-xs text-slate-500 mt-2">
         회색은 주말, 분홍은 공휴일. 휴가 막대는 주말 · 공휴일에서 끊어 그립니다. 사람이 있는 일정은 직원별 행으로, 세무·대출은 항목 행으로 묶습니다.
       </p>
     </div>

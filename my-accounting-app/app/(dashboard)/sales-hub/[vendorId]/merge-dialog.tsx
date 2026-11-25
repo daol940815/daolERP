@@ -88,40 +88,40 @@ export default function MergeDialog({ vendorId, vendorName, onClose }: { vendorI
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
         {step === 'pick' && (
           <>
-            <h3 className="text-base font-bold text-gray-900">다른 매출처와 합치기</h3>
-            <p className="text-xs text-gray-500 mt-0.5">같은 지점이 두 매출처로 나뉜 경우에 씁니다. 합친 뒤 한쪽은 &ldquo;병합됨&rdquo;이 되고 이름은 별칭으로 남습니다.</p>
-            <label className="block text-xs text-gray-500 mt-4 mb-1">합칠 매출처 검색</label>
+            <h3 className="text-base font-bold text-slate-900">다른 매출처와 합치기</h3>
+            <p className="text-xs text-slate-600 mt-0.5">같은 지점이 두 매출처로 나뉜 경우에 씁니다. 합친 뒤 한쪽은 &ldquo;병합됨&rdquo;이 되고 이름은 별칭으로 남습니다.</p>
+            <label className="block text-xs text-slate-600 mt-4 mb-1">합칠 매출처 검색</label>
             <input autoFocus value={q} onChange={e => { setQ(e.target.value); setTarget(null) }} placeholder="이름 일부 (예: 올림픽선수촌)"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
             {!target && list.length > 0 && (
-              <div className="mt-1 border border-gray-200 rounded-lg max-h-56 overflow-y-auto">
+              <div className="mt-1 border border-slate-300 rounded-lg max-h-56 overflow-y-auto">
                 {list.map(v => (
-                  <button key={v.id} onClick={() => setTarget(v)} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0">
-                    <b className="text-gray-900">{v.name}</b>
-                    <span className="text-xs text-gray-400"> · {v.group_name ?? '업체 없음'} · {v.created_at} 등록{!v.is_active && ' · 비활성'}</span>
+                  <button key={v.id} onClick={() => setTarget(v)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-200 last:border-0">
+                    <b className="text-slate-900">{v.name}</b>
+                    <span className="text-xs text-slate-500"> · {v.group_name ?? '업체 없음'} · {v.created_at} 등록{!v.is_active && ' · 비활성'}</span>
                   </button>
                 ))}
               </div>
             )}
-            {q.trim() && !target && !list.length && <p className="text-xs text-gray-400 mt-2">검색 결과 없음</p>}
+            {q.trim() && !target && !list.length && <p className="text-xs text-slate-500 mt-2">검색 결과 없음</p>}
             {target && (
               <div className="mt-4">
-                <div className="text-xs text-gray-500 mb-1.5">어느 쪽을 남길까요? (남는 쪽의 이름 · 업체 · 사업자번호 · 청구처가 기준)</div>
+                <div className="text-xs text-slate-600 mb-1.5">어느 쪽을 남길까요? (남는 쪽의 이름 · 업체 · 사업자번호 · 청구처가 기준)</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {[{ keep: true, name: vendorName, sub: '지금 보고 있는 매출처' }, { keep: false, name: target.name, sub: `${target.group_name ?? '업체 없음'} · ${target.created_at} 등록` }].map(o => (
                     <button key={String(o.keep)} onClick={() => setKeepThis(o.keep)}
-                      className={`text-left border rounded-lg px-3 py-2 ${keepThis === o.keep ? 'border-slate-900 ring-1 ring-slate-900' : 'border-gray-200 hover:bg-gray-50'}`}>
-                      <div className="text-sm font-bold text-gray-900">{o.name}</div>
-                      <div className="text-[0.6875rem] text-gray-500">{o.sub}{keepThis === o.keep ? ' · 남김' : ' · 흡수'}</div>
+                      className={`text-left border rounded-lg px-3 py-2 ${keepThis === o.keep ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:bg-slate-50'}`}>
+                      <div className="text-sm font-bold text-slate-900">{o.name}</div>
+                      <div className="text-xs text-slate-600">{o.sub}{keepThis === o.keep ? ' · 남김' : ' · 흡수'}</div>
                     </button>
                   ))}
                 </div>
-                <button onClick={() => setTarget(null)} className="mt-2 text-xs text-gray-500 underline">다른 매출처 고르기</button>
+                <button onClick={() => setTarget(null)} className="mt-2 text-xs text-slate-600 underline">다른 매출처 고르기</button>
               </div>
             )}
             {msg && <p className="text-xs text-red-600 mt-3">{msg}</p>}
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={onClose} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
+              <button onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
               <button disabled={!target || busy} onClick={loadPreview} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-40">
                 {busy ? '확인 중...' : '미리보기'}
               </button>
@@ -131,21 +131,21 @@ export default function MergeDialog({ vendorId, vendorName, onClose }: { vendorI
 
         {step === 'preview' && pv && (
           <>
-            <h3 className="text-base font-bold text-gray-900">합치기 미리보기</h3>
-            <p className="text-sm text-gray-600 mt-1">{pv.from.name} <b>→</b> <b>{pv.into.name}</b> <span className="text-gray-400">(남김)</span></p>
+            <h3 className="text-base font-bold text-slate-900">합치기 미리보기</h3>
+            <p className="text-sm text-slate-700 mt-1">{pv.from.name} <b>→</b> <b>{pv.into.name}</b> <span className="text-slate-500">(남김)</span></p>
             <table className="w-full text-sm mt-3">
-              <thead><tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-1.5 font-medium">항목</th><th className="py-1.5 font-medium text-right">옮겨지는 것</th><th className="py-1.5 font-medium text-right">남는 쪽에 이미</th>
               </tr></thead>
               <tbody>
                 {pv.counts.filter(c => c.from > 0 || c.into > 0).map(c => (
-                  <tr key={c.key} className="border-b border-gray-50">
+                  <tr key={c.key} className="border-b border-slate-200">
                     <td className="py-1.5">{c.label}</td>
-                    <td className={`py-1.5 text-right tabular-nums ${c.from > 0 ? 'font-semibold text-gray-900' : 'text-gray-300'}`}>{c.from}</td>
-                    <td className="py-1.5 text-right tabular-nums text-gray-500">{c.into}</td>
+                    <td className={`py-1.5 text-right tabular-nums ${c.from > 0 ? 'font-semibold text-slate-900' : 'text-slate-400'}`}>{c.from}</td>
+                    <td className="py-1.5 text-right tabular-nums text-slate-600">{c.into}</td>
                   </tr>
                 ))}
-                <tr><td className="py-1.5" colSpan={3}><span className="text-xs text-gray-500">이름 &lsquo;{pv.from.name}&rsquo;은(는) 별칭으로 남아 이 이름으로 들어와도 남는 쪽으로 잡힙니다.</span></td></tr>
+                <tr><td className="py-1.5" colSpan={3}><span className="text-xs text-slate-600">이름 &lsquo;{pv.from.name}&rsquo;은(는) 별칭으로 남아 이 이름으로 들어와도 남는 쪽으로 잡힙니다.</span></td></tr>
               </tbody>
             </table>
             {pv.same_name.length > 0 && (
@@ -158,7 +158,7 @@ export default function MergeDialog({ vendorId, vendorName, onClose }: { vendorI
             {pv.blockers.map((w, i) => <div key={i} className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{w}</div>)}
             {msg && <p className="text-xs text-red-600 mt-3">{msg}</p>}
             <div className="flex justify-end gap-2 mt-5">
-              <button disabled={busy} onClick={() => setStep('pick')} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">뒤로</button>
+              <button disabled={busy} onClick={() => setStep('pick')} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">뒤로</button>
               <button disabled={busy || pv.blockers.length > 0} onClick={run} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-40">
                 {busy ? '합치는 중...' : '합치기 실행'}
               </button>
@@ -174,18 +174,18 @@ export default function MergeDialog({ vendorId, vendorName, onClose }: { vendorI
               {undoable && ' 잘못 합쳤으면 남은 매출처 상세의 "병합 이력"에서 취소할 수 있습니다.'}
             </div>
             {pv.same_name.length > 0 && (
-              <div className="mt-3 border border-gray-200 rounded-lg p-3">
-                <div className="text-sm font-bold text-gray-900">같은 이름 담당자 — 같은 분이면 합쳐 주세요</div>
-                <p className="text-[0.6875rem] text-gray-500 mt-0.5">남길 분을 고르고 합치면 주문 · 상담 · 과거 매출 · 직함 이력이 그분으로 모이고, 같은 지점의 중복 배정 한 줄이 정리됩니다. 다른 분이면 그대로 두세요.</p>
+              <div className="mt-3 border border-slate-300 rounded-lg p-3">
+                <div className="text-sm font-bold text-slate-900">같은 이름 담당자 — 같은 분이면 합쳐 주세요</div>
+                <p className="text-xs text-slate-600 mt-0.5">남길 분을 고르고 합치면 주문 · 상담 · 과거 매출 · 직함 이력이 그분으로 모이고, 같은 지점의 중복 배정 한 줄이 정리됩니다. 다른 분이면 그대로 두세요.</p>
                 {pv.same_name.map(g => (
                   <div key={g.name} className="mt-2">
-                    <div className="text-xs font-semibold text-gray-700">{g.name} 님</div>
+                    <div className="text-xs font-semibold text-slate-800">{g.name} 님</div>
                     {g.contacts.map(c => (
                       <label key={c.contact_id} className="flex items-center gap-2 text-xs py-0.5">
                         <input type="radio" disabled={personDone[g.name]} checked={keepers[g.name] === c.contact_id}
                           onChange={() => setKeepers(k => ({ ...k, [g.name]: c.contact_id }))} />
                         <span className="font-mono">{c.code ?? '코드 없음'}</span>
-                        <span className="text-gray-400">{c.vendor_side === 'into' ? '남은 매출처의 기록' : '흡수된 매출처의 기록'}</span>
+                        <span className="text-slate-500">{c.vendor_side === 'into' ? '남은 매출처의 기록' : '흡수된 매출처의 기록'}</span>
                         <a href={`/sales-hub/contacts/${c.contact_id}`} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">상세</a>
                       </label>
                     ))}

@@ -43,14 +43,14 @@ const STATUS_BADGE: Record<string, string> = {
 const SEV_BADGE: Record<Severity, string> = {
   '확인 필요': 'bg-red-600 text-white',
   '주의': 'bg-orange-400 text-white',
-  '정상 대기': 'bg-gray-200 text-gray-600',
+  '정상 대기': 'bg-slate-200 text-slate-700',
 }
 
 const monthStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 
 export default function VendorCyclePage() {
   return (
-    <Suspense fallback={<div className="p-6 text-gray-400 text-sm">로딩 중...</div>}>
+    <Suspense fallback={<div className="p-6 text-slate-500 text-sm">로딩 중...</div>}>
       <VendorCycleInner />
     </Suspense>
   )
@@ -134,33 +134,33 @@ function VendorCycleInner() {
     .sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity])[0] ?? null
 
   const stage = (label: string, main: string, sub: string, blocked: boolean) => (
-    <div className={`flex-1 border rounded-xl p-4 ${blocked ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-white'}`}>
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{main}</p>
-      <p className="text-xs text-gray-500 mt-0.5">{sub}</p>
+    <div className={`flex-1 border rounded-xl p-4 ${blocked ? 'border-orange-300 bg-orange-50' : 'border-slate-300 bg-white'}`}>
+      <p className="text-xs text-slate-600">{label}</p>
+      <p className="text-xl font-bold text-slate-900 mt-1 tabular-nums">{main}</p>
+      <p className="text-xs text-slate-600 mt-0.5">{sub}</p>
     </div>
   )
   const arrow = (blocked: boolean) => (
-    <div className={`px-1 text-2xl ${blocked ? 'text-orange-500 font-bold' : 'text-gray-300'}`}>→</div>
+    <div className={`px-1 text-2xl ${blocked ? 'text-orange-500 font-bold' : 'text-slate-400'}`}>→</div>
   )
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Link href={`/orders/purchase-hub?tab=exceptions&vendor=${vendorId}`} className="text-sm text-gray-500 hover:text-gray-900">← 매입처 관리 · 결제 예외</Link>
+      <Link href={`/orders/purchase-hub?tab=exceptions&vendor=${vendorId}`} className="text-sm text-slate-600 hover:text-slate-900">← 매입처 관리 · 결제 예외</Link>
 
       <div className="flex items-start justify-between mt-2 mb-1">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">{vendorName || '거래처 진행상태'}</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{vendorName || '거래처 진행상태'}</h1>
           {worst && (
-            <span className={`px-2 py-1 rounded text-xs font-medium ${STATUS_BADGE[worst.status] ?? 'bg-gray-100'}`}>{worst.status}</span>
+            <span className={`px-2 py-1 rounded text-xs font-medium ${STATUS_BADGE[worst.status] ?? 'bg-slate-100'}`}>{worst.status}</span>
           )}
           {!worst && !loading && totals && (
             <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">이상 없음</span>
           )}
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <Link href={`/purchase-hub/${vendorId}`} className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">거래처 상세</Link>
-          <Link href={`/transactions?vendorId=${vendorId}`} className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">통장 거래</Link>
+          <Link href={`/purchase-hub/${vendorId}`} className="px-2.5 py-1.5 border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-50">거래처 상세</Link>
+          <Link href={`/transactions?vendorId=${vendorId}`} className="px-2.5 py-1.5 border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-50">통장 거래</Link>
           <button onClick={() => setShowModal(true)}
             className="px-2.5 py-1.5 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-700">지급 후보</button>
         </div>
@@ -172,14 +172,14 @@ function VendorCycleInner() {
       {/* 기간 */}
       <div className="flex items-center gap-2 my-3">
         <input type="month" value={monthFrom} onChange={e => setMonthFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-        <span className="text-gray-400 text-sm">~</span>
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+        <span className="text-slate-500 text-sm">~</span>
         <input type="month" value={monthTo} onChange={e => setMonthTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
       </div>
 
       {loading ? (
-        <p className="text-gray-400 text-sm py-10 text-center">불러오는 중...</p>
+        <p className="text-slate-500 text-sm py-10 text-center">불러오는 중...</p>
       ) : totals && (
         <>
           {/* 파이프라인: 단계 사이 화살표에 막힘 표시 (설계 §3) */}
@@ -196,16 +196,16 @@ function VendorCycleInner() {
 
           {/* 거래처 단위 예외 (지급 대기 · 과다 지급) */}
           {vendorLevel.map((v, i) => (
-            <div key={i} className="flex items-center gap-2 border border-gray-200 rounded-lg px-4 py-2.5 mb-2 bg-white text-sm">
-              <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${STATUS_BADGE[v.status] ?? 'bg-gray-100'}`}>{v.status}</span>
-              <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${SEV_BADGE[v.severity]}`}>{v.severity}</span>
-              <span className="text-gray-700 text-xs">{v.detail}</span>
-              {v.cause && <span className="text-gray-400 text-xs">· {v.cause}</span>}
+            <div key={i} className="flex items-center gap-2 border border-slate-300 rounded-lg px-4 py-2.5 mb-2 bg-white text-sm">
+              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[v.status] ?? 'bg-slate-100'}`}>{v.status}</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${SEV_BADGE[v.severity]}`}>{v.severity}</span>
+              <span className="text-slate-800 text-xs">{v.detail}</span>
+              {v.cause && <span className="text-slate-500 text-xs">· {v.cause}</span>}
               <span className="ml-auto inline-flex items-center gap-1.5">
                 <ReviewBadge review={v.review} />
                 {reviewsAvailable && (!v.review || v.review.stale) && (
                   <button onClick={() => review(v)} disabled={reviewing === `${v.month}|${v.status}`}
-                    className="px-2 py-1 border border-gray-300 text-gray-600 rounded text-xs hover:bg-gray-100 disabled:opacity-50">
+                    className="px-2 py-1 border border-slate-400 text-slate-700 rounded text-xs hover:bg-slate-100 disabled:opacity-50">
                     확인
                   </button>
                 )}
@@ -214,9 +214,9 @@ function VendorCycleInner() {
           ))}
 
           {/* 월별 셀 (클릭 = 근거 레코드 드릴다운) */}
-          <div className="overflow-x-auto border border-gray-200 rounded-lg mt-3">
+          <div className="overflow-x-auto border border-slate-300 rounded-lg mt-3">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 text-xs">
+              <thead className="bg-slate-50 text-slate-600 text-xs">
                 <tr>
                   <th className="px-3 py-2 text-left w-24">월</th>
                   <th className="px-3 py-2 text-left w-28">상태</th>
@@ -227,41 +227,41 @@ function VendorCycleInner() {
                   <th className="px-3 py-2 w-32"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-200">
                 {months.length === 0 && (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400 text-sm">이 기간에 매입 데이터가 없습니다.</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-8 text-center text-slate-500 text-sm">이 기간에 매입 데이터가 없습니다.</td></tr>
                 )}
                 {months.map(mrow => {
                   const j = mrow.judgement
                   const det = details[mrow.month]
                   return [
-                    <tr key={mrow.month} className="hover:bg-gray-50 cursor-pointer" onClick={() => toggleMonth(mrow.month)}>
-                      <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">
-                        <span className="text-gray-400 mr-1">{expanded === mrow.month ? '▾' : '▸'}</span>{mrow.month}
+                    <tr key={mrow.month} className="hover:bg-slate-50 cursor-pointer" onClick={() => toggleMonth(mrow.month)}>
+                      <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">
+                        <span className="text-slate-500 mr-1">{expanded === mrow.month ? '▾' : '▸'}</span>{mrow.month}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         {j ? (
                           <span className="inline-flex items-center gap-1">
-                            <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${STATUS_BADGE[j.status] ?? 'bg-gray-100'}`}>{j.status}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[j.status] ?? 'bg-slate-100'}`}>{j.status}</span>
                             {j.status !== '완료' && j.status !== '경비성' && (
-                              <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${SEV_BADGE[j.severity]}`}>{j.severity}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${SEV_BADGE[j.severity]}`}>{j.severity}</span>
                             )}
                           </span>
                         ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-gray-100 text-gray-500">지급만</span>
+                          <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">지급만</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums">{mrow.erp_amount ? won(mrow.erp_amount) : <span className="text-gray-300">-</span>}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{(mrow.invoice_total ?? mrow.invoice_supply) ? won(mrow.invoice_total ?? mrow.invoice_supply) : <span className="text-gray-300">-</span>}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{mrow.paid_amount ? won(mrow.paid_amount) : <span className="text-gray-300">-</span>}</td>
-                      <td className="px-3 py-2 text-xs text-gray-500">{j?.cause ?? ''}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{mrow.erp_amount ? won(mrow.erp_amount) : <span className="text-slate-400">-</span>}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{(mrow.invoice_total ?? mrow.invoice_supply) ? won(mrow.invoice_total ?? mrow.invoice_supply) : <span className="text-slate-400">-</span>}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{mrow.paid_amount ? won(mrow.paid_amount) : <span className="text-slate-400">-</span>}</td>
+                      <td className="px-3 py-2 text-xs text-slate-600">{j?.cause ?? ''}</td>
                       <td className="px-3 py-2 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
                         {j && (
                           <span className="inline-flex items-center gap-1.5">
                             <ReviewBadge review={j.review} />
                             {reviewsAvailable && (!j.review || j.review.stale) && (
                               <button onClick={() => review(j)} disabled={reviewing === `${j.month}|${j.status}`}
-                                className="px-2 py-1 border border-gray-300 text-gray-600 rounded text-xs hover:bg-gray-100 disabled:opacity-50">
+                                className="px-2 py-1 border border-slate-400 text-slate-700 rounded text-xs hover:bg-slate-100 disabled:opacity-50">
                                 확인
                               </button>
                             )}
@@ -271,47 +271,47 @@ function VendorCycleInner() {
                     </tr>,
                     expanded === mrow.month && (
                       <tr key={`${mrow.month}-detail`}>
-                        <td colSpan={7} className="px-4 py-3 bg-gray-50">
+                        <td colSpan={7} className="px-4 py-3 bg-slate-50">
                           {det === 'loading' || !det ? (
-                            <p className="text-gray-400 text-xs py-2">근거 레코드 불러오는 중...</p>
+                            <p className="text-slate-500 text-xs py-2">근거 레코드 불러오는 중...</p>
                           ) : (
                             <div className="grid grid-cols-3 gap-4 text-xs">
                               <div>
-                                <p className="text-gray-500 font-medium mb-1.5">ERP 품목 ({det.erp_items.length}건)</p>
-                                {det.erp_items.length === 0 && <p className="text-gray-400">없음</p>}
+                                <p className="text-slate-600 font-medium mb-1.5">ERP 품목 ({det.erp_items.length}건)</p>
+                                {det.erp_items.length === 0 && <p className="text-slate-500">없음</p>}
                                 <div className="space-y-1 max-h-56 overflow-y-auto">
                                   {det.erp_items.map(it => (
-                                    <p key={it.id} className="text-gray-700">
+                                    <p key={it.id} className="text-slate-800">
                                       {(it.order_date ?? '').slice(5, 10)} · {(it.item_name ?? '-').slice(0, 16)} × {it.quantity ?? 0} · {won(it.purchase_total)}
-                                      {it.settlement_month && <span className="text-gray-400"> (정산 {it.settlement_month})</span>}
+                                      {it.settlement_month && <span className="text-slate-500"> (정산 {it.settlement_month})</span>}
                                     </p>
                                   ))}
                                 </div>
                               </div>
                               <div>
-                                <p className="text-gray-500 font-medium mb-1.5">세금계산서 ({det.invoices.length}건)</p>
-                                {det.invoices.length === 0 && <p className="text-gray-400">없음</p>}
+                                <p className="text-slate-600 font-medium mb-1.5">세금계산서 ({det.invoices.length}건)</p>
+                                {det.invoices.length === 0 && <p className="text-slate-500">없음</p>}
                                 <div className="space-y-1 max-h-56 overflow-y-auto">
                                   {det.invoices.map(inv => (
                                     <p key={inv.id}>
                                       <Link href={`/source/tax_invoice/${inv.id}`} className="text-blue-700 hover:underline">
                                         {inv.issue_date.slice(5, 10)} · {(inv.item_name ?? '-').slice(0, 16)} · 공급가 {won(inv.supply_amount)}
                                       </Link>
-                                      <span className="text-gray-400"> {inv.payment_status === 'matched' ? '(결제확인)' : ''}</span>
+                                      <span className="text-slate-500"> {inv.payment_status === 'matched' ? '(결제확인)' : ''}</span>
                                     </p>
                                   ))}
                                 </div>
                               </div>
                               <div>
-                                <p className="text-gray-500 font-medium mb-1.5">지급 ({det.payments.length}건)</p>
-                                {det.payments.length === 0 && <p className="text-gray-400">없음</p>}
+                                <p className="text-slate-600 font-medium mb-1.5">지급 ({det.payments.length}건)</p>
+                                {det.payments.length === 0 && <p className="text-slate-500">없음</p>}
                                 <div className="space-y-1 max-h-56 overflow-y-auto">
                                   {det.payments.map((p, pi) => (
                                     <p key={pi}>
                                       <Link href={`/source/bank/${p.transaction_id}`} className="text-blue-700 hover:underline">
                                         {p.tx_date.slice(5, 10)} · {(p.description ?? '-').slice(0, 16)} · {won(p.amount)}
                                       </Link>
-                                      <span className="text-gray-400"> ({p.source})</span>
+                                      <span className="text-slate-500"> ({p.source})</span>
                                     </p>
                                   ))}
                                 </div>
@@ -327,7 +327,7 @@ function VendorCycleInner() {
             </table>
           </div>
 
-          <p className="text-xs text-gray-400 mt-3">
+          <p className="text-xs text-slate-500 mt-3">
             월을 클릭하면 그 달의 근거 레코드(ERP 품목 · 세금계산서 · 지급)가 펼쳐지고,
             계산서·지급은 원본 상세로 이동할 수 있습니다.
             &lsquo;확인&rsquo;은 잠금이 아니라 기록입니다 — 이후 금액이 바뀌면 자동으로 재검토 필요로 표시됩니다.

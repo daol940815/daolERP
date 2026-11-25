@@ -137,7 +137,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
   const toggleTag = (id: string) => setTagF(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id])
 
   if (err) return <div className="px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">{err}</div>
-  if (!data) return <div className="text-center py-20 text-gray-400">로딩 중...</div>
+  if (!data) return <div className="text-center py-20 text-slate-500">로딩 중...</div>
   if (!data.linked) return <div className="px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">직원 정보와 연결되지 않은 계정입니다. 인사 · 총무 담당자에게 연결을 요청하세요.</div>
 
   const s = data.summary ?? {}
@@ -148,26 +148,26 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
     { key: 'active', label: '진행 중', value: s.inbox_active ?? 0, cls: 'text-blue-700', sub: '수락 포함 · 내 몫' },
     { key: 'due_today', label: '오늘 마감', value: s.inbox_due_today ?? 0, cls: 'text-amber-600' },
     { key: 'overdue', label: '마감 지남', value: s.inbox_overdue ?? 0, cls: 'text-red-600', sub: '내 보고 전' },
-    { key: 'reported', label: '완료 확정 대기', value: s.inbox_reported ?? 0, cls: 'text-gray-900', sub: '내가 보고, 요청자 확정 전' },
+    { key: 'reported', label: '완료 확정 대기', value: s.inbox_reported ?? 0, cls: 'text-slate-900', sub: '내가 보고, 요청자 확정 전' },
   ] : scope === 'outbox' ? [
-    { key: 'unread', label: '미확인', value: cnt(r => r.status === 'requested'), cls: 'text-gray-900', sub: '담당자 확인 전' },
+    { key: 'unread', label: '미확인', value: cnt(r => r.status === 'requested'), cls: 'text-slate-900', sub: '담당자 확인 전' },
     { key: 'active', label: '진행 중', value: cnt(r => r.status === 'accepted' || r.status === 'in_progress'), cls: 'text-blue-700' },
     { key: 'overdue', label: '마감 지남', value: s.outbox_overdue ?? 0, cls: 'text-red-600' },
     { key: 'reported', label: '완료 확정 대기', value: s.outbox_awaiting ?? 0, cls: 'text-amber-600', sub: '내가 확정할 것' },
     { key: 'rejected', label: '반려됨', value: s.outbox_rejected ?? 0, cls: 'text-red-600', sub: '수정 후 재요청 또는 취소' },
   ] : [
     { key: 'open', label: '진행 중 전체', value: open.length, cls: 'text-blue-700', sub: '지금 열린 건' },
-    { key: 'unread', label: '미확인', value: cnt(r => r.status === 'requested'), cls: 'text-gray-900', sub: '담당자 확인 전' },
+    { key: 'unread', label: '미확인', value: cnt(r => r.status === 'requested'), cls: 'text-slate-900', sub: '담당자 확인 전' },
     { key: 'due_today', label: '오늘 마감', value: cnt(r => dueState(r, now) === 'today'), cls: 'text-amber-600' },
     { key: 'overdue', label: '마감 지남', value: cnt(r => dueState(r, now) === 'overdue'), cls: 'text-red-600', sub: '처리 보고 전' },
-    { key: 'reported', label: '완료 확정 대기', value: cnt(r => r.status === 'done_reported'), cls: 'text-gray-900', sub: '요청자 확정 전' },
+    { key: 'reported', label: '완료 확정 대기', value: cnt(r => r.status === 'done_reported'), cls: 'text-slate-900', sub: '요청자 확정 전' },
   ]
 
   const dueCell = (r: WrRow) => {
     const ds = dsOf(r)
     return (
-      <span className={`tabular-nums whitespace-nowrap ${ds === 'overdue' ? 'text-red-600 font-medium' : ds === 'today' ? 'text-amber-600 font-medium' : 'text-gray-700'}`}>
-        {fmtDue(r.due_at)}{ds === 'overdue' && <span className="ml-1.5 text-[0.625rem] px-1.5 py-0.5 rounded bg-red-100 text-red-700">지남</span>}
+      <span className={`tabular-nums whitespace-nowrap ${ds === 'overdue' ? 'text-red-600 font-medium' : ds === 'today' ? 'text-amber-600 font-medium' : 'text-slate-800'}`}>
+        {fmtDue(r.due_at)}{ds === 'overdue' && <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700">지남</span>}
       </span>
     )
   }
@@ -184,59 +184,59 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
         {cards.map(c => (
           <button key={c.key} onClick={() => setFilter(f => f === c.key ? 'all' : c.key)}
-            className={`text-left bg-white border rounded-xl px-4 py-3 transition-colors ${filter === c.key ? 'border-slate-900 ring-1 ring-slate-900' : 'border-gray-200 hover:bg-gray-50'}`}>
-            <p className="text-xs text-gray-500">{c.label}</p>
+            className={`text-left bg-white border rounded-xl px-4 py-3 transition-colors ${filter === c.key ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:bg-slate-50'}`}>
+            <p className="text-xs text-slate-600">{c.label}</p>
             <p className={`text-lg font-bold mt-0.5 tabular-nums ${c.cls}`}>{c.value}</p>
-            {c.sub && <p className="text-[0.6875rem] text-gray-400 mt-0.5">{c.sub}</p>}
+            {c.sub && <p className="text-xs text-slate-500 mt-0.5">{c.sub}</p>}
           </button>
         ))}
       </div>
       <div className="flex items-center gap-2 flex-wrap mb-3">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="제목 · 내용 · 이름 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-60 focus:outline-none focus:ring-2 focus:ring-slate-900" />
-        <select value={statusF} onChange={e => setStatusF(e.target.value as '' | WrStatus)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-60 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <select value={statusF} onChange={e => setStatusF(e.target.value as '' | WrStatus)} className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm bg-white">
           <option value="">상태: 전체</option>
           {(Object.keys(WR_STATUS_LABEL) as WrStatus[]).map(k => <option key={k} value={k}>{WR_STATUS_LABEL[k]}</option>)}
         </select>
         {scope === 'all' ? (
-          <label className="text-xs text-gray-600 flex items-center gap-1.5">생성 월 <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1 text-sm" /><span className="text-gray-400">열린 건은 달과 무관하게 전부</span></label>
+          <label className="text-xs text-slate-700 flex items-center gap-1.5">생성 월 <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="border border-slate-400 rounded-lg px-2 py-1 text-sm" /><span className="text-slate-500">열린 건은 달과 무관하게 전부</span></label>
         ) : (
-          <label className="text-xs text-gray-600 flex items-center gap-1"><input type="checkbox" checked={closed} onChange={e => setClosed(e.target.checked)} /> 완료 · 취소 포함 (최근 90일)</label>
+          <label className="text-xs text-slate-700 flex items-center gap-1"><input type="checkbox" checked={closed} onChange={e => setClosed(e.target.checked)} /> 완료 · 취소 포함 (최근 90일)</label>
         )}
         {scope !== 'outbox' && (kind || rows.some(r => r.assignees.length > 1)) && (
           <>
-            <button onClick={() => setKind(k => k === 'personal' ? '' : 'personal')} className={`text-xs px-2.5 py-1 rounded-full border ${kind === 'personal' ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`} title="담당자가 나 혼자인 요청">개인 요청만</button>
-            <button onClick={() => setKind(k => k === 'shared' ? '' : 'shared')} className={`text-xs px-2.5 py-1 rounded-full border ${kind === 'shared' ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`} title="여러 명이 담당인 요청(선착 · 공동)">공용 요청만</button>
+            <button onClick={() => setKind(k => k === 'personal' ? '' : 'personal')} className={`text-xs px-2.5 py-1 rounded-full border ${kind === 'personal' ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-700 hover:bg-slate-50'}`} title="담당자가 나 혼자인 요청">개인 요청만</button>
+            <button onClick={() => setKind(k => k === 'shared' ? '' : 'shared')} className={`text-xs px-2.5 py-1 rounded-full border ${kind === 'shared' ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-700 hover:bg-slate-50'}`} title="여러 명이 담당인 요청(선착 · 공동)">공용 요청만</button>
           </>
         )}
         {!hasTags && rows.some(r => r.title.startsWith(HELP_QUESTION_PREFIX) || r.title.startsWith(HELP_PERMISSION_PREFIX)) && (
-          <button onClick={() => setOnlyQ(v => !v)} className={`text-xs px-2.5 py-1 rounded-full border ${onlyQ ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>질문 · 권한 요청만</button>
+          <button onClick={() => setOnlyQ(v => !v)} className={`text-xs px-2.5 py-1 rounded-full border ${onlyQ ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-700 hover:bg-slate-50'}`}>질문 · 권한 요청만</button>
         )}
-        {employee && <button onClick={clearEmployee} className="text-xs px-2.5 py-1 bg-slate-100 rounded-full text-slate-700">{empName} 관련만 보는 중 ✕</button>}
-        {(filter !== 'all' || kind || statusF || search || onlyQ || tagF.length > 0) && <button onClick={() => { setFilter('all'); setKind(''); setStatusF(''); setSearch(''); setOnlyQ(false); setTagF([]) }} className="text-xs text-gray-500 underline">필터 해제</button>}
-        <span className="ml-auto text-xs text-gray-400">{visible.length.toLocaleString()}건{scope === 'all' && data.hiddenPrivate ? ` · 비공개 ${data.hiddenPrivate}건 제외` : ''}</span>
+        {employee && <button onClick={clearEmployee} className="text-xs px-2.5 py-1 bg-slate-100 rounded-full text-slate-800">{empName} 관련만 보는 중 ✕</button>}
+        {(filter !== 'all' || kind || statusF || search || onlyQ || tagF.length > 0) && <button onClick={() => { setFilter('all'); setKind(''); setStatusF(''); setSearch(''); setOnlyQ(false); setTagF([]) }} className="text-xs text-slate-600 underline">필터 해제</button>}
+        <span className="ml-auto text-xs text-slate-500">{visible.length.toLocaleString()}건{scope === 'all' && data.hiddenPrivate ? ` · 비공개 ${data.hiddenPrivate}건 제외` : ''}</span>
       </div>
       {hasTags && (
         <div className="flex items-center gap-1.5 flex-wrap mb-3">
-          <span className="text-xs text-gray-500 mr-1">업무 계열</span>
+          <span className="text-xs text-slate-600 mr-1">업무 계열</span>
           {tags.filter(t => t.active || tagCount.get(t.id) || tagF.includes(t.id)).map(t => (
             <TagChip key={t.id} tag={t} selected={tagF.includes(t.id)} count={tagCount.get(t.id) ?? 0} onClick={() => toggleTag(t.id)} title={t.active ? undefined : '숨긴 태그'} />
           ))}
           {(tagCount.get(WR_TAG_NONE) || tagF.includes(WR_TAG_NONE)) ? <NoTagChip selected={tagF.includes(WR_TAG_NONE)} count={tagCount.get(WR_TAG_NONE) ?? 0} onClick={() => toggleTag(WR_TAG_NONE)} /> : null}
-          {tagF.length > 0 && <span className="text-xs text-gray-500 ml-1">{tagF.length}개 선택{tagF.length > 1 ? ' · 하나라도 해당' : ''} <button onClick={() => setTagF([])} className="underline">해제</button></span>}
-          {data.me?.master && <Link href="/me/requests/tags" className="ml-auto text-xs text-gray-500 hover:text-gray-900 underline">태그 관리</Link>}
+          {tagF.length > 0 && <span className="text-xs text-slate-600 ml-1">{tagF.length}개 선택{tagF.length > 1 ? ' · 하나라도 해당' : ''} <button onClick={() => setTagF([])} className="underline">해제</button></span>}
+          {data.me?.master && <Link href="/me/requests/tags" className="ml-auto text-xs text-slate-600 hover:text-slate-900 underline">태그 관리</Link>}
         </div>
       )}
 
       {visible.length === 0 ? (
-        <div className="text-center py-16 text-gray-400 text-sm bg-white border border-gray-200 rounded-xl">
+        <div className="text-center py-16 text-slate-500 text-sm bg-white border border-slate-300 rounded-xl">
           {rows.length === 0 ? (scope === 'inbox' ? '받은 요청이 없습니다.' : scope === 'outbox' ? '보낸 요청이 없습니다.' : '요청이 없습니다.') : '조건에 맞는 요청이 없습니다.'}
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 font-medium w-10"></th>
                 <th className="py-2.5 px-3 font-medium">요청</th>
                 {scope !== 'outbox' && <th className="py-2.5 px-3 font-medium">요청자</th>}
@@ -256,44 +256,44 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
                 const my = myShare(r, meId)
                 const sum = assigneeSummary(r)
                 const multi = r.assignees.length > 1
-                const person = (p: WrRow['requester'], mine: boolean) => <span className="whitespace-nowrap text-gray-700">{p?.name ?? '-'}{mine && <span className="text-[0.625rem] text-slate-500 ml-1">(나)</span>}{p?.team && <span className="text-xs text-gray-400 ml-1">{p.team}</span>}</span>
+                const person = (p: WrRow['requester'], mine: boolean) => <span className="whitespace-nowrap text-slate-800">{p?.name ?? '-'}{mine && <span className="text-xs text-slate-600 ml-1">(나)</span>}{p?.team && <span className="text-xs text-slate-500 ml-1">{p.team}</span>}</span>
                 return (
-                  <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/me/requests/${r.id}`)}>
+                  <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50 cursor-pointer" onClick={() => router.push(`/me/requests/${r.id}`)}>
                     <td className="py-2 px-3 whitespace-nowrap">
-                      {r.is_urgent && <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-red-600 text-white font-semibold">긴급</span>}
-                      {multi && <span className={`text-[0.625rem] px-1.5 py-0.5 rounded font-semibold ml-1 ${r.assign_mode === 'first' ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'}`} title={r.assign_mode === 'first' ? '선착 — 먼저 수락한 1명이 진행' : '공동 — 전원이 각자 진행'}>{WR_MODE_LABEL[r.assign_mode]}</span>}
-                      {r.is_private && <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold ml-1" title="요청자 · 담당자 · 승인권자만 볼 수 있음">비공개</span>}
+                      {r.is_urgent && <span className="text-xs px-1.5 py-0.5 rounded bg-red-600 text-white font-semibold">긴급</span>}
+                      {multi && <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ml-1 ${r.assign_mode === 'first' ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'}`} title={r.assign_mode === 'first' ? '선착 — 먼저 수락한 1명이 진행' : '공동 — 전원이 각자 진행'}>{WR_MODE_LABEL[r.assign_mode]}</span>}
+                      {r.is_private && <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 text-slate-800 font-semibold ml-1" title="요청자 · 담당자 · 승인권자만 볼 수 있음">비공개</span>}
                     </td>
                     <td className="py-2 px-3 min-w-[220px] max-w-[420px]">
                       {hasTags && <TagList row={r} tags={tags} className="mb-0.5" />}
-                      <p className="font-semibold text-gray-900 truncate">{r.title}</p>
-                      {r.content && <p className="text-xs text-gray-500 truncate">{r.content}</p>}
+                      <p className="font-semibold text-slate-900 truncate">{r.title}</p>
+                      {r.content && <p className="text-xs text-slate-600 truncate">{r.content}</p>}
                     </td>
                     {scope !== 'outbox' && <td className="py-2 px-3">{person(r.requester, a.isReq)}</td>}
                     {scope !== 'inbox' && (
-                      <td className="py-2 px-3 whitespace-nowrap text-gray-700">
-                        {sum.main}{!multi && my && <span className="text-[0.625rem] text-slate-500 ml-1">(나)</span>}
-                        {sum.sub && <span className="text-xs text-gray-400 ml-1">{sum.sub}</span>}
+                      <td className="py-2 px-3 whitespace-nowrap text-slate-800">
+                        {sum.main}{!multi && my && <span className="text-xs text-slate-600 ml-1">(나)</span>}
+                        {sum.sub && <span className="text-xs text-slate-500 ml-1">{sum.sub}</span>}
                       </td>
                     )}
                     {showMine && (
                       <td className="py-2 px-3 whitespace-nowrap">
-                        {my ? <span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${WR_ASG_CLS[my.status]}`}>{r.status === 'completed' && my.status !== 'done_reported' && my.status !== 'rejected' && my.status !== 'released' ? '요청자가 완료 처리' : WR_ASG_LABEL[my.status]}</span> : <span className="text-gray-300">-</span>}
+                        {my ? <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${WR_ASG_CLS[my.status]}`}>{r.status === 'completed' && my.status !== 'done_reported' && my.status !== 'rejected' && my.status !== 'released' ? '요청자가 완료 처리' : WR_ASG_LABEL[my.status]}</span> : <span className="text-slate-400">-</span>}
                       </td>
                     )}
-                    <td className="py-2 px-3 whitespace-nowrap text-gray-500 text-xs tabular-nums">{fmtDT(r.created_at)}</td>
+                    <td className="py-2 px-3 whitespace-nowrap text-slate-600 text-xs tabular-nums">{fmtDT(r.created_at)}</td>
                     <td className="py-2 px-3">{dueCell(r)}</td>
-                    <td className="py-2 px-3"><span title={WR_STATUS_HINT[r.status]} className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold whitespace-nowrap ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}</span></td>
-                    <td className="py-2 px-3 text-xs text-gray-500 max-w-[260px] truncate">{r.status === 'rejected' && r.reject_reason ? `반려: ${r.reject_reason}` : r.last_memo ?? '-'}</td>
+                    <td className="py-2 px-3"><span title={WR_STATUS_HINT[r.status]} className={`inline-block px-2 py-0.5 rounded text-xs font-semibold whitespace-nowrap ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}</span></td>
+                    <td className="py-2 px-3 text-xs text-slate-600 max-w-[260px] truncate">{r.status === 'rejected' && r.reject_reason ? `반려: ${r.reject_reason}` : r.last_memo ?? '-'}</td>
                     <td className="py-2 px-3 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       {a.accept && <button disabled={b} onClick={() => act(r.id, 'accept')} className="px-2 py-1 text-xs border border-emerald-300 text-emerald-700 rounded hover:bg-emerald-50 disabled:opacity-50 mr-1">수락</button>}
                       {a.reject && my?.status === 'invited' && <button disabled={b} onClick={() => reject(r)} className="px-2 py-1 text-xs border border-red-200 text-red-600 rounded hover:bg-red-50 disabled:opacity-50">반려</button>}
                       {a.report && <button disabled={b} onClick={() => report(r)} className="px-2 py-1 text-xs bg-slate-900 text-white rounded hover:bg-slate-700 disabled:opacity-50">처리 완료</button>}
-                      {my?.status === 'done_reported' && OPEN_STATUSES.includes(r.status) && !a.isReq && <span className="text-xs text-gray-400">{r.assign_mode === 'all' && r.status !== 'done_reported' ? '다른 담당자 보고 대기' : '요청자 확정 대기'}</span>}
-                      {my?.status === 'released' && <span className="text-xs text-gray-400">조작 없음</span>}
+                      {my?.status === 'done_reported' && OPEN_STATUSES.includes(r.status) && !a.isReq && <span className="text-xs text-slate-500">{r.assign_mode === 'all' && r.status !== 'done_reported' ? '다른 담당자 보고 대기' : '요청자 확정 대기'}</span>}
+                      {my?.status === 'released' && <span className="text-xs text-slate-500">조작 없음</span>}
                       {a.complete && <button disabled={b} onClick={() => complete(r)} className="px-2 py-1 text-xs border border-emerald-300 text-emerald-700 rounded hover:bg-emerald-50 disabled:opacity-50 ml-1">완료</button>}
-                      {a.cancel && <button disabled={b} onClick={() => cancel(r)} className="px-2 py-1 text-xs border border-gray-300 text-gray-600 rounded hover:bg-gray-50 disabled:opacity-50 ml-1">취소</button>}
-                      {a.isReq && r.status === 'rejected' && <Link href={`/me/requests/new?from=${r.id}`} className="px-2 py-1 text-xs border border-slate-300 text-slate-700 rounded hover:bg-slate-50">다시 요청</Link>}
+                      {a.cancel && <button disabled={b} onClick={() => cancel(r)} className="px-2 py-1 text-xs border border-slate-400 text-slate-700 rounded hover:bg-slate-50 disabled:opacity-50 ml-1">취소</button>}
+                      {a.isReq && r.status === 'rejected' && <Link href={`/me/requests/new?from=${r.id}`} className="px-2 py-1 text-xs border border-slate-400 text-slate-800 rounded hover:bg-slate-50">다시 요청</Link>}
                     </td>
                   </tr>
                 )
@@ -302,7 +302,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
           </table>
         </div>
       )}
-      <p className="text-xs text-gray-400 mt-3">
+      <p className="text-xs text-slate-500 mt-3">
         행을 누르면 상세(내용 · 이력 · 메모)로 갑니다. 마감 색: 오늘 = 주황, 지남 = 빨강. 조작 버튼은 내가 담당자 · 요청자인 건에만 보입니다.
         {' '}담당자가 여러 명인 요청은 선착(먼저 수락한 1명이 진행) · 공동(전원이 각자 진행) 배지가 붙고, 내 몫 상태가 따로 보입니다.
         {scope === 'all' && ' 전체 목록은 모든 직원이 볼 수 있고, 비공개 요청은 요청자 · 담당자 · 승인권자에게만 보입니다.'}

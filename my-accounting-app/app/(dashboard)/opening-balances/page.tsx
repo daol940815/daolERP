@@ -8,7 +8,7 @@ export default function OpeningBalancesPage({ searchParams }: { searchParams: { 
   const tab = searchParams.tab === 'vendor' ? 'vendor' : 'account'
   return (
     <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900">기초잔액 (전기이월)</h1>
+      <h1 className="text-2xl font-bold text-slate-900">기초잔액 (전기이월)</h1>
       <PageTabs className="mt-3 mb-4" active={tab} tabs={[
         { key: 'account', label: '계정과목', href: '/opening-balances' },
         { key: 'vendor', label: '거래처', href: '/opening-balances?tab=vendor' },

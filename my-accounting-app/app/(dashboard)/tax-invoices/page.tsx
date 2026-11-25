@@ -18,7 +18,7 @@ export default function TaxInvoicesPage({ searchParams }: { searchParams: { tab?
   // 열이 많은 원본 목록이라 폭 제한 없이 화면 가득 쓴다 (2026-09-30 사용자 요청)
   return (
     <div className="w-full">
-      <h1 className="text-2xl font-bold text-gray-900">계산서 내역</h1>
+      <h1 className="text-2xl font-bold text-slate-900">계산서 내역</h1>
       <PageTabs className="mt-3 mb-3" active={tab} tabs={[
         { key: 'list', label: '계산서 목록', href: listHref(dir, tax) },
         { key: 'classify', label: '매입 분류', href: '/tax-invoices?tab=classify' },

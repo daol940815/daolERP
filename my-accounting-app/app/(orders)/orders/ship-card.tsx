@@ -115,20 +115,20 @@ export default function ShipCard({ value, onChange, vendorId, contactId, contact
     setOpenList(false)
   }
 
-  const label = 'block text-[0.6875rem] text-gray-500 mb-0.5'
+  const label = 'block text-xs text-slate-600 mb-0.5'
   const free = 'w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-60'
-  const btn = 'px-2 py-1 text-[0.6875rem] border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 disabled:opacity-50'
+  const btn = 'px-2 py-1 text-xs border border-slate-400 rounded-md text-slate-700 hover:bg-slate-50 disabled:opacity-50'
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
-      <div className="text-sm font-bold text-gray-900 mb-2">
-        배송지 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">지점 · 샘플 배송 품목에 적용 · 개별 배송은 발주서 배송명단에서 수령인별로</span>
+    <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">
+      <div className="text-sm font-bold text-slate-900 mb-2">
+        배송지 <span className="text-xs font-normal text-slate-500 ml-1">지점 · 샘플 배송 품목에 적용 · 개별 배송은 발주서 배송명단에서 수령인별로</span>
       </div>
 
       {!applies ? (
-        <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 leading-relaxed">
+        <div className="text-xs text-slate-600 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 leading-relaxed">
           이 주문은 <b>개별 배송</b> 품목만 있어 배송지를 받지 않습니다. 수령인별 주소는 발주서의 배송명단에 적어주세요.
-          <span className="text-gray-400"> 지점 · 샘플 품목을 추가하면 배송지 칸이 다시 열립니다.</span>
+          <span className="text-slate-500"> 지점 · 샘플 품목을 추가하면 배송지 칸이 다시 열립니다.</span>
         </div>
       ) : (
         <>
@@ -141,7 +141,7 @@ export default function ShipCard({ value, onChange, vendorId, contactId, contact
             <div className={`flex items-center gap-2 flex-wrap text-xs rounded-lg px-3 py-1.5 border ${
               source?.kind === 'recent' ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                 : source?.kind === 'contact' && !value.ship_addr1 ? 'bg-amber-50 border-amber-200 text-amber-800'
-                  : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
+                  : 'bg-slate-50 border-slate-300 text-slate-600'}`}>
               <span>
                 {source?.kind === 'recent'
                   ? <>
@@ -162,13 +162,13 @@ export default function ShipCard({ value, onChange, vendorId, contactId, contact
               </span>
             </div>
             {openList && (
-              <div className="absolute right-0 z-20 mt-1 w-full md:w-[34rem] bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden text-xs">
-                <div className="px-3 py-1.5 text-[0.65625rem] text-gray-400 bg-gray-50">이 주문처의 배송지 — 같은 담당자 먼저, 최근순 · 같은 배송지는 1번만 (주문 + 상담일지)</div>
+              <div className="absolute right-0 z-20 mt-1 w-full md:w-[34rem] bg-white border border-slate-400 rounded-lg shadow-lg overflow-hidden text-xs">
+                <div className="px-3 py-1.5 text-xs text-slate-500 bg-slate-50">이 주문처의 배송지 — 같은 담당자 먼저, 최근순 · 같은 배송지는 1번만 (주문 + 상담일지)</div>
                 {recent.map((r, i) => (
                   <button key={i} type="button" onClick={() => pick(r)}
-                    className="block w-full text-left px-3 py-2 border-t border-gray-100 hover:bg-blue-50">
-                    <div className="text-gray-800">{[r.ship_name, r.ship_phone].filter(Boolean).join(' · ') || '(수령인 없음)'}</div>
-                    <div className="text-gray-500 mt-0.5">
+                    className="block w-full text-left px-3 py-2 border-t border-slate-200 hover:bg-blue-50">
+                    <div className="text-slate-900">{[r.ship_name, r.ship_phone].filter(Boolean).join(' · ') || '(수령인 없음)'}</div>
+                    <div className="text-slate-600 mt-0.5">
                       {[r.ship_addr1, r.ship_addr2].filter(Boolean).join(' · ')} — {r.from === 'consult' ? '상담일지 ' : ''}{r.last_date}{r.count > 1 ? ` 외 ${r.count - 1}회` : ''}
                       {r.same_contact && <span className="ml-1.5 text-emerald-700">같은 담당자</span>}
                     </div>
@@ -193,7 +193,7 @@ export default function ShipCard({ value, onChange, vendorId, contactId, contact
               <label className={label}>우편번호</label>
               <div className="flex gap-1.5">
                 <input value={value.ship_zip ?? ''} readOnly
-                  className="w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-sm text-gray-700" placeholder="주소 검색" />
+                  className="w-full border border-slate-300 bg-slate-50 rounded-lg px-2.5 py-1.5 text-sm text-slate-800" placeholder="주소 검색" />
                 <button type="button" onClick={searchAddr} disabled={disabled}
                   className="px-3 py-1.5 text-sm rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 whitespace-nowrap disabled:opacity-50">
                   주소 검색
@@ -201,9 +201,9 @@ export default function ShipCard({ value, onChange, vendorId, contactId, contact
               </div>
             </div>
             <div className="col-span-2 md:col-span-4">
-              <label className={label}>주소 <span className="text-gray-400">(주소 검색으로 입력)</span></label>
+              <label className={label}>주소 <span className="text-slate-500">(주소 검색으로 입력)</span></label>
               <input value={value.ship_addr1 ?? ''} readOnly onClick={() => !disabled && !value.ship_addr1 && searchAddr()}
-                className="w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-sm text-gray-700 cursor-pointer"
+                className="w-full border border-slate-300 bg-slate-50 rounded-lg px-2.5 py-1.5 text-sm text-slate-800 cursor-pointer"
                 placeholder="주소 검색을 눌러 입력" />
             </div>
             <div className="col-span-2 md:col-span-2">
@@ -212,8 +212,8 @@ export default function ShipCard({ value, onChange, vendorId, contactId, contact
                 onChange={e => set({ ship_addr2: e.target.value || null })} className={free} placeholder="층 · 부서 등" />
             </div>
           </div>
-          {pcError && <div className="mt-1.5 text-[0.6875rem] text-red-600">{pcError}</div>}
-          <div className="mt-1.5 text-[0.6875rem] text-gray-400">
+          {pcError && <div className="mt-1.5 text-xs text-red-600">{pcError}</div>}
+          <div className="mt-1.5 text-xs text-slate-500">
             이 주문만 다른 곳으로 보낼 때는 그대로 고치면 됩니다 — 고친 값은 이 주문에만 저장되고 다음 주문에서는 &lsquo;최근 배송지&rsquo;에 함께 뜹니다. 비워둬도 저장됩니다.
           </div>
         </>

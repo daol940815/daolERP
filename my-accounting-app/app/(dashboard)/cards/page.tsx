@@ -9,7 +9,7 @@ export default function CardsPage({ searchParams }: { searchParams: { tab?: stri
   const tab = searchParams.tab === 'expenses' ? 'expenses' : 'sales'
   return (
     <div className="w-full">
-      <h1 className="text-2xl font-bold text-gray-900">카드 내역</h1>
+      <h1 className="text-2xl font-bold text-slate-900">카드 내역</h1>
       <PageTabs className="mt-3 mb-4" active={tab} tabs={[
         { key: 'sales', label: '매출 (카드결제)', href: '/cards' },
         { key: 'expenses', label: '법인카드 사용내역', href: '/cards?tab=expenses' },

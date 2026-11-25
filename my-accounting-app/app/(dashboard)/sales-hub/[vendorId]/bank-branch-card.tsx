@@ -29,22 +29,22 @@ export function BankBranchCard({ vendorId }: { vendorId: string }) {
   if (info.branch) {
     const b = info.branch
     return (
-      <div className="mt-2 flex items-center gap-2 flex-wrap text-xs text-gray-600">
-        <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-semibold">은행연합회 점포 {b.base_month}</span>
-        <span className="text-gray-800">{b.branch_name}</span>
+      <div className="mt-2 flex items-center gap-2 flex-wrap text-xs text-slate-700">
+        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">은행연합회 점포 {b.base_month}</span>
+        <span className="text-slate-900">{b.branch_name}</span>
         {b.address && <span>· {b.address}</span>}
         {b.phone && <span>· {b.phone}</span>}
         {canEdit && (
           <button disabled={busy} onClick={() => { if (confirm('이 매출처와 점포의 연결을 풉니다. 매출처 · 주문은 그대로입니다. 진행할까요?')) post({ action: 'unlink', branch_id: b.id }) }}
-            className="text-[0.6875rem] text-gray-400 hover:text-red-600 underline">연결 풀기</button>
+            className="text-xs text-slate-500 hover:text-red-600 underline">연결 풀기</button>
         )}
       </div>
     )
   }
   if (info.not_branch) {
     return canEdit ? (
-      <div className="mt-2 text-[0.6875rem] text-gray-400">
-        점포 아님(부서 · 팀 · 모임)으로 표시됨 · <button disabled={busy} onClick={() => post({ action: 'not_branch', vendor_id: vendorId, value: false })} className="underline hover:text-gray-600">취소</button>
+      <div className="mt-2 text-xs text-slate-500">
+        점포 아님(부서 · 팀 · 모임)으로 표시됨 · <button disabled={busy} onClick={() => post({ action: 'not_branch', vendor_id: vendorId, value: false })} className="underline hover:text-slate-700">취소</button>
       </div>
     ) : null
   }
@@ -63,7 +63,7 @@ export function BankBranchCard({ vendorId }: { vendorId: string }) {
             </button>
           ))}
           <button disabled={busy} onClick={() => post({ action: 'not_branch', vendor_id: vendorId, value: true })}
-            className="px-2 py-0.5 border border-gray-300 bg-white rounded text-gray-600 hover:bg-gray-50">점포 아님(부서 · 팀 · 모임)</button>
+            className="px-2 py-0.5 border border-slate-400 bg-white rounded text-slate-700 hover:bg-slate-50">점포 아님(부서 · 팀 · 모임)</button>
         </div>
       )}
     </div>

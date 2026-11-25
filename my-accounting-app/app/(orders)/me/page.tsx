@@ -84,7 +84,7 @@ export default function MyDashboardPage() {
   }, [])
 
   if (error) return <div className="px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>
-  if (!data) return <div className="text-center py-16 text-gray-400">로딩 중...</div>
+  if (!data) return <div className="text-center py-16 text-slate-500">로딩 중...</div>
 
   const s = data.summary
   const o = data.orders
@@ -154,8 +154,8 @@ export default function MyDashboardPage() {
   return (
     <div>
       <div className="flex items-baseline gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">대시보드</h1>
-        <span className="text-sm text-gray-500">{data.me.name ?? ''} · {data.month}</span>
+        <h1 className="text-xl font-bold text-slate-900">대시보드</h1>
+        <span className="text-sm text-slate-600">{data.me.name ?? ''} · {data.month}</span>
       </div>
 
       {!data.me.linked && (
@@ -177,49 +177,49 @@ export default function MyDashboardPage() {
         {kpis.map(k => {
           const body = (
             <>
-              <p className="text-xs text-gray-500">{k.label}</p>
-              <p className="text-lg font-bold text-gray-900 mt-1 tabular-nums">{k.value}</p>
-              {k.sub && <p className="text-xs text-gray-400 mt-0.5 tabular-nums">{k.sub}</p>}
+              <p className="text-xs text-slate-600">{k.label}</p>
+              <p className="text-lg font-bold text-slate-900 mt-1 tabular-nums">{k.value}</p>
+              {k.sub && <p className="text-xs text-slate-500 mt-0.5 tabular-nums">{k.sub}</p>}
             </>
           )
           return k.href ? (
             <Link key={k.label} href={k.href}
-              className="block bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-slate-400 transition-colors">
+              className="block bg-white border border-slate-300 rounded-xl px-4 py-3 hover:border-slate-400 transition-colors">
               {body}
             </Link>
           ) : (
-            <div key={k.label} className="bg-white border border-gray-200 rounded-xl px-4 py-3">{body}</div>
+            <div key={k.label} className="bg-white border border-slate-300 rounded-xl px-4 py-3">{body}</div>
           )
         })}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4 mt-4 items-start">
         {/* 오늘 근태 */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <div className="bg-white border border-slate-300 rounded-xl p-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">오늘 근태</h2>
-            <Link href="/hr/attendance" className="text-xs text-slate-500 hover:text-slate-900">근태·휴가 화면</Link>
+            <h2 className="text-sm font-semibold text-slate-900">오늘 근태</h2>
+            <Link href="/hr/attendance" className="text-xs text-slate-600 hover:text-slate-900">근태·휴가 화면</Link>
           </div>
           {data.attendanceReady ? (
-            <div className="mt-3 text-sm text-gray-700">
+            <div className="mt-3 text-sm text-slate-800">
               {inTime ? (
                 <p>출근 <span className="font-semibold tabular-nums">{inTime}</span>
                   {outTime && <> · 퇴근 <span className="font-semibold tabular-nums">{outTime}</span></>}
                 </p>
               ) : (
-                <p className="text-gray-400">아직 출근 체크 전입니다. 사이드바에서 체크할 수 있습니다.</p>
+                <p className="text-slate-500">아직 출근 체크 전입니다. 사이드바에서 체크할 수 있습니다.</p>
               )}
             </div>
           ) : (
-            <p className="mt-3 text-xs text-gray-400">근태(200) 마이그레이션 적용 후 표시됩니다.</p>
+            <p className="mt-3 text-xs text-slate-500">근태(200) 마이그레이션 적용 후 표시됩니다.</p>
           )}
           {data.pendingLeaves.length > 0 && (
-            <div className="mt-3 border-t border-gray-100 pt-2.5">
-              <p className="text-xs text-gray-500 mb-1.5">승인 대기 휴가 {data.pendingLeaves.length}건</p>
+            <div className="mt-3 border-t border-slate-200 pt-2.5">
+              <p className="text-xs text-slate-600 mb-1.5">승인 대기 휴가 {data.pendingLeaves.length}건</p>
               {data.pendingLeaves.map(l => (
-                <p key={l.id} className="text-xs text-gray-600 mb-1 tabular-nums">
+                <p key={l.id} className="text-xs text-slate-700 mb-1 tabular-nums">
                   {l.start_date}{l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''} · {LEAVE_TYPE_LABEL[l.leave_type] ?? l.leave_type} {l.days}일
-                  <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-amber-100 text-amber-700">
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">
                     {LEAVE_STATUS_LABEL.requested}
                   </span>
                 </p>
@@ -227,15 +227,15 @@ export default function MyDashboardPage() {
             </div>
           )}
           {data.leaves.some(l => l.status !== 'requested') && (
-            <div className="mt-3 border-t border-gray-100 pt-2.5">
-              <p className="text-xs text-gray-500 mb-1.5">최근 휴가 신청</p>
+            <div className="mt-3 border-t border-slate-200 pt-2.5">
+              <p className="text-xs text-slate-600 mb-1.5">최근 휴가 신청</p>
               {data.leaves.filter(l => l.status !== 'requested').map(l => (
-                <p key={l.id} className="text-xs text-gray-600 mb-1 tabular-nums">
+                <p key={l.id} className="text-xs text-slate-700 mb-1 tabular-nums">
                   {l.start_date}{l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''} · {LEAVE_TYPE_LABEL[l.leave_type] ?? l.leave_type}
-                  <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${
+                  <span className={`ml-1.5 px-1.5 py-0.5 rounded text-xs font-medium ${
                     l.status === 'approved' ? 'bg-emerald-100 text-emerald-700'
                     : l.status === 'requested' ? 'bg-amber-100 text-amber-700'
-                    : 'bg-gray-100 text-gray-500'}`}>
+                    : 'bg-slate-100 text-slate-600'}`}>
                     {LEAVE_STATUS_LABEL[l.status] ?? l.status}
                   </span>
                 </p>
@@ -245,15 +245,15 @@ export default function MyDashboardPage() {
         </div>
 
         {/* 최근 내 작성 주문 */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4 lg:col-span-2">
+        <div className="bg-white border border-slate-300 rounded-xl p-4 lg:col-span-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">최근 내 작성 주문</h2>
-            <Link href="/orders?mine=handled" className="text-xs text-slate-500 hover:text-slate-900">주문내역 전체</Link>
+            <h2 className="text-sm font-semibold text-slate-900">최근 내 작성 주문</h2>
+            <Link href="/orders?mine=handled" className="text-xs text-slate-600 hover:text-slate-900">주문내역 전체</Link>
           </div>
           {data.recentOrders.length ? (
             <table className="w-full text-sm mt-2">
               <thead>
-                <tr className="text-gray-500 text-xs border-b border-gray-100">
+                <tr className="text-slate-600 text-xs border-b border-slate-200">
                   <th className="py-1.5 pr-3 text-left font-medium">주문일</th>
                   <th className="py-1.5 pr-3 text-left font-medium">주문처</th>
                   <th className="py-1.5 pr-3 text-right font-medium">주문금액</th>
@@ -262,11 +262,11 @@ export default function MyDashboardPage() {
               </thead>
               <tbody>
                 {data.recentOrders.map(o => (
-                  <tr key={o.id} className="border-b border-gray-50">
-                    <td className="py-1.5 pr-3 tabular-nums text-xs text-gray-500">{o.order_date}</td>
+                  <tr key={o.id} className="border-b border-slate-200">
+                    <td className="py-1.5 pr-3 tabular-nums text-xs text-slate-600">{o.order_date}</td>
                     <td className="py-1.5 pr-3 font-medium">{o.customer}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">{won(o.total_amount)}</td>
-                    <td className={`py-1.5 text-right tabular-nums ${o.outstanding_amount > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                    <td className={`py-1.5 text-right tabular-nums ${o.outstanding_amount > 0 ? 'text-red-600' : 'text-slate-500'}`}>
                       {won(o.outstanding_amount)}
                     </td>
                   </tr>
@@ -274,21 +274,21 @@ export default function MyDashboardPage() {
               </tbody>
             </table>
           ) : (
-            <p className="mt-3 text-sm text-gray-400">내가 작성한 주문이 없습니다.</p>
+            <p className="mt-3 text-sm text-slate-500">내가 작성한 주문이 없습니다.</p>
           )}
         </div>
       </div>
 
       {/* 최근 업무일지 — ERP에서 한 일이 자동 기록된다 */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-4">
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900">최근 업무일지</h2>
-          <Link href="/me/worklog" className="text-xs text-slate-500 hover:text-slate-900">전체 보기</Link>
+          <h2 className="text-sm font-semibold text-slate-900">최근 업무일지</h2>
+          <Link href="/me/worklog" className="text-xs text-slate-600 hover:text-slate-900">전체 보기</Link>
         </div>
         {work && work.rows.length ? (
           <table className="w-full text-sm mt-2">
             <thead>
-              <tr className="text-gray-500 text-xs border-b border-gray-100">
+              <tr className="text-slate-600 text-xs border-b border-slate-200">
                 <th className="py-1.5 pr-3 text-left font-medium">날짜</th>
                 <th className="py-1.5 pr-3 text-left font-medium">업무</th>
                 <th className="py-1.5 text-left font-medium">내용</th>
@@ -296,30 +296,30 @@ export default function MyDashboardPage() {
             </thead>
             <tbody>
               {work.rows.slice(0, 5).map(w => (
-                <tr key={w.id} className="border-b border-gray-50 align-top">
-                  <td className="py-1.5 pr-3 tabular-nums text-xs text-gray-500">{w.work_date}</td>
+                <tr key={w.id} className="border-b border-slate-200 align-top">
+                  <td className="py-1.5 pr-3 tabular-nums text-xs text-slate-600">{w.work_date}</td>
                   <td className="py-1.5 pr-3 text-xs">{w.category ?? w.action}</td>
-                  <td className="py-1.5 text-gray-600">{w.content ?? '-'}</td>
+                  <td className="py-1.5 text-slate-700">{w.content ?? '-'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <p className="mt-3 text-sm text-gray-400">이번 달 업무일지 기록이 없습니다. 상담일지·주문·발주를 작성하면 자동으로 기록됩니다.</p>
+          <p className="mt-3 text-sm text-slate-500">이번 달 업무일지 기록이 없습니다. 상담일지·주문·발주를 작성하면 자동으로 기록됩니다.</p>
         )}
       </div>
 
       {/* 최근 영업일지 — 영업일지 기록이 있는 직원에게만 */}
       {showJournal && (
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-4">
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900">최근 영업일지</h2>
-          <Link href="/me/journal" className="text-xs text-slate-500 hover:text-slate-900">전체 보기 · 작성</Link>
+          <h2 className="text-sm font-semibold text-slate-900">최근 영업일지</h2>
+          <Link href="/me/journal" className="text-xs text-slate-600 hover:text-slate-900">전체 보기 · 작성</Link>
         </div>
         {data.recentJournal.length ? (
           <table className="w-full text-sm mt-2">
             <thead>
-              <tr className="text-gray-500 text-xs border-b border-gray-100">
+              <tr className="text-slate-600 text-xs border-b border-slate-200">
                 <th className="py-1.5 pr-3 text-left font-medium">날짜</th>
                 <th className="py-1.5 pr-3 text-left font-medium">유형</th>
                 <th className="py-1.5 pr-3 text-left font-medium">인물 · 거래처</th>
@@ -328,20 +328,20 @@ export default function MyDashboardPage() {
             </thead>
             <tbody>
               {data.recentJournal.map(a => (
-                <tr key={a.id} className="border-b border-gray-50 align-top">
-                  <td className="py-1.5 pr-3 tabular-nums text-xs text-gray-500">{a.activity_date}</td>
+                <tr key={a.id} className="border-b border-slate-200 align-top">
+                  <td className="py-1.5 pr-3 tabular-nums text-xs text-slate-600">{a.activity_date}</td>
                   <td className="py-1.5 pr-3 text-xs">{a.activity_type}</td>
                   <td className="py-1.5 pr-3">
                     <span className="font-medium">{a.contact_name ?? '-'}</span>
-                    {a.vendor_name && <span className="text-xs text-gray-400 ml-1">{a.vendor_name}</span>}
+                    {a.vendor_name && <span className="text-xs text-slate-500 ml-1">{a.vendor_name}</span>}
                   </td>
-                  <td className="py-1.5 text-gray-600">{a.content}</td>
+                  <td className="py-1.5 text-slate-700">{a.content}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <p className="mt-3 text-sm text-gray-400">
+          <p className="mt-3 text-sm text-slate-500">
             아직 영업일지가 없습니다. <Link href="/me/journal" className="underline">영업일지</Link>에서 작성할 수 있습니다.
           </p>
         )}

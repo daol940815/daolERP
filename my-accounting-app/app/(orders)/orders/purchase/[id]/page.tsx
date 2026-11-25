@@ -210,33 +210,33 @@ export default function PoSendPage() {
     loadPresets()
   }
 
-  if (loading) return <div className="text-center py-16 text-gray-400">로딩 중...</div>
+  if (loading) return <div className="text-center py-16 text-slate-500">로딩 중...</div>
   if (error && !po) return <div className="px-4 py-3 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>
   if (!po) return null
 
   const active = po.status === 'active'
   const badge = (cls: string, label: string, title?: string) => (
-    <span title={title} className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${cls}`}>{label}</span>
+    <span title={title} className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${cls}`}>{label}</span>
   )
-  const secTitle = 'text-sm font-bold text-gray-900 flex items-center gap-2 flex-wrap'
-  const stepNo = 'inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-900 text-white text-[0.6875rem] shrink-0'
-  const sub = 'text-[0.6875rem] font-normal text-gray-400'
-  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm disabled:opacity-60'
+  const secTitle = 'text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap'
+  const stepNo = 'inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-900 text-white text-xs shrink-0'
+  const sub = 'text-xs font-normal text-slate-500'
+  const inputCls = 'w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm disabled:opacity-60'
 
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
         {fromOrder
-          ? <Link href={`/orders/${po.order_id}`} className="text-sm text-gray-400 hover:text-gray-600">← 주문 상세{order?.order_no ? ` (${order.order_no})` : ''}</Link>
-          : <Link href="/orders/purchase" className="text-sm text-gray-400 hover:text-gray-600">← 발주서 이력</Link>}
-        <h1 className="text-xl font-bold text-gray-900">발주서 {po.po_no}</h1>
-        <span className="text-gray-600 text-sm">{po.vendor_name}</span>
+          ? <Link href={`/orders/${po.order_id}`} className="text-sm text-slate-500 hover:text-slate-700">← 주문 상세{order?.order_no ? ` (${order.order_no})` : ''}</Link>
+          : <Link href="/orders/purchase" className="text-sm text-slate-500 hover:text-slate-700">← 발주서 이력</Link>}
+        <h1 className="text-xl font-bold text-slate-900">발주서 {po.po_no}</h1>
+        <span className="text-slate-700 text-sm">{po.vendor_name}</span>
         {output?.kind === 'vendor' && output.vendor_form
           ? badge('bg-violet-100 text-violet-700', `업체 양식 v${output.vendor_form.version}`, `매입처 상세 › 발주서 양식에서 사용 중인 업체 양식(${output.vendor_form.file_name})으로 다운로드 · 메일 첨부됩니다`)
           : po.uses_custom_po && badge('bg-violet-50 text-violet-600', '자체 양식', '자체 발주서 양식을 쓰는 매입처 — 수정본 업로드·수동 발송 기록 권장')}
         {po.po_use_sale_price && badge('bg-blue-50 text-blue-600', '판매가 발주', '발주서 금액이 매입가 대신 판매가로 기재됩니다')}
         {po.status === 'canceled'
-          ? badge('bg-gray-100 text-gray-400', '취소됨')
+          ? badge('bg-slate-100 text-slate-500', '취소됨')
           : po.sent_at
             ? badge('bg-emerald-100 text-emerald-700', po.send_method === 'email' ? '메일 발송됨' : '수동 발송됨')
             : badge('bg-amber-100 text-amber-800', '미발송')}
@@ -255,7 +255,7 @@ export default function PoSendPage() {
       )}
 
       {/* 1. 발주서 확인 */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-4">
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-4">
         <div className={secTitle}>
           <span className={stepNo}>1</span>발주서 확인
           <span className={sub}>작성된 발주서를 내려받아 검토하세요</span>
@@ -264,10 +264,10 @@ export default function PoSendPage() {
           <a href={`/api/orders-portal/purchase-orders/${po.id}?excel=1`}
             className="px-4 py-2 bg-blue-700 text-white rounded-lg text-sm font-semibold">발주서 엑셀 다운로드</a>
           <button onClick={() => setShowPreview(v => !v)}
-            className="px-3.5 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">
+            className="px-3.5 py-2 border border-slate-400 rounded-lg text-sm text-slate-700">
             {showPreview ? '미리보기 접기' : '화면 미리보기'}
           </button>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-slate-500">
             주문 <Link href={`/orders/${po.order_id}`} className="text-blue-700 hover:underline tabular-nums">{order?.order_no ?? '(주문 상세)'}</Link>
             {' · '}{form?.customer ?? '-'} · 품목 {itemCount}건 · 합계 {won(po.total_amount)}원
           </span>
@@ -301,7 +301,7 @@ export default function PoSendPage() {
       </div>
 
       {/* 2. 첨부 파일 */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">
         <div className={secTitle}>
           <span className={stepNo}>2</span>첨부 파일
           <span className={sub}>기본은 자동 생성 발주서 — 수정본을 올리면 그 파일로 발송</span>
@@ -312,11 +312,11 @@ export default function PoSendPage() {
           <div className="mt-3 space-y-2">
             {/* 자동 생성본: 수정본 없을 때만 발송 대상 */}
             <div className={`flex items-center gap-2.5 border rounded-lg px-3 py-2 text-sm ${
-              attachments.some(a => a.kind === 'replace') ? 'border-gray-100 bg-gray-50 text-gray-400' : 'border-gray-200 bg-gray-50/60'}`}>
-              {badge('bg-gray-200/70 text-gray-600', '자동')}
+              attachments.some(a => a.kind === 'replace') ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-300 bg-slate-50/60'}`}>
+              {badge('bg-slate-200/70 text-slate-700', '자동')}
               <span className="font-medium break-all">{output?.file_name ?? `발주서_${po.po_no}_${po.vendor_name}.xlsx`}</span>
               {output?.kind === 'vendor' && output.vendor_form && badge('bg-violet-100 text-violet-700', `업체 양식 v${output.vendor_form.version}`)}
-              <span className="text-[0.6875rem] text-gray-400">
+              <span className="text-xs text-slate-500">
                 {attachments.some(a => a.kind === 'replace')
                   ? '수정본이 있어 발송에서 제외됩니다'
                   : '발송 시점의 발주 데이터로 자동 생성'}
@@ -324,16 +324,16 @@ export default function PoSendPage() {
             </div>
             {attachments.map(a => (
               <div key={a.id} className={`flex items-center gap-2.5 border rounded-lg px-3 py-2 text-sm ${
-                a.kind === 'replace' ? 'border-blue-200 bg-blue-50/50' : 'border-gray-200'}`}>
-                {badge(a.kind === 'replace' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200/70 text-gray-600',
+                a.kind === 'replace' ? 'border-blue-200 bg-blue-50/50' : 'border-slate-300'}`}>
+                {badge(a.kind === 'replace' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200/70 text-slate-700',
                   a.kind === 'replace' ? '수정본' : '추가')}
                 <span className="font-medium">{a.file_name}</span>
-                <span className="text-[0.6875rem] text-gray-400">
+                <span className="text-xs text-slate-500">
                   {kb(a.size_bytes)}{a.uploader_name ? ` · ${a.uploader_name}` : ''} · {a.created_at.slice(5, 16).replace('T', ' ')}
                 </span>
                 <span className="ml-auto flex gap-1.5">
                   <a href={`/api/orders-portal/purchase-orders/${po.id}/attachments?download=${a.id}`}
-                    className="px-2.5 py-1 border border-gray-300 rounded text-xs text-gray-600">다운로드</a>
+                    className="px-2.5 py-1 border border-slate-400 rounded text-xs text-slate-700">다운로드</a>
                   {active && (
                     <button onClick={() => removeAttachment(a)} disabled={busy}
                       className="px-2.5 py-1 border border-red-200 rounded text-xs text-red-600">제거</button>
@@ -348,12 +348,12 @@ export default function PoSendPage() {
                   <input type="file" className="hidden" disabled={busy}
                     onChange={e => { const f = e.target.files?.[0]; if (f) upload(f, 'replace'); e.target.value = '' }} />
                 </label>
-                <label className="px-3.5 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs cursor-pointer hover:bg-gray-50">
+                <label className="px-3.5 py-1.5 border border-slate-400 text-slate-700 rounded-lg text-xs cursor-pointer hover:bg-slate-50">
                   + 추가 자료 첨부
                   <input type="file" className="hidden" disabled={busy}
                     onChange={e => { const f = e.target.files?.[0]; if (f) upload(f, 'extra'); e.target.value = '' }} />
                 </label>
-                <span className="text-[0.6875rem] text-gray-400">파일당 10MB 이하 · 엑셀·PDF·이미지 등</span>
+                <span className="text-xs text-slate-500">파일당 10MB 이하 · 엑셀·PDF·이미지 등</span>
               </div>
             )}
           </div>
@@ -361,23 +361,23 @@ export default function PoSendPage() {
       </div>
 
       {/* 3. 메일 작성 */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">
         <div className={secTitle}>
           <span className={stepNo}>3</span>메일 작성
           <span className={sub}>프리셋을 고르면 제목·본문이 채워지고, 자유롭게 수정해 발송</span>
         </div>
         <div className="grid md:grid-cols-2 gap-3 mt-3">
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">받는 이메일</label>
+            <label className="block text-xs text-slate-600 mb-0.5">받는 이메일</label>
             <input value={to} onChange={e => setTo(e.target.value)} disabled={!active} type="email"
               placeholder="매입처 발주 이메일" className={inputCls} />
           </div>
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">프리셋</label>
+            <label className="block text-xs text-slate-600 mb-0.5">프리셋</label>
             <div className="flex items-center gap-1.5">
               <select value={presetId ?? ''} disabled={!active}
                 onChange={e => { const p = presets.find(x => x.id === e.target.value); if (p) applyPreset(p) }}
-                className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white disabled:opacity-60">
+                className="flex-1 border border-slate-400 rounded-lg px-2 py-1.5 text-sm bg-white disabled:opacity-60">
                 {!presets.length && <option value="">프리셋 없음</option>}
                 {presets.map(p => (
                   <option key={p.id} value={p.id}>{p.name}{p.is_default ? ' (기본)' : ''}</option>
@@ -386,25 +386,25 @@ export default function PoSendPage() {
               {active && (
                 <button onClick={() => setEditing({ id: null, name: '', subject, body: mailBody })}
                   title="현재 제목·본문을 새 프리셋으로 저장"
-                  className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 whitespace-nowrap">프리셋 저장</button>
+                  className="px-2.5 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 whitespace-nowrap">프리셋 저장</button>
               )}
               <button onClick={() => setManaging(true)}
-                className="px-2.5 py-1.5 border border-gray-400 rounded-lg text-xs text-gray-700 whitespace-nowrap">프리셋 관리</button>
+                className="px-2.5 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-800 whitespace-nowrap">프리셋 관리</button>
             </div>
           </div>
         </div>
         <div className="mt-3">
-          <label className="block text-[0.6875rem] text-gray-500 mb-0.5">제목</label>
+          <label className="block text-xs text-slate-600 mb-0.5">제목</label>
           <input value={subject} disabled={!active}
             onChange={e => { setSubject(e.target.value); setMailTouched(true) }} className={inputCls} />
         </div>
         <div className="mt-3">
-          <label className="block text-[0.6875rem] text-gray-500 mb-0.5">본문</label>
+          <label className="block text-xs text-slate-600 mb-0.5">본문</label>
           <textarea value={mailBody} rows={7} disabled={!active}
             onChange={e => { setMailBody(e.target.value); setMailTouched(true) }}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-y disabled:opacity-60" />
+            className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm resize-y disabled:opacity-60" />
         </div>
-        <div className="mt-2 text-[0.6875rem] text-gray-400">
+        <div className="mt-2 text-xs text-slate-500">
           치환 변수 {VARS.map(v => (
             <code key={v} className="mx-0.5 px-1 py-0.5 bg-blue-50 text-blue-700 rounded">{v}</code>
           ))} — 발송 시 실제 값으로 바뀝니다. 프리셋은 전 직원 공용.
@@ -412,7 +412,7 @@ export default function PoSendPage() {
       </div>
 
       {/* 4. 발송 */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">
         <div className={secTitle}><span className={stepNo}>4</span>발송</div>
         {active && (
           <div className="flex items-center gap-2 mt-3 flex-wrap">
@@ -422,29 +422,29 @@ export default function PoSendPage() {
               {busy ? '처리 중...' : po.sent_at && po.send_method === 'email' ? '메일 재발송' : '메일 발송'}
             </button>
             <button onClick={manualSent} disabled={busy}
-              className="px-3.5 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">수동 발송 기록</button>
-            <span className="text-[0.6875rem] text-gray-400">발송하면 실제 발송된 제목·본문·첨부 파일명이 이력으로 남습니다</span>
+              className="px-3.5 py-2 border border-slate-400 rounded-lg text-sm text-slate-700">수동 발송 기록</button>
+            <span className="text-xs text-slate-500">발송하면 실제 발송된 제목·본문·첨부 파일명이 이력으로 남습니다</span>
           </div>
         )}
-        <div className="mt-3 divide-y divide-gray-100">
+        <div className="mt-3 divide-y divide-slate-200">
           {logs.map(l => (
             <div key={l.id} className="py-2 text-xs">
               <div className="flex items-center gap-2 flex-wrap">
                 {l.ok
                   ? badge('bg-emerald-100 text-emerald-700', l.method === 'email' ? '메일 발송' : '수동 발송')
                   : badge('bg-red-100 text-red-700', '발송 실패')}
-                <span className="tabular-nums text-gray-500">{l.sent_at.slice(0, 16).replace('T', ' ')}</span>
-                {l.sender_name && <span className="text-gray-500">{l.sender_name}</span>}
-                {l.email_to && <span className="text-gray-400">→ {l.email_to}</span>}
+                <span className="tabular-nums text-slate-600">{l.sent_at.slice(0, 16).replace('T', ' ')}</span>
+                {l.sender_name && <span className="text-slate-600">{l.sender_name}</span>}
+                {l.email_to && <span className="text-slate-500">→ {l.email_to}</span>}
               </div>
-              {l.subject && <div className="mt-0.5 text-gray-600">{l.subject}</div>}
+              {l.subject && <div className="mt-0.5 text-slate-700">{l.subject}</div>}
               {l.attachment_names?.length ? (
-                <div className="mt-0.5 text-gray-400">첨부: {l.attachment_names.join(', ')}</div>
+                <div className="mt-0.5 text-slate-500">첨부: {l.attachment_names.join(', ')}</div>
               ) : null}
               {l.error && <div className="mt-0.5 text-red-600">{l.error}</div>}
             </div>
           ))}
-          {!logs.length && <div className="py-2 text-xs text-gray-400">발송 이력 없음 — 아직 발송 전입니다</div>}
+          {!logs.length && <div className="py-2 text-xs text-slate-500">발송 이력 없음 — 아직 발송 전입니다</div>}
         </div>
       </div>
 
@@ -454,64 +454,64 @@ export default function PoSendPage() {
           onClick={() => { setManaging(false); setEditing(null) }}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mt-10 p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2">
-              <div className="text-sm font-bold text-gray-900">프리셋 관리</div>
-              <span className="text-[0.6875rem] text-gray-400">전 직원 공용 · 기본 프리셋이 발송 화면에 자동 적용</span>
+              <div className="text-sm font-bold text-slate-900">프리셋 관리</div>
+              <span className="text-xs text-slate-500">전 직원 공용 · 기본 프리셋이 발송 화면에 자동 적용</span>
               <button onClick={() => { setManaging(false); setEditing(null) }}
-                className="ml-auto text-gray-400 hover:text-gray-600 text-sm">닫기 ✕</button>
+                className="ml-auto text-slate-500 hover:text-slate-700 text-sm">닫기 ✕</button>
             </div>
-            <div className="mt-3 divide-y divide-gray-100">
+            <div className="mt-3 divide-y divide-slate-200">
               {presets.map(p => (
                 <div key={p.id} className="py-2 flex items-center gap-2 text-sm flex-wrap">
                   <span className="font-semibold">{p.name}</span>
                   {p.is_default
                     ? badge('bg-blue-100 text-blue-700', '기본')
                     : <button onClick={() => presetAct('set_default', p)} disabled={busy}
-                        className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-500">기본 지정</button>}
-                  <span className="text-[0.6875rem] text-gray-400 truncate max-w-[16rem]" title={p.subject}>{p.subject}</span>
+                        className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-600">기본 지정</button>}
+                  <span className="text-xs text-slate-500 truncate max-w-[16rem]" title={p.subject}>{p.subject}</span>
                   <span className="ml-auto flex gap-1.5 items-center">
-                    {p.editor_name && <span className="text-[0.625rem] text-gray-300">{p.editor_name} · {p.updated_at.slice(5, 10)}</span>}
+                    {p.editor_name && <span className="text-xs text-slate-400">{p.editor_name} · {p.updated_at.slice(5, 10)}</span>}
                     <button onClick={() => setEditing({ id: p.id, name: p.name, subject: p.subject, body: p.body })}
-                      className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600">수정</button>
+                      className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-700">수정</button>
                     <button onClick={() => setEditing({ id: null, name: `${p.name} (복제)`, subject: p.subject, body: p.body })}
-                      className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600">복제</button>
+                      className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-700">복제</button>
                     <button onClick={() => presetAct('delete', p)} disabled={busy}
-                      className="px-2 py-0.5 border border-red-200 rounded text-[0.6875rem] text-red-600">삭제</button>
+                      className="px-2 py-0.5 border border-red-200 rounded text-xs text-red-600">삭제</button>
                   </span>
                 </div>
               ))}
-              {!presets.length && <div className="py-3 text-xs text-gray-400">프리셋이 없습니다 — 새 프리셋을 만들어보세요.</div>}
+              {!presets.length && <div className="py-3 text-xs text-slate-500">프리셋이 없습니다 — 새 프리셋을 만들어보세요.</div>}
             </div>
             {!editing && (
               <button onClick={() => setEditing({ id: null, name: '', subject: '', body: '' })}
                 className="mt-3 px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-xs">+ 새 프리셋</button>
             )}
             {editing && (
-              <div className="mt-3 border-t border-gray-200 pt-3 space-y-2.5">
-                <div className="text-xs font-semibold text-gray-700">{editing.id ? '프리셋 수정' : '새 프리셋'}</div>
+              <div className="mt-3 border-t border-slate-300 pt-3 space-y-2.5">
+                <div className="text-xs font-semibold text-slate-800">{editing.id ? '프리셋 수정' : '새 프리셋'}</div>
                 <div>
-                  <label className="block text-[0.6875rem] text-gray-500 mb-0.5">이름</label>
+                  <label className="block text-xs text-slate-600 mb-0.5">이름</label>
                   <input value={editing.name} onChange={e => setEditing(v => v ? { ...v, name: e.target.value } : v)}
                     placeholder="예: 명절 발주 (납기 강조)" className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-[0.6875rem] text-gray-500 mb-0.5">제목</label>
+                  <label className="block text-xs text-slate-600 mb-0.5">제목</label>
                   <input value={editing.subject} onChange={e => setEditing(v => v ? { ...v, subject: e.target.value } : v)}
                     className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-[0.6875rem] text-gray-500 mb-0.5">본문</label>
+                  <label className="block text-xs text-slate-600 mb-0.5">본문</label>
                   <textarea value={editing.body} rows={6}
                     onChange={e => setEditing(v => v ? { ...v, body: e.target.value } : v)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-y" />
+                    className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm resize-y" />
                 </div>
-                <div className="text-[0.6875rem] text-gray-400">
+                <div className="text-xs text-slate-500">
                   치환 변수 사용 가능: {VARS.join(' ')}
                 </div>
                 <div className="flex gap-2">
                   <button onClick={savePreset} disabled={busy}
                     className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs disabled:opacity-50">저장</button>
                   <button onClick={() => setEditing(null)}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600">취소</button>
+                    className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700">취소</button>
                 </div>
               </div>
             )}

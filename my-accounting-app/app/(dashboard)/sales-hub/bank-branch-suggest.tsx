@@ -38,12 +38,12 @@ export function BankBranchSuggest({ group, branch, onRegistered, onError }: {
   }
   return (
     <div className="mt-1.5 border border-blue-200 rounded-lg bg-blue-50/50">
-      <div className="px-2.5 pt-1.5 pb-0.5 text-[0.6875rem] text-blue-800">은행연합회 점포 — 고르면 이 이름 · 주소 · 전화로 바로 등록합니다</div>
+      <div className="px-2.5 pt-1.5 pb-0.5 text-xs text-blue-800">은행연합회 점포 — 고르면 이 이름 · 주소 · 전화로 바로 등록합니다</div>
       {items.map(h => (
         <button type="button" key={h.id} disabled={!!busy} onClick={() => pick(h)}
           className="w-full text-left px-2.5 py-1.5 text-sm hover:bg-blue-100 disabled:opacity-60 flex items-baseline justify-between gap-2">
-          <span className="text-gray-800">{busy === h.id ? '등록 중…' : h.full_name}</span>
-          <span className="text-[0.6875rem] text-gray-500 truncate">{[h.address, h.phone].filter(Boolean).join(' · ')}</span>
+          <span className="text-slate-900">{busy === h.id ? '등록 중…' : h.full_name}</span>
+          <span className="text-xs text-slate-600 truncate">{[h.address, h.phone].filter(Boolean).join(' · ')}</span>
         </button>
       ))}
     </div>

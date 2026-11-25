@@ -43,21 +43,21 @@ export function BillingAskDialog({ ask, amount, busy, onChoose }: {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4" onClick={() => !busy && onChoose('cancel')}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-3.5 border-b border-gray-200 font-semibold text-gray-900">계산서의 거래처가 다릅니다</div>
-        <div className="px-5 py-4 text-sm text-gray-700 leading-relaxed">
+        <div className="px-5 py-3.5 border-b border-slate-300 font-semibold text-slate-900">계산서의 거래처가 다릅니다</div>
+        <div className="px-5 py-4 text-sm text-slate-800 leading-relaxed">
           <p>주문은 <b>{ask.orderVendorName}</b>, 계산서는 <b>{ask.invoiceVendorName}</b> 명의입니다. 연결 금액 {won(amount)}.</p>
           {ask.canSetBilling ? (
             <>
               <p className="mt-2">{ask.orderVendorName}의 계산서가 앞으로도 {ask.invoiceVendorName} 명의로 발행된다면 <b>청구처로 지정</b>하세요. 다음부터 연결 창에 그쪽 계산서가 함께 나오고 자동으로 추천됩니다.</p>
-              <p className="mt-2 text-xs text-gray-400">두 매출처는 합쳐지지 않습니다. 주문 · 고객 관리는 지금 단위 그대로이고, 청구처는 매출처 관리 › 청구처 지정에서 언제든 해제할 수 있습니다.</p>
+              <p className="mt-2 text-xs text-slate-500">두 매출처는 합쳐지지 않습니다. 주문 · 고객 관리는 지금 단위 그대로이고, 청구처는 매출처 관리 › 청구처 지정에서 언제든 해제할 수 있습니다.</p>
             </>
           ) : (
-            <p className="mt-2 text-xs text-gray-500">{ask.whyNot ?? '이번 연결만 저장합니다.'}</p>
+            <p className="mt-2 text-xs text-slate-600">{ask.whyNot ?? '이번 연결만 저장합니다.'}</p>
           )}
         </div>
-        <div className="px-5 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2 flex-wrap">
-          <button onClick={() => onChoose('cancel')} disabled={busy} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white disabled:opacity-40">취소</button>
-          <button onClick={() => onChoose('link')} disabled={busy} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 disabled:opacity-40">이번만 연결</button>
+        <div className="px-5 py-3 border-t border-slate-300 bg-slate-50 flex justify-end gap-2 flex-wrap">
+          <button onClick={() => onChoose('cancel')} disabled={busy} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm bg-white disabled:opacity-40">취소</button>
+          <button onClick={() => onChoose('link')} disabled={busy} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm bg-white hover:bg-slate-50 disabled:opacity-40">이번만 연결</button>
           {ask.canSetBilling && (
             <button onClick={() => onChoose('link_set')} disabled={busy}
               className="px-3 py-1.5 rounded-lg text-sm bg-slate-900 text-white font-semibold hover:bg-slate-700 disabled:opacity-40">{busy ? '저장 중...' : '연결하고 청구처로 지정'}</button>

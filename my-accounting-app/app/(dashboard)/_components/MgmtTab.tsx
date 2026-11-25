@@ -16,13 +16,13 @@ const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR'
 const pct = (n: number | null | undefined) => `${(n ?? 0).toFixed(1)}%`
 
 function Card({
-  label, value, sub, href, valueClass = 'text-gray-900',
+  label, value, sub, href, valueClass = 'text-slate-900',
 }: { label: string; value: string; sub?: string; href?: string; valueClass?: string }) {
   const inner = (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm h-full">
-      <p className="text-xs text-gray-400 mb-1.5">{label}</p>
+    <div className="bg-white rounded-xl border border-slate-300 p-5 shadow-sm h-full">
+      <p className="text-xs text-slate-500 mb-1.5">{label}</p>
       <p className={`text-xl font-bold ${valueClass}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+      {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
     </div>
   )
   return href ? <Link href={href} className="block hover:shadow-md transition-shadow rounded-xl">{inner}</Link> : inner
@@ -31,7 +31,7 @@ function Card({
 function SectionHeader({ title, href, linkLabel }: { title: string; href: string; linkLabel: string }) {
   return (
     <div className="flex items-center justify-between mb-3 mt-8">
-      <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
+      <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
       <Link href={href} className="text-xs text-blue-600 hover:underline">{linkLabel} →</Link>
     </div>
   )
@@ -105,7 +105,7 @@ export default async function MgmtTab({
           label="대출 잔액 합계"
           value={won(loanBalance)}
           sub={`상환 중 ${activeLoans.length}건`}
-          valueClass={loanBalance > 0 ? 'text-rose-600' : 'text-gray-900'}
+          valueClass={loanBalance > 0 ? 'text-rose-600' : 'text-slate-900'}
           href="/loans"
         />
         <Card
@@ -118,7 +118,7 @@ export default async function MgmtTab({
           label="만기 경과 · 6개월 내 도래"
           value={`${loanOverdue}건 · ${loanDueSoon}건`}
           sub={loanOverdue > 0 ? '만기 경과 대출 확인 필요' : undefined}
-          valueClass={loanOverdue > 0 ? 'text-red-600' : 'text-gray-900'}
+          valueClass={loanOverdue > 0 ? 'text-red-600' : 'text-slate-900'}
           href="/loans"
         />
       </div>
@@ -130,7 +130,7 @@ export default async function MgmtTab({
           label="미수금 총계"
           value={won(recv?.outstanding_total ?? 0)}
           sub={recv ? `90일 초과: ${won(recv.over90_total)} · 거래처 ${recv.active_vendors.toLocaleString('ko-KR')}곳` : undefined}
-          valueClass={recv && recv.outstanding_total > 0 ? 'text-red-600' : 'text-gray-900'}
+          valueClass={recv && recv.outstanding_total > 0 ? 'text-red-600' : 'text-slate-900'}
           href="/sales-hub"
         />
         <Card
@@ -140,7 +140,7 @@ export default async function MgmtTab({
             ? `90일 초과: ${won(pay.over90_total)}`
               + (payOverpaid < 0 ? ` · 과다지급 ${won(Math.abs(payOverpaid))}` : '')
             : undefined}
-          valueClass={pay && pay.outstanding_total > 0 ? 'text-rose-600' : 'text-gray-900'}
+          valueClass={pay && pay.outstanding_total > 0 ? 'text-rose-600' : 'text-slate-900'}
           href="/purchase-hub"
         />
       </div>
@@ -168,7 +168,7 @@ export default async function MgmtTab({
         <Card
           label={(vat?.estimated_vat ?? 0) < 0 ? '예상 환급액' : '예상 납부액'}
           value={won(Math.abs(vat?.estimated_vat ?? 0))}
-          valueClass={(vat?.estimated_vat ?? 0) < 0 ? 'text-emerald-600' : 'text-gray-900'}
+          valueClass={(vat?.estimated_vat ?? 0) < 0 ? 'text-emerald-600' : 'text-slate-900'}
           href="/reports/vat-estimate"
         />
       </div>
@@ -176,12 +176,12 @@ export default async function MgmtTab({
       {/* 매출처 Top 5 */}
       <SectionHeader title="매출처 TOP 5 (선택 기간)" href="/reports/vendor-sales" linkLabel="거래처별 매출 분석" />
       {topVendors.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">선택 기간에 매출 데이터가 없습니다.</div>
+        <div className="bg-white border border-slate-300 rounded-xl p-8 text-center text-slate-500 text-sm">선택 기간에 매출 데이터가 없습니다.</div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 font-medium">매출처 (ERP)</th>
                 <th className="py-2.5 px-3 font-medium">연결 거래처</th>
                 <th className="py-2.5 px-3 font-medium text-right">순매출</th>
@@ -191,9 +191,9 @@ export default async function MgmtTab({
             </thead>
             <tbody>
               {topVendors.map(v => (
-                <tr key={v.alias_id ?? 'none'} className="border-b border-gray-100">
-                  <td className="py-2 px-3 min-w-0"><p className="truncate max-w-[220px] text-gray-900">{v.erp_name}</p></td>
-                  <td className="py-2 px-3 text-gray-600">{v.vendor_name ?? '-'}</td>
+                <tr key={v.alias_id ?? 'none'} className="border-b border-slate-200">
+                  <td className="py-2 px-3 min-w-0"><p className="truncate max-w-[220px] text-slate-900">{v.erp_name}</p></td>
+                  <td className="py-2 px-3 text-slate-700">{v.vendor_name ?? '-'}</td>
                   <td className="py-2 px-3 text-right whitespace-nowrap font-medium">{won(v.sales_amount)}</td>
                   <td className={`py-2 px-3 text-right whitespace-nowrap ${v.profit_amount >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{won(v.profit_amount)}</td>
                   <td className={`py-2 px-3 text-right whitespace-nowrap ${v.profit_rate >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{pct(v.profit_rate)}</td>

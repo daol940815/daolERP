@@ -22,24 +22,24 @@ export default function ReasonPicker({ kind, value, onChange, label }: {
 
   return (
     <div>
-      <label className="block text-[0.6875rem] text-gray-500 mb-1">{label} <span className="text-red-600">*</span></label>
+      <label className="block text-xs text-slate-600 mb-1">{label} <span className="text-red-600">*</span></label>
       {picked ? (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="px-2 py-1 rounded-lg bg-slate-900 text-white text-xs">{picked.label}</span>
-          <button type="button" onClick={() => { onChange(null); setQ('') }} className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded bg-white text-gray-600 hover:bg-gray-50">다시 고르기</button>
+          <button type="button" onClick={() => { onChange(null); setQ('') }} className="text-xs px-2 py-0.5 border border-slate-400 rounded bg-white text-slate-700 hover:bg-slate-50">다시 고르기</button>
           {picked.code === 'etc' && (
             <input value={value?.text ?? ''} onChange={e => onChange({ code: 'etc', text: e.target.value })} autoFocus placeholder="사유를 직접 입력하세요"
-              className="flex-1 min-w-[12rem] border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+              className="flex-1 min-w-[12rem] border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
           )}
         </div>
       ) : (
-        <div className="border border-gray-300 rounded-lg bg-white overflow-hidden max-w-md">
+        <div className="border border-slate-400 rounded-lg bg-white overflow-hidden max-w-md">
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="글자를 치면 맞는 사유가 나옵니다"
-            className="w-full px-2.5 py-1.5 text-sm border-b border-gray-200 focus:outline-none" />
+            className="w-full px-2.5 py-1.5 text-sm border-b border-slate-300 focus:outline-none" />
           <div className="max-h-40 overflow-y-auto">
             {list.map(r => (
               <button key={r.code} type="button" onClick={() => onChange({ code: r.code, text: '' })}
-                className="block w-full text-left px-2.5 py-1.5 text-xs text-gray-700 hover:bg-slate-50">{r.label}</button>
+                className="block w-full text-left px-2.5 py-1.5 text-xs text-slate-800 hover:bg-slate-50">{r.label}</button>
             ))}
           </div>
         </div>

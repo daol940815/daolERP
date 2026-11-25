@@ -75,6 +75,17 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* 표 머리줄 공통 (UI 통일 기준, 2026-11-25) — 회색 바탕 + 진한 굵은 글자 + 아래 굵은 선.
+   base 층이라 th 에 직접 준 Tailwind 클래스(bg-* · text-*)가 있으면 그쪽이 이긴다. 머리줄 색을 화면마다 따로 주지 말 것. */
+@layer base {
+  thead th {
+    background-color: rgb(var(--slate-200));
+    color: rgb(var(--slate-700));
+    font-weight: 700;
+    border-bottom: 2px solid rgb(var(--slate-400));
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

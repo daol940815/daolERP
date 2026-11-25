@@ -68,12 +68,12 @@ const draftToFilter = (d: Draft): TxFilter | null => {
 }
 
 const chipCls = (kind: TxFilterKind) =>
-  kind === 'text'   ? 'bg-slate-100 border-slate-200 text-slate-800' :
+  kind === 'text'   ? 'bg-slate-100 border-slate-300 text-slate-900' :
   kind === 'amount' ? 'bg-sky-50 border-sky-300 text-sky-800' :
   kind === 'status' ? 'bg-amber-50 border-amber-300 text-amber-800' :
                       'bg-indigo-50 border-indigo-200 text-indigo-800'
 
-const inputCls = 'border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900'
+const inputCls = 'border border-slate-400 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900'
 
 export default function TxFilterBar({ filters, onChange, accounts, vendors, banks, matched, total }: {
   filters: TxFilter[]
@@ -163,22 +163,22 @@ export default function TxFilterBar({ filters, onChange, accounts, vendors, bank
             + 필터 ▾
           </button>
           {open && (
-            <div ref={panelRef} data-tx-filter-keep className="absolute left-0 top-10 z-30 w-[560px] max-w-[95vw] bg-white border border-gray-200 rounded-xl shadow-xl p-3 text-xs">
+            <div ref={panelRef} data-tx-filter-keep className="absolute left-0 top-10 z-30 w-[560px] max-w-[95vw] bg-white border border-slate-300 rounded-xl shadow-xl p-3 text-xs">
               <div className="flex gap-3">
-                <div className="w-32 shrink-0 border-r border-gray-100 pr-2">
-                  <div className="text-gray-400 mb-1">필터 항목</div>
+                <div className="w-32 shrink-0 border-r border-slate-200 pr-2">
+                  <div className="text-slate-500 mb-1">필터 항목</div>
                   {ITEMS.map(k => {
                     const active = filters.some(f => f.kind === k)
                     return (
                       <button key={k} type="button" onClick={() => setDraft(() => { const f = filters.find(x => x.kind === k); return f ? draftFrom(f) : emptyDraft(k) })}
-                        className={`block w-full text-left px-2 py-1.5 rounded ${draft.kind === k ? 'bg-slate-900 text-white' : 'text-gray-700 hover:bg-gray-50'}`}>
-                        {FILTER_LABEL[k]}{active && <span className={`ml-1 ${draft.kind === k ? 'text-slate-300' : 'text-sky-600'}`}>●</span>}
+                        className={`block w-full text-left px-2 py-1.5 rounded ${draft.kind === k ? 'bg-slate-900 text-white' : 'text-slate-800 hover:bg-slate-50'}`}>
+                        {FILTER_LABEL[k]}{active && <span className={`ml-1 ${draft.kind === k ? 'text-slate-400' : 'text-sky-600'}`}>●</span>}
                       </button>
                     )
                   })}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-gray-400 mb-1">{FILTER_LABEL[draft.kind]} 조건{current && <span className="ml-1 text-sky-600">(적용 중인 값을 수정합니다)</span>}</div>
+                  <div className="text-slate-500 mb-1">{FILTER_LABEL[draft.kind]} 조건{current && <span className="ml-1 text-sky-600">(적용 중인 값을 수정합니다)</span>}</div>
 
                   {draft.kind === 'amount' && (
                     <div className="flex flex-wrap items-center gap-2">
@@ -191,11 +191,11 @@ export default function TxFilterBar({ filters, onChange, accounts, vendors, bank
                       <input value={draft.a} onChange={e => setDraft(d => ({ ...d, a: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') apply() }}
                         placeholder={draft.op === 'range' ? '최소' : '금액'} inputMode="numeric" className={`${inputCls} w-28 text-right`} />
                       {draft.op === 'range' && (<>
-                        <span className="text-gray-400">~</span>
+                        <span className="text-slate-500">~</span>
                         <input value={draft.b} onChange={e => setDraft(d => ({ ...d, b: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') apply() }}
                           placeholder="최대" inputMode="numeric" className={`${inputCls} w-28 text-right`} />
                       </>)}
-                      <p className="w-full text-gray-400">숫자만 입력(쉼표 가능). 값 없이 방향만 고르면 입금만·출금만 필터가 됩니다.</p>
+                      <p className="w-full text-slate-500">숫자만 입력(쉼표 가능). 값 없이 방향만 고르면 입금만·출금만 필터가 됩니다.</p>
                     </div>
                   )}
 
@@ -205,7 +205,7 @@ export default function TxFilterBar({ filters, onChange, accounts, vendors, bank
                         options={draft.kind === 'account' ? accountOptions : vendorOptions}
                         emptyLabel={draft.kind === 'account' ? '계정과목 선택…' : '거래처 선택…'}
                         className={`${inputCls} w-full bg-white`} />
-                      <p className="text-gray-400 mt-1">{draft.kind === 'account' ? '확정 계정 또는 추천 계정이 일치하는 행. 검색창에 계정:임차료 처럼 쳐도 됩니다.' : '연결된 거래처가 일치하는 행. 검색창에 거래처:에스원 처럼 쳐도 됩니다.'}</p>
+                      <p className="text-slate-500 mt-1">{draft.kind === 'account' ? '확정 계정 또는 추천 계정이 일치하는 행. 검색창에 계정:임차료 처럼 쳐도 됩니다.' : '연결된 거래처가 일치하는 행. 검색창에 거래처:에스원 처럼 쳐도 됩니다.'}</p>
                     </div>
                   )}
 
@@ -225,7 +225,7 @@ export default function TxFilterBar({ filters, onChange, accounts, vendors, bank
                     <div data-tx-filter-keep>
                       <SearchableSelect value={draft.bankText} onChange={v => setDraft(d => ({ ...d, bankText: v }))}
                         options={bankOptions} emptyLabel="계좌 선택…" className={`${inputCls} w-full bg-white`} />
-                      <p className="text-gray-400 mt-1">불러온 행의 계좌 별칭으로 좁힙니다. 사이드바 계좌 바로가기(서버 조회)와는 별개입니다.</p>
+                      <p className="text-slate-500 mt-1">불러온 행의 계좌 별칭으로 좁힙니다. 사이드바 계좌 바로가기(서버 조회)와는 별개입니다.</p>
                     </div>
                   )}
 
@@ -248,11 +248,11 @@ export default function TxFilterBar({ filters, onChange, accounts, vendors, bank
 
                   {draft.kind === 'date' && (
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-gray-500">월</span>
+                      <span className="text-slate-600">월</span>
                       <input type="month" value={draft.dateMonth} onChange={e => setDraft(d => ({ ...d, dateMonth: e.target.value, dateDay: '' }))} className={inputCls} />
-                      <span className="text-gray-400">또는 일</span>
+                      <span className="text-slate-500">또는 일</span>
                       <input type="date" value={draft.dateDay} onChange={e => setDraft(d => ({ ...d, dateDay: e.target.value, dateMonth: '' }))} className={inputCls} />
-                      <p className="w-full text-gray-400">조회한 기간 안에서 다시 좁힙니다. 기간 자체는 위 기간 줄에서 바꿉니다.</p>
+                      <p className="w-full text-slate-500">조회한 기간 안에서 다시 좁힙니다. 기간 자체는 위 기간 줄에서 바꿉니다.</p>
                     </div>
                   )}
 
@@ -271,7 +271,7 @@ export default function TxFilterBar({ filters, onChange, accounts, vendors, bank
                     {current && (
                       <button type="button" onClick={() => { remove(current); setOpen(false) }} className="px-2.5 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50">이 필터 제거</button>
                     )}
-                    <button type="button" onClick={() => setOpen(false)} className="px-2.5 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">취소</button>
+                    <button type="button" onClick={() => setOpen(false)} className="px-2.5 py-1 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">취소</button>
                     <button type="button" onClick={apply} disabled={!draftValid} className="px-2.5 py-1 bg-slate-900 text-white rounded disabled:opacity-40">{current ? '수정 적용' : '필터 추가'}</button>
                   </div>
                 </div>
@@ -283,15 +283,15 @@ export default function TxFilterBar({ filters, onChange, accounts, vendors, bank
           <input value={qInput} onChange={e => setQInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); commitInput() } }}
             placeholder="검색어 입력 후 Enter — 적요·보낸분/받는분·메모·거래처·계정과목, 숫자만 치면 입금액·출금액도 찾음 (금액:100000~200000 같은 단축 입력 가능)"
-            className="w-full border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-          <span className="absolute left-2.5 top-1.5 text-gray-400 text-sm">⌕</span>
+            className="w-full border border-slate-400 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          <span className="absolute left-2.5 top-1.5 text-slate-500 text-sm">⌕</span>
         </div>
       </div>
 
       {/* 적용 중 칩 + 빠른 조건 */}
       <div className="flex flex-wrap items-center gap-1.5 mt-2 text-xs">
         {filters.length > 0 ? (<>
-          <span className="text-gray-400">적용 중:</span>
+          <span className="text-slate-500">적용 중:</span>
           {filters.map((f, i) => {
             const d = describeFilter(f)
             const editable = f.kind !== 'text'
@@ -303,16 +303,16 @@ export default function TxFilterBar({ filters, onChange, accounts, vendors, bank
               </span>
             )
           })}
-          <button type="button" onClick={() => onChange([])} className="px-2 py-1 rounded-full border border-dashed border-gray-300 text-gray-500 hover:bg-gray-50">모두 지우기</button>
-          <span className="text-gray-400 ml-1">조건 일치 <b className="text-gray-900">{matched.toLocaleString('ko-KR')}건</b> / 기간 내 {total.toLocaleString('ko-KR')}건</span>
-          <span className="text-gray-300 mx-1">|</span>
+          <button type="button" onClick={() => onChange([])} className="px-2 py-1 rounded-full border border-dashed border-slate-400 text-slate-600 hover:bg-slate-50">모두 지우기</button>
+          <span className="text-slate-500 ml-1">조건 일치 <b className="text-slate-900">{matched.toLocaleString('ko-KR')}건</b> / 기간 내 {total.toLocaleString('ko-KR')}건</span>
+          <span className="text-slate-400 mx-1">|</span>
         </>) : null}
-        <span className="text-gray-400">빠른 조건:</span>
+        <span className="text-slate-500">빠른 조건:</span>
         {QUICK_FILTERS.map(q => {
           const on = q.filters.every(f => filters.some(x => sameFilter(x, f)))
           return (
             <button key={q.label} type="button" onClick={() => toggleQuick(q.filters)} title={q.title}
-              className={`px-2 py-1 rounded-full border ${on ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'}`}>
+              className={`px-2 py-1 rounded-full border ${on ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-400 text-slate-700 hover:border-slate-400'}`}>
               {q.label}
             </button>
           )

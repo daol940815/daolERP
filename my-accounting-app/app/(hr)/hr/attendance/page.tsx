@@ -33,8 +33,8 @@ interface MonthRes {
 const STATUS_COLOR: Record<DayStatusKind, string> = {
   present: 'bg-green-100 text-green-700', late: 'bg-amber-100 text-amber-700',
   leave: 'bg-blue-100 text-blue-700', missing_out: 'bg-orange-100 text-orange-700',
-  absent: 'bg-red-100 text-red-700', weekend: 'bg-gray-100 text-gray-400',
-  holiday: 'bg-rose-100 text-rose-600', none: 'bg-gray-50 text-gray-300',
+  absent: 'bg-red-100 text-red-700', weekend: 'bg-slate-100 text-slate-500',
+  holiday: 'bg-rose-100 text-rose-600', none: 'bg-slate-50 text-slate-400',
 }
 const EMPTY_FORM = { leave_type: 'annual' as LeaveType, start_date: '', end_date: '', reason: '' }
 const EMPTY_SKIP = { s1: false, s2: false, note: '' }   // 신청자 전결 (1 · 2차, 2026-11-04)
@@ -175,20 +175,20 @@ export default function MyAttendancePage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-gray-900">내 근태</h1>
+      <h1 className="text-xl font-bold text-slate-900">내 근태</h1>
       {msg && <div className="my-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       {error && <div className="my-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 
       {/* 오늘 출퇴근 체크 */}
       {status && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5 mt-4 flex flex-wrap items-center gap-6">
+        <div className="bg-white border border-slate-300 rounded-xl p-5 mt-4 flex flex-wrap items-center gap-6">
           <div>
-            <p className="text-xs text-gray-400">{status.today} · 근무 {status.policy.work_start.slice(0, 5)}~{status.policy.work_end.slice(0, 5)}</p>
+            <p className="text-xs text-slate-500">{status.today} · 근무 {status.policy.work_start.slice(0, 5)}~{status.policy.work_end.slice(0, 5)}</p>
             <p className="text-lg font-bold mt-1">
               {todayHoliday && <span className="text-rose-600 mr-2">{todayHoliday}</span>}
               {status.todayLeave && <span className="text-blue-600 mr-2">{LEAVE_TYPE_LABEL[status.todayLeave.leave_type]}</span>}
               {inTime ? `출근 ${inTime}` : '출근 전'}
-              {outTime && <span className="text-gray-500"> · 퇴근 {outTime}</span>}
+              {outTime && <span className="text-slate-600"> · 퇴근 {outTime}</span>}
             </p>
           </div>
           {status.isTarget ? (
@@ -198,24 +198,24 @@ export default function MyAttendancePage() {
                 출근 체크
               </button>
               <button onClick={() => check('check_out')} disabled={busy || !inTime}
-                className="px-5 py-2.5 border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 disabled:opacity-40">
+                className="px-5 py-2.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-semibold hover:bg-slate-50 disabled:opacity-40">
                 퇴근 체크
               </button>
             </div>
           ) : (
-            <p className="ml-auto text-sm text-gray-400">근태 대상이 아닌 계정입니다.</p>
+            <p className="ml-auto text-sm text-slate-500">근태 대상이 아닌 계정입니다.</p>
           )}
         </div>
       )}
 
       {/* 이번 달 요약 + 일별 기록 */}
-      <div className="bg-white border border-gray-200 rounded-xl mt-4 p-4">
+      <div className="bg-white border border-slate-300 rounded-xl mt-4 p-4">
         <div className="flex items-center gap-3 flex-wrap">
-          <h2 className="font-bold text-gray-900">월별 기록</h2>
+          <h2 className="font-bold text-slate-900">월별 기록</h2>
           <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-            className="border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+            className="border border-slate-400 rounded-lg px-2 py-1 text-sm" />
           {summary && (
-            <span className="text-xs text-gray-500 ml-auto">
+            <span className="text-xs text-slate-600 ml-auto">
               근무일 {summary.workDays} · 출근 {summary.present} · 지각 {summary.late} ·
               미기록 {summary.absent} · 휴가 {summary.leaveDays}일
             </span>
@@ -230,7 +230,7 @@ export default function MyAttendancePage() {
         <div className="overflow-x-auto mt-3">
           <table className="w-full text-sm min-w-[560px]">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 px-3 text-left font-medium">날짜</th>
                 <th className="py-2 px-3 text-left font-medium">출근</th>
                 <th className="py-2 px-3 text-left font-medium">퇴근</th>
@@ -252,21 +252,21 @@ export default function MyAttendancePage() {
                 })
                 if (isOffKind(st.kind) && !record) return null
                 return (
-                  <tr key={date} className="border-b border-gray-50">
+                  <tr key={date} className="border-b border-slate-200">
                     <td className="py-1.5 px-3 tabular-nums text-xs">
                       {date.slice(5)} ({DOW_LABEL[dayOfWeek(date)]})
                     </td>
                     <td className="py-1.5 px-3 tabular-nums">{kstTime(record?.check_in_at ?? null) ?? '-'}</td>
                     <td className="py-1.5 px-3 tabular-nums">{kstTime(record?.check_out_at ?? null) ?? '-'}</td>
                     <td className="py-1.5 px-3">
-                      <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${STATUS_COLOR[st.kind]}`}>
+                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${STATUS_COLOR[st.kind]}`}>
                         {st.holidayName ?? (st.leave ? LEAVE_TYPE_LABEL[st.leave.leave_type] : DAY_STATUS_LABEL[st.kind])}
                       </span>
                       {st.halfLeave && st.kind !== 'none' && st.record && (
-                        <span className="ml-1 text-[0.6875rem] text-gray-400">{DAY_STATUS_LABEL[st.kind]}</span>
+                        <span className="ml-1 text-xs text-slate-500">{DAY_STATUS_LABEL[st.kind]}</span>
                       )}
                     </td>
-                    <td className="py-1.5 px-3 text-xs text-gray-400">
+                    <td className="py-1.5 px-3 text-xs text-slate-500">
                       {record?.source === 'admin' ? '관리자 입력' : record?.edit_note ? `보정: ${record.edit_note}` : ''}
                     </td>
                   </tr>
@@ -278,9 +278,9 @@ export default function MyAttendancePage() {
       </div>
 
       {/* 휴가 신청 */}
-      <div className="bg-white border border-gray-200 rounded-xl mt-4 p-4">
+      <div className="bg-white border border-slate-300 rounded-xl mt-4 p-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-bold text-gray-900">휴가</h2>
+          <h2 className="font-bold text-slate-900">휴가</h2>
           <button onClick={() => setShowLeaveForm(s => !s)}
             className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700">
             {showLeaveForm ? '입력 닫기' : '+ 휴가 신청'}
@@ -289,41 +289,41 @@ export default function MyAttendancePage() {
         {showLeaveForm && (
           <div className="mt-3 grid grid-cols-2 lg:grid-cols-5 gap-3 items-end">
             <div>
-              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">종류</label>
+              <label className="block text-xs text-slate-600 font-semibold mb-1">종류</label>
               <select value={form.leave_type}
                 onChange={e => setForm(f => ({ ...f, leave_type: e.target.value as LeaveType }))}
-                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                className="w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm">
                 {REQUEST_LEAVE_TYPES.map(v => <option key={v} value={v}>{LEAVE_TYPE_LABEL[v]}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">시작일</label>
+              <label className="block text-xs text-slate-600 font-semibold mb-1">시작일</label>
               <input type="date" value={form.start_date}
                 onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                className="w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
             </div>
             <div>
-              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">종료일 (비우면 하루)</label>
+              <label className="block text-xs text-slate-600 font-semibold mb-1">종료일 (비우면 하루)</label>
               <input type="date" value={form.end_date}
                 onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                className="w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
             </div>
             <div>
-              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">사유 (선택)</label>
+              <label className="block text-xs text-slate-600 font-semibold mb-1">사유 (선택)</label>
               <input value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                className="w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
             </div>
             <button onClick={requestLeave} disabled={busy || formDays === 0}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
               신청
             </button>
             {formDays != null && (
-              <p className={`col-span-full text-xs ${formDays === 0 ? 'text-red-600' : 'text-gray-600'}`}>
+              <p className={`col-span-full text-xs ${formDays === 0 ? 'text-red-600' : 'text-slate-700'}`}>
                 {formDays === 0
                   ? '선택한 기간에 근무일이 없습니다. 주말과 공휴일은 휴가 일수에서 제외됩니다.'
                   : <>근무일 <b className="tabular-nums">{formDays}일</b>
                     {formSpan > formWorkDates &&
-                      <span className="text-gray-400"> (달력 {formSpan}일 중 주말 · 공휴일 제외)</span>}</>}
+                      <span className="text-slate-500"> (달력 {formSpan}일 중 주말 · 공휴일 제외)</span>}</>}
               </p>
             )}
             {myBal && (() => {
@@ -332,7 +332,7 @@ export default function MyAttendancePage() {
               const left = Math.round((myBal.remainTotal - myBal.over) * 10) / 10
               const after = Math.round((left - deduct) * 10) / 10
               return (
-                <p className="col-span-full text-xs text-gray-600">
+                <p className="col-span-full text-xs text-slate-700">
                   내 연차 잔여 <b>기본 {myBal.remainBase} · 보상 {myBal.remainComp}</b>
                   {myBal.over > 0 && <span className="text-red-600 font-semibold"> (이미 초과 {myBal.over}일 사용 중)</span>}
                   {deduct > 0 && after < 0 && (
@@ -340,7 +340,7 @@ export default function MyAttendancePage() {
                       잔여보다 {Math.min(deduct, -after)}일 많습니다. 신청은 할 수 있고, 승인되면 초과 사용({-after}일)으로 표시됩니다.
                     </span>
                   )}
-                  {deduct > 0 && after >= 0 && <span className="text-gray-400"> → 승인 시 잔여 {after}일</span>}
+                  {deduct > 0 && after >= 0 && <span className="text-slate-500"> → 승인 시 잔여 {after}일</span>}
                 </p>
               )
             })()}
@@ -350,50 +350,50 @@ export default function MyAttendancePage() {
         <table className="w-full text-sm mt-3">
           <tbody>
             {myLeaves.map(l => (
-              <tr key={l.id} className="border-b border-gray-50">
+              <tr key={l.id} className="border-b border-slate-200">
                 <td className="py-1.5 pr-3 font-medium">{LEAVE_TYPE_LABEL[l.leave_type]}</td>
                 <td className="py-1.5 px-3 tabular-nums text-xs whitespace-nowrap">{leavePeriodText(l, l.days)}</td>
-                <td className="py-1.5 px-3 text-xs text-gray-500">{l.reason ?? ''}</td>
+                <td className="py-1.5 px-3 text-xs text-slate-600">{l.reason ?? ''}</td>
                 <td className="py-1.5 px-3">
                   <LeaveSteps steps={l.steps ?? []} status={l.status} roster={approval.roster}
                     applicantId={l.employee_id} decidedByName={l.decided_by_name} stepsReady={approval.ready} source={l.source} />
                 </td>
                 <td className="py-1.5 px-3">
-                  <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${
+                  <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                     l.status === 'approved' ? 'bg-green-100 text-green-700'
                     : l.status === 'requested' ? 'bg-amber-100 text-amber-700'
-                    : 'bg-gray-100 text-gray-500'}`}>
+                    : 'bg-slate-100 text-slate-600'}`}>
                     {LEAVE_STATUS_LABEL[l.status]}
                   </span>
                   {l.status !== 'requested' && l.decided_by_name && (
-                    <span className="ml-2 text-[0.6875rem] text-gray-500">{l.decided_by_name} · {fmtDay(l.decided_at)}</span>
+                    <span className="ml-2 text-xs text-slate-600">{l.decided_by_name} · {fmtDay(l.decided_at)}</span>
                   )}
-                  {l.decide_note && <span className="ml-2 text-[0.6875rem] text-gray-400">{l.decide_note}</span>}
+                  {l.decide_note && <span className="ml-2 text-xs text-slate-500">{l.decide_note}</span>}
                   {l.status === 'approved' && l.cancel_request_status === 'pending' && (
-                    <span className="ml-2 px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-amber-100 text-amber-800" title={l.cancel_request_note ?? ''}>취소 요청 중</span>
+                    <span className="ml-2 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800" title={l.cancel_request_note ?? ''}>취소 요청 중</span>
                   )}
                   {l.status === 'approved' && l.cancel_request_status === 'rejected' && (
-                    <span className="ml-2 text-[0.6875rem] text-gray-500">취소 요청 반려{l.cancel_request_reply ? `: ${l.cancel_request_reply}` : ''}</span>
+                    <span className="ml-2 text-xs text-slate-600">취소 요청 반려{l.cancel_request_reply ? `: ${l.cancel_request_reply}` : ''}</span>
                   )}
                 </td>
                 <td className="py-1.5 pl-3 text-right whitespace-nowrap">
                   {l.status === 'requested' && (
                     <button onClick={() => cancelLeave(l.id)} disabled={busy}
-                      className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">신청 취소</button>
+                      className="text-xs px-2 py-1 border border-slate-400 rounded hover:bg-slate-50">신청 취소</button>
                   )}
                   {l.actions?.cancel_request && (
                     <button onClick={() => requestCancel(l.id)} disabled={busy}
-                      className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">취소 요청</button>
+                      className="text-xs px-2 py-1 border border-slate-400 rounded hover:bg-slate-50">취소 요청</button>
                   )}
                   {l.actions?.cancel_request_withdraw && (
                     <button onClick={() => withdrawCancelRequest(l.id)} disabled={busy}
-                      className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">요청 철회</button>
+                      className="text-xs px-2 py-1 border border-slate-400 rounded hover:bg-slate-50">요청 철회</button>
                   )}
                 </td>
               </tr>
             ))}
             {!myLeaves.length && (
-              <tr><td className="py-6 text-center text-gray-400 text-sm">휴가 신청 이력이 없습니다.</td></tr>
+              <tr><td className="py-6 text-center text-slate-500 text-sm">휴가 신청 이력이 없습니다.</td></tr>
             )}
           </tbody>
         </table>
@@ -413,12 +413,12 @@ function ApprovalLine({ approval, skip, setSkip }: {
   const anySkip = (skip.s1 && lv < 1) || (skip.s2 && lv < 2)
   const Row = ({ l }: { l: ApproveLevel }) => (
     <div className="flex items-center gap-3 py-1">
-      <span className="w-8 text-xs font-bold text-gray-500">{l}차</span>
-      <span className="w-48 text-xs text-gray-700 truncate">{l <= lv ? '본인' : names(l)}</span>
-      {l <= lv ? <span className="text-xs text-gray-400">자동 통과</span>
-        : l === 3 ? <span className="text-xs text-gray-400">신청자 전결 불가 — 부재 시 2차 권한자가 전결</span>
+      <span className="w-8 text-xs font-bold text-slate-600">{l}차</span>
+      <span className="w-48 text-xs text-slate-800 truncate">{l <= lv ? '본인' : names(l)}</span>
+      {l <= lv ? <span className="text-xs text-slate-500">자동 통과</span>
+        : l === 3 ? <span className="text-xs text-slate-500">신청자 전결 불가 — 부재 시 2차 권한자가 전결</span>
         : (
-          <label className="text-xs text-gray-700 flex items-center gap-1.5 cursor-pointer">
+          <label className="text-xs text-slate-800 flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" checked={l === 1 ? skip.s1 : skip.s2}
               onChange={e => setSkip(s => (l === 1 ? { ...s, s1: e.target.checked } : { ...s, s2: e.target.checked }))} />
             전결 (승인권자 부재)
@@ -427,17 +427,17 @@ function ApprovalLine({ approval, skip, setSkip }: {
     </div>
   )
   return (
-    <div className="col-span-full border border-gray-200 rounded-lg px-3 py-2">
-      <div className="text-[0.6875rem] font-bold text-gray-500 mb-0.5">결재선</div>
+    <div className="col-span-full border border-slate-300 rounded-lg px-3 py-2">
+      <div className="text-xs font-bold text-slate-600 mb-0.5">결재선</div>
       <Row l={1} /><Row l={2} /><Row l={3} />
-      {lv === 3 && <p className="text-xs text-gray-500 mt-1">3차 결재 권한자 본인 신청은 신청 즉시 승인되고 마스터 계정에 알림이 갑니다.</p>}
+      {lv === 3 && <p className="text-xs text-slate-600 mt-1">3차 결재 권한자 본인 신청은 신청 즉시 승인되고 마스터 계정에 알림이 갑니다.</p>}
       {anySkip && (
         <div className="mt-1.5">
-          <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">전결 사유 (필수)</label>
+          <label className="block text-xs text-slate-600 font-semibold mb-1">전결 사유 (필수)</label>
           <input value={skip.note} onChange={e => { const v = e.target.value; setSkip(s => ({ ...s, note: v })) }}
             placeholder="예: 팀장 출장"
-            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-          <p className="text-[0.6875rem] text-amber-700 mt-1">전결한 단계의 승인권자에게는 나중에 알림이 가고, 휴가 목록에 &ldquo;신청자 전결&rdquo;과 사유가 남습니다.</p>
+            className="w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
+          <p className="text-xs text-amber-700 mt-1">전결한 단계의 승인권자에게는 나중에 알림이 가고, 휴가 목록에 &ldquo;신청자 전결&rdquo;과 사유가 남습니다.</p>
         </div>
       )}
     </div>

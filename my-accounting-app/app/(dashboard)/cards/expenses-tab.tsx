@@ -254,7 +254,7 @@ function CardExpensesContent() {
     <div>
       <div className="flex items-start justify-between mb-1">
         <div>
-          <p className="text-sm text-gray-500">카드사·카드번호별 사용내역. 파일의 계정과목은 확정, 비어 있으면 자동 제안 후 승인하세요.</p>
+          <p className="text-sm text-slate-600">카드사·카드번호별 사용내역. 파일의 계정과목은 확정, 비어 있으면 자동 제안 후 승인하세요.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => {
@@ -264,7 +264,7 @@ function CardExpensesContent() {
             if (status) p.set('status', status)
             const a = document.createElement('a'); a.href = `/api/card-expenses/export?${p}`; a.click()
           }}
-            className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+            className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50">
             ↓ 엑셀
           </button>
           {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
@@ -282,23 +282,23 @@ function CardExpensesContent() {
       {/* 필터 */}
       <div className="flex items-center gap-2 my-3 flex-wrap">
         <select value={cardAccountId} onChange={e => changeCard(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm">
           <option value="">전체 카드</option>
           {cardAccounts.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-        <span className="text-gray-400 text-sm">~</span>
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+        <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
         <select value={status} onChange={e => setStatus(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm">
           <option value="">전체 상태</option>
           <option value="pending">미확정</option>
           <option value="confirmed">확정</option>
         </select>
         <select value={accountFilter} onChange={e => setAccountFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm">
           <option value="">전체 계정과목</option>
           <option value="none">추천 없음 ({accountOptions.noneCount})</option>
           {accountOptions.list.map(a => (
@@ -306,18 +306,18 @@ function CardExpensesContent() {
           ))}
         </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="가맹점 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-44" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-44" />
       </div>
 
       {/* 요약 */}
       <div className="flex gap-3 flex-wrap mb-4">
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">사용액 합계(승인금액)</p>
-          <p className="text-lg font-bold text-gray-900">{won(viewSummary.approved_total)}</p>
-          <p className="text-xs text-gray-400">{viewSummary.count.toLocaleString()}건</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">사용액 합계(승인금액)</p>
+          <p className="text-lg font-bold text-slate-900">{won(viewSummary.approved_total)}</p>
+          <p className="text-xs text-slate-500">{viewSummary.count.toLocaleString()}건</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">미확정(승인 필요)</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">미확정(승인 필요)</p>
           <p className="text-lg font-bold text-amber-600">{viewSummary.pending_count.toLocaleString()}건</p>
         </div>
       </div>
@@ -359,14 +359,14 @@ function CardExpensesContent() {
       )}
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : filteredRows.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">표시할 데이터가 없습니다.</div>
+        <div className="text-center py-20 text-slate-500 text-sm">표시할 데이터가 없습니다.</div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 w-9">
                   <input ref={headerCheckRef} type="checkbox" checked={allChecked} onChange={toggleAll}
                     disabled={selectableIds.length === 0 || !!bulkProgress}
@@ -383,7 +383,7 @@ function CardExpensesContent() {
             <tbody>
               {filteredRows.map(r => (
                 <tr key={r.id} id={`card-expense-${r.id}`}
-                  className={`border-b border-gray-100 ${focusId === r.id ? 'bg-sky-50 shadow-[inset_3px_0_0_#0284c7]' : checked.has(r.id) ? 'bg-indigo-50/60' : 'hover:bg-gray-50'}`}>
+                  className={`border-b border-slate-200 ${focusId === r.id ? 'bg-sky-50 shadow-[inset_3px_0_0_#0284c7]' : checked.has(r.id) ? 'bg-indigo-50/60' : 'hover:bg-slate-50'}`}>
                   <td className="py-2 px-3">
                     <input type="checkbox"
                       checked={checked.has(r.id)}
@@ -392,15 +392,15 @@ function CardExpensesContent() {
                       title={r.classify_status === 'confirmed' ? '확정된 건은 선택할 수 없습니다 (개별 행에서만 변경)' : undefined}
                       className="align-middle" />
                   </td>
-                  <td className="py-2 px-3 whitespace-nowrap text-gray-500">
-                    {r.tx_date}<span className="text-gray-300"> {r.tx_time ?? ''}</span>
+                  <td className="py-2 px-3 whitespace-nowrap text-slate-600">
+                    {r.tx_date}<span className="text-slate-400"> {r.tx_time ?? ''}</span>
                   </td>
-                  <td className="py-2 px-3 whitespace-nowrap text-gray-500">
+                  <td className="py-2 px-3 whitespace-nowrap text-slate-600">
                     {r.card_account ? `${r.card_account.card_company} ${r.card_account.card_number.slice(-4)}` : '-'}
                   </td>
                   <td className="py-2 px-3">
-                    <p className="text-gray-900 truncate max-w-[200px]">{r.merchant_name ?? '-'}</p>
-                    <p className="text-xs text-gray-400">{r.merchant_category ?? ''}</p>
+                    <p className="text-slate-900 truncate max-w-[200px]">{r.merchant_name ?? '-'}</p>
+                    <p className="text-xs text-slate-500">{r.merchant_category ?? ''}</p>
                   </td>
                   <td className="py-2 px-3 text-right whitespace-nowrap font-medium">{won(r.approved_amount)}</td>
                   <td className="py-2 px-3 whitespace-nowrap">
@@ -411,12 +411,12 @@ function CardExpensesContent() {
                       emptyLabel={r.suggested ? `(제안) ${r.suggested.name}` : '미지정'}
                       disabled={!!bulkProgress}
                       className={`border rounded px-2 py-1 text-xs min-w-[150px] max-w-[220px] ${
-                        r.classify_status === 'confirmed' ? 'border-gray-300 text-gray-900'
+                        r.classify_status === 'confirmed' ? 'border-slate-400 text-slate-900'
                         : draft.has(r.id) ? 'border-sky-400 bg-sky-50 text-sky-800'
                         : 'border-amber-300 bg-amber-50 text-amber-700'}`}
                     />
                     {r.classify_status === 'pending' && draft.has(r.id) && (
-                      <span className="ml-1 text-[0.6875rem] text-sky-700">지정됨 · 선택 확정으로 저장</span>
+                      <span className="ml-1 text-xs text-sky-700">지정됨 · 선택 확정으로 저장</span>
                     )}
                     {r.classify_status === 'pending' && !draft.has(r.id) && r.suggested && (
                       <button onClick={() => patch(r.id, { approve: true })}
@@ -440,10 +440,10 @@ function CardExpensesContent() {
                     ) : (
                       <button
                         onClick={() => setEditClass({ id: r.id, value: r.classification ?? '' })}
-                        className="text-left min-w-[60px] px-1 py-1 rounded hover:bg-gray-100 text-gray-500"
+                        className="text-left min-w-[60px] px-1 py-1 rounded hover:bg-slate-100 text-slate-600"
                         title="클릭하여 분류 수정"
                       >
-                        {r.classification ?? <span className="text-gray-300">분류 +</span>}
+                        {r.classification ?? <span className="text-slate-400">분류 +</span>}
                       </button>
                     )}
                   </td>
@@ -460,7 +460,7 @@ function CardExpensesContent() {
 // 카드 내역 화면의 법인카드 탭 (옛 /card-expenses 화면 본문). useSearchParams는 Suspense 경계가 필요.
 export default function ExpensesTab() {
   return (
-    <Suspense fallback={<div className="p-6 text-gray-400 text-sm">로딩 중...</div>}>
+    <Suspense fallback={<div className="p-6 text-slate-500 text-sm">로딩 중...</div>}>
       <CardExpensesContent />
     </Suspense>
   )

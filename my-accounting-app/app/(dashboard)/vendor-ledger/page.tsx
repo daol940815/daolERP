@@ -85,17 +85,17 @@ export default function VendorLedgerPage() {
 
   return (
     <div className="w-full">
-      <h1 className="text-2xl font-bold text-gray-900">거래처별 원장</h1>
-      <p className="text-sm mt-1 text-gray-500">분개장을 원천으로 거래처별 채권·채무 잔액과 거래내역을 확인합니다. (양수=미수/채권, 음수=미지급/채무)</p>
+      <h1 className="text-2xl font-bold text-slate-900">거래처별 원장</h1>
+      <p className="text-sm mt-1 text-slate-600">분개장을 원천으로 거래처별 채권·채무 잔액과 거래내역을 확인합니다. (양수=미수/채권, 음수=미지급/채무)</p>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
       {/* 탭 */}
-      <div className="flex gap-1 mt-3 mb-3 border-b border-gray-200">
+      <div className="flex gap-1 mt-3 mb-3 border-b border-slate-300">
         {([['balance', '잔액'], ['detail', '내용']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors ${
-              tab === k ? 'border-slate-800 text-slate-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
+              tab === k ? 'border-slate-800 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
             {label}
           </button>
         ))}
@@ -105,31 +105,31 @@ export default function VendorLedgerPage() {
       <PeriodPresets from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} className="mb-2" />
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-        <span className="text-gray-400 text-sm">~</span>
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+        <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
         {tab === 'balance' && (
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="거래처명 검색"
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52" />
+            className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52" />
         )}
         <button onClick={() => {
           const p = new URLSearchParams({ from: dateFrom, to: dateTo })
           if (tab === 'detail' && vendorId) p.set('vendorId', vendorId)
           const a = document.createElement('a'); a.href = `/api/ledger/vendor/export?${p}`; a.click()
         }} disabled={tab === 'detail' && !vendorId}
-          className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap">
+          className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap">
           ↓ 엑셀
         </button>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : tab === 'balance' ? (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="border border-slate-300 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 px-3 text-left font-medium">거래처</th>
                 <th className="py-2 px-3 text-right font-medium w-32">전월이월</th>
                 <th className="py-2 px-3 text-right font-medium w-28">차변</th>
@@ -139,19 +139,19 @@ export default function VendorLedgerPage() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-12 text-gray-400 text-sm">표시할 거래처가 없습니다.</td></tr>
+                <tr><td colSpan={5} className="text-center py-12 text-slate-500 text-sm">표시할 거래처가 없습니다.</td></tr>
               ) : filtered.map(b => (
                 <tr key={b.vendor_id} onClick={() => openDetail(b.vendor_id)}
-                  className="border-b border-gray-50 hover:bg-slate-50 cursor-pointer">
-                  <td className="py-2 px-3 text-gray-800">{b.vendor_name}</td>
-                  <td className="py-2 px-3 text-right text-gray-500">{won(b.opening)}</td>
+                  className="border-b border-slate-200 hover:bg-slate-50 cursor-pointer">
+                  <td className="py-2 px-3 text-slate-900">{b.vendor_name}</td>
+                  <td className="py-2 px-3 text-right text-slate-600">{won(b.opening)}</td>
                   <td className="py-2 px-3 text-right text-blue-700">{b.period_debit ? won(b.period_debit) : ''}</td>
                   <td className="py-2 px-3 text-right text-red-700">{b.period_credit ? won(b.period_credit) : ''}</td>
-                  <td className={`py-2 px-3 text-right font-medium ${b.closing < 0 ? 'text-red-600' : 'text-gray-900'}`}>{won(b.closing)}</td>
+                  <td className={`py-2 px-3 text-right font-medium ${b.closing < 0 ? 'text-red-600' : 'text-slate-900'}`}>{won(b.closing)}</td>
                 </tr>
               ))}
               {filtered.length > 0 && (
-                <tr className="bg-slate-100 border-t-2 border-slate-300 font-semibold text-gray-800">
+                <tr className="bg-slate-100 border-t-2 border-slate-400 font-semibold text-slate-900">
                   <td className="py-2 px-3">합계 ({filtered.length.toLocaleString()}개 거래처)</td>
                   <td className="py-2 px-3 text-right">{won(totals.opening)}</td>
                   <td className="py-2 px-3 text-right text-blue-700">{won(totals.debit)}</td>
@@ -161,34 +161,34 @@ export default function VendorLedgerPage() {
               )}
             </tbody>
           </table>
-          <p className="text-xs text-gray-400 px-3 py-2 bg-gray-50/50">거래처 행을 클릭하면 상세 내역(내용 탭)으로 이동합니다.</p>
+          <p className="text-xs text-slate-500 px-3 py-2 bg-slate-50/50">거래처 행을 클릭하면 상세 내역(내용 탭)으로 이동합니다.</p>
         </div>
       ) : (
         /* 내용 탭 */
         <div>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <select value={vendorId} onChange={e => setVendorId(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm min-w-[220px]">
+              className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm min-w-[220px]">
               <option value="">거래처 선택…</option>
               {balances.map(b => <option key={b.vendor_id} value={b.vendor_id}>{b.vendor_name}</option>)}
             </select>
             {detail && (
               <div className="flex gap-3 flex-wrap text-sm">
-                <span className="text-gray-400">전월이월 <b className="text-gray-700">{won(detail.opening)}</b></span>
-                <span className="text-gray-400">기말잔액 <b className={detail.closing < 0 ? 'text-red-600' : 'text-gray-900'}>{won(detail.closing)}</b></span>
+                <span className="text-slate-500">전월이월 <b className="text-slate-800">{won(detail.opening)}</b></span>
+                <span className="text-slate-500">기말잔액 <b className={detail.closing < 0 ? 'text-red-600' : 'text-slate-900'}>{won(detail.closing)}</b></span>
               </div>
             )}
           </div>
 
           {!vendorId ? (
-            <div className="text-center py-20 text-gray-400 text-sm">거래처를 선택하면 상세 원장이 표시됩니다.</div>
+            <div className="text-center py-20 text-slate-500 text-sm">거래처를 선택하면 상세 원장이 표시됩니다.</div>
           ) : !detail ? (
-            <div className="text-center py-20 text-gray-400 text-sm">데이터가 없습니다.</div>
+            <div className="text-center py-20 text-slate-500 text-sm">데이터가 없습니다.</div>
           ) : (
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="border border-slate-300 rounded-lg overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                  <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                     <th className="py-2 px-3 text-left font-medium w-24">일자</th>
                     <th className="py-2 px-2 text-left font-medium">적요</th>
                     <th className="py-2 px-2 text-left font-medium">계정과목</th>
@@ -199,29 +199,29 @@ export default function VendorLedgerPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="bg-amber-50/60 border-b border-gray-100 text-gray-600">
+                  <tr className="bg-amber-50/60 border-b border-slate-200 text-slate-700">
                     <td className="py-1.5 px-3" colSpan={3}>[전월이월]</td>
-                    <td className="py-1.5 px-3 text-right text-gray-300">-</td>
-                    <td className="py-1.5 px-3 text-right text-gray-300">-</td>
+                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
+                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
                     <td className="py-1.5 px-3 text-right font-medium">{won(detail.opening)}</td>
                     <td></td>
                   </tr>
                   {detail.rows.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center py-10 text-gray-400 text-sm">해당 기간 거래가 없습니다.</td></tr>
+                    <tr><td colSpan={7} className="text-center py-10 text-slate-500 text-sm">해당 기간 거래가 없습니다.</td></tr>
                   ) : detail.rows.map((r, i) => (
-                    <tr key={i} className="border-b border-gray-50 hover:bg-slate-50/60">
-                      <td className="py-1.5 px-3 whitespace-nowrap text-gray-600">{r.entry_date}</td>
-                      <td className="py-1.5 px-2 text-gray-800">{r.description ?? ''}</td>
-                      <td className="py-1.5 px-2 text-gray-500">
-                        <span className="text-gray-400 text-xs mr-1">{r.account_code ?? ''}</span>{r.account_name ?? ''}
+                    <tr key={i} className="border-b border-slate-200 hover:bg-slate-50/60">
+                      <td className="py-1.5 px-3 whitespace-nowrap text-slate-700">{r.entry_date}</td>
+                      <td className="py-1.5 px-2 text-slate-900">{r.description ?? ''}</td>
+                      <td className="py-1.5 px-2 text-slate-600">
+                        <span className="text-slate-500 text-xs mr-1">{r.account_code ?? ''}</span>{r.account_name ?? ''}
                       </td>
                       <td className="py-1.5 px-3 text-right text-blue-700 whitespace-nowrap">{r.debit ? won(r.debit) : ''}</td>
                       <td className="py-1.5 px-3 text-right text-red-700 whitespace-nowrap">{r.credit ? won(r.credit) : ''}</td>
-                      <td className={`py-1.5 px-3 text-right whitespace-nowrap ${r.balance < 0 ? 'text-red-600' : 'text-gray-800'}`}>{won(r.balance)}</td>
-                      <td className="py-1.5 px-3 font-mono text-xs text-gray-400">{r.entry_no}</td>
+                      <td className={`py-1.5 px-3 text-right whitespace-nowrap ${r.balance < 0 ? 'text-red-600' : 'text-slate-900'}`}>{won(r.balance)}</td>
+                      <td className="py-1.5 px-3 font-mono text-xs text-slate-500">{r.entry_no}</td>
                     </tr>
                   ))}
-                  <tr className="bg-slate-100 border-t-2 border-slate-300 font-semibold text-gray-800">
+                  <tr className="bg-slate-100 border-t-2 border-slate-400 font-semibold text-slate-900">
                     <td className="py-2 px-3" colSpan={3}>[누계]</td>
                     <td className="py-2 px-3 text-right text-blue-700">{won(detail.total_debit)}</td>
                     <td className="py-2 px-3 text-right text-red-700">{won(detail.total_credit)}</td>

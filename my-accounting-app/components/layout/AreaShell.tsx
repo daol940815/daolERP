@@ -5,7 +5,6 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { areasFor, levelOf, GROUP_KEYS, type GroupKey, type PermLevel } from '@/lib/permissions'
 import { AREA_COOKIE, areaLabel, groupsFor, homeFor, pathAccessible, pickArea } from '@/lib/area-shell'
 import AreaSidebar from './AreaSidebar'
-import Header from './Header'
 import UiPrefsSync from './UiPrefsSync'
 import { normalizeUiPrefs, type UiPrefs } from '@/lib/ui-prefs'
 import type { BankAccount } from '@/types/bank-account'
@@ -61,7 +60,6 @@ export default async function AreaShell({ children }: { children: React.ReactNod
         helpLevels={levels}
       />
       <div className="flex flex-col flex-1 overflow-hidden">
-        {(area === 'finance' || area === 'mgmt') && <Header />}
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>

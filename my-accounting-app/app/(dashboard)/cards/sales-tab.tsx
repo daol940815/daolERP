@@ -296,55 +296,55 @@ export default function SalesTab() {
             ↓ {exporting ? '다운로드 중...' : '엑셀 다운로드'}
           </button>
           {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
-          <Link href="/upload?source=card_sales" className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
+          <Link href="/upload?source=card_sales" className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 flex items-center gap-1.5">
             ↑ 파일 업로드 →
           </Link>
         </div>
       </div>
 
-      <div className="mt-3 mb-5 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
+      <div className="mt-3 mb-5 px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-600">
         PG/카드사에서 다운로드한 카드 매출 상세내역 파일은 파일 업로드 화면에서 올립니다.
         승인번호·거래유형 기준으로 중복 없이 저장되며, 거래처에 등록된 카드번호로 자동 매칭됩니다.
       </div>
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">순 매출 (취소 반영)</p>
-          <p className="text-lg font-bold text-gray-900">{won(netSum)}</p>
-          <p className="text-xs text-gray-400">{visible.length}건</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">순 매출 (취소 반영)</p>
+          <p className="text-lg font-bold text-slate-900">{won(netSum)}</p>
+          <p className="text-xs text-slate-500">{visible.length}건</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">취소</p>
-          <p className={`text-lg font-bold ${cancelList.length ? 'text-red-600' : 'text-gray-400'}`}>{won(cancelSum)}</p>
-          <p className="text-xs text-gray-400">{cancelList.length}건</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">취소</p>
+          <p className={`text-lg font-bold ${cancelList.length ? 'text-red-600' : 'text-slate-500'}`}>{won(cancelSum)}</p>
+          <p className="text-xs text-slate-500">{cancelList.length}건</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">거래처 매칭</p>
-          <p className="text-lg font-bold text-gray-900">{matchedCount} <span className="text-sm font-normal text-gray-400">/ {visible.length}건</span></p>
-          <p className="text-xs text-gray-400">미매칭 {visible.length - matchedCount}건</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">거래처 매칭</p>
+          <p className="text-lg font-bold text-slate-900">{matchedCount} <span className="text-sm font-normal text-slate-500">/ {visible.length}건</span></p>
+          <p className="text-xs text-slate-500">미매칭 {visible.length - matchedCount}건</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">주문 매칭 금액</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">주문 매칭 금액</p>
           <p className="text-lg font-bold text-sky-700">{won(orderStat.matched)}</p>
-          <p className="text-xs text-gray-400">완료 {orderStat.done} · 부분 {orderStat.partial}{voidedList.length ? ` · 중복해제 ${voidedList.length}건 제외` : ''}</p>
+          <p className="text-xs text-slate-500">완료 {orderStat.done} · 부분 {orderStat.partial}{voidedList.length ? ` · 중복해제 ${voidedList.length}건 제외` : ''}</p>
         </div>
         <button onClick={() => setOrderFilter(f => f === 'none' ? 'all' : 'none')} title="클릭 = 주문 미매칭만 보기"
-          className={`border rounded-lg px-4 py-3 flex-1 min-w-[160px] text-left ${orderFilter === 'none' ? 'border-amber-400 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+          className={`border rounded-lg px-4 py-3 flex-1 min-w-[160px] text-left ${orderFilter === 'none' ? 'border-amber-400 bg-amber-50' : 'border-slate-300 hover:bg-slate-50'}`}>
           <p className="text-xs text-amber-700 mb-1">주문 미매칭</p>
           <p className="text-lg font-bold text-amber-700">{won(orderStat.unmatched)}</p>
-          <p className="text-xs text-gray-400">{orderStat.none}건 — 어느 주문 결제인지 아직 모름</p>
+          <p className="text-xs text-slate-500">{orderStat.none}건 — 어느 주문 결제인지 아직 모름</p>
         </button>
         {orderStat.over > 0 && (
           <button onClick={() => setOrderFilter(f => f === 'over' ? 'all' : 'over')} title="매칭 뒤 취소가 올라와 배분이 순액을 넘은 건"
             className={`border rounded-lg px-4 py-3 flex-1 min-w-[160px] text-left ${orderFilter === 'over' ? 'border-red-400 bg-red-50' : 'border-red-200 hover:bg-red-50'}`}>
             <p className="text-xs text-red-600 mb-1">취소 후 재검토</p>
             <p className="text-lg font-bold text-red-600">{orderStat.over}건</p>
-            <p className="text-xs text-gray-400">배분이 순액 초과 — 모달에서 줄이세요</p>
+            <p className="text-xs text-slate-500">배분이 순액 초과 — 모달에서 줄이세요</p>
           </button>
         )}
       </div>
-      <p className="text-[0.6875rem] text-gray-400 -mt-3 mb-4">주문 매칭은 ERP 미수(수금) 기준입니다. 카드사 정산 입금은 통장 내역에서 매출채권 회수로 따로 확정합니다.</p>
+      <p className="text-xs text-slate-500 -mt-3 mb-4">주문 매칭은 ERP 미수(수금) 기준입니다. 카드사 정산 입금은 통장 내역에서 매출채권 회수로 따로 확정합니다.</p>
 
       {/* 기간 빠른 선택 */}
       <PeriodPresets from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} className="mb-2" />
@@ -355,21 +355,21 @@ export default function SalesTab() {
           type="date"
           value={dateFrom}
           onChange={e => setDateFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
-        <span className="text-gray-400 text-sm">~</span>
+        <span className="text-slate-500 text-sm">~</span>
         <input
           type="date"
           value={dateTo}
           onChange={e => setDateTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
         <SearchableSelect
           value={vendorFilter}
           onChange={setVendorFilter}
           options={vendors.map(v => ({ id: v.id, label: v.name }))}
           emptyLabel="전체 거래처"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
         <div className="flex gap-1">
           {([
@@ -381,7 +381,7 @@ export default function SalesTab() {
               key={tab.key}
               onClick={() => setTypeFilter(tab.key)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                typeFilter === tab.key ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                typeFilter === tab.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               {tab.label}
@@ -398,7 +398,7 @@ export default function SalesTab() {
               key={tab.key}
               onClick={() => setMatchFilter(tab.key)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                matchFilter === tab.key ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                matchFilter === tab.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               {tab.label}
@@ -408,20 +408,20 @@ export default function SalesTab() {
         <div className="flex gap-1">
           {([['all', '주문 전체'], ['none', `주문 미매칭 ${orderStat.none}`], ['partial', `부분 ${orderStat.partial}`], ['done', `완료 ${orderStat.done}`]] as const).map(([k, l]) => (
             <button key={k} onClick={() => setOrderFilter(k)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${orderFilter === k ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{l}</button>
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${orderFilter === k ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{l}</button>
           ))}
         </div>
         <div className="flex gap-1">
           {([['all', '과세 · 면세 전체'], ['taxable', '과세'], ['exempt', '면세']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setVatFilter(k)} title="수기결제는 CPID(CDA23815 = 면세)로, 단말기결제는 세액 열로 판정"
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${vatFilter === k ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{l}</button>
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${vatFilter === k ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{l}</button>
           ))}
         </div>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="검색: 카드번호·승인번호·매입사·거래처·금액"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
 
         {selected.size > 0 && (
@@ -436,22 +436,22 @@ export default function SalesTab() {
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : visible.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">
+        <div className="text-center py-20 text-slate-500 text-sm">
           {search.trim() ? '검색 결과가 없습니다.' : '등록된 카드 매출 내역이 없습니다. 매출 상세내역 파일을 업로드해주세요.'}
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 font-medium w-8">
                   <input
                     type="checkbox"
                     checked={selected.size > 0 && selected.size === visible.length}
                     onChange={toggleSelectAll}
-                    className="rounded border-gray-300"
+                    className="rounded border-slate-400"
                   />
                 </th>
                 <th className="py-2.5 px-3 font-medium whitespace-nowrap">거래일시</th>
@@ -468,39 +468,39 @@ export default function SalesTab() {
               {visible.map(row => {
                 const meta = TYPE_META[row.transaction_type]
                 return (
-                  <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50 align-top">
+                  <tr key={row.id} className="border-b border-slate-200 hover:bg-slate-50 align-top">
                     <td className="py-2.5 px-3">
                       <input
                         type="checkbox"
                         checked={selected.has(row.id)}
                         onChange={() => toggleSelect(row.id)}
-                        className="rounded border-gray-300"
+                        className="rounded border-slate-400"
                       />
                     </td>
-                    <td className="py-2.5 px-3 whitespace-nowrap text-gray-600">
+                    <td className="py-2.5 px-3 whitespace-nowrap text-slate-700">
                       <p>{row.tx_date}</p>
-                      {row.tx_time && <p className="text-xs text-gray-400">{row.tx_time}</p>}
+                      {row.tx_time && <p className="text-xs text-slate-500">{row.tx_time}</p>}
                     </td>
                     <td className="py-2.5 px-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${meta.cls}`}>{meta.label}</span>
                     </td>
-                    <td className="py-2.5 px-3 whitespace-nowrap text-gray-600 font-mono text-xs">{row.card_number ?? '-'}</td>
-                    <td className="py-2.5 px-3 whitespace-nowrap text-gray-500">{row.acquirer ?? '-'}</td>
+                    <td className="py-2.5 px-3 whitespace-nowrap text-slate-700 font-mono text-xs">{row.card_number ?? '-'}</td>
+                    <td className="py-2.5 px-3 whitespace-nowrap text-slate-600">{row.acquirer ?? '-'}</td>
                     <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                      <p className={`font-medium ${row.amount < 0 ? 'text-red-600' : 'text-gray-900'}`}>{won(row.amount)}</p>
-                      <p className="text-xs text-gray-400">공급 {won(row.supply_amount)} · 세액 {won(row.tax_amount)}
+                      <p className={`font-medium ${row.amount < 0 ? 'text-red-600' : 'text-slate-900'}`}>{won(row.amount)}</p>
+                      <p className="text-xs text-slate-500">공급 {won(row.supply_amount)} · 세액 {won(row.tax_amount)}
                         {row.vat_kind === 'exempt' && <span className="ml-1 px-1 py-0.5 rounded bg-emerald-50 text-emerald-700" title={`면세 CP ${row.cpid ?? ''} ${row.cp_name ?? ''}`.trim()}>면세</span>}
-                        {row.cpid && row.vat_kind !== 'exempt' && <span className="ml-1 text-gray-300" title={row.cp_name ?? ''}>{row.cpid}</span>}
+                        {row.cpid && row.vat_kind !== 'exempt' && <span className="ml-1 text-slate-400" title={row.cp_name ?? ''}>{row.cpid}</span>}
                       </p>
                       {row.transaction_type === 'approval' && (row.cancel_amount ?? 0) > 0 && (
                         <p className="text-xs text-red-500">취소 −{won(row.cancel_amount ?? 0)} · 순액 {won(Math.max(0, row.amount - (row.cancel_amount ?? 0)))}</p>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 text-xs text-gray-500 whitespace-nowrap">
+                    <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">
                       <p>{row.processing_status ?? '-'} {row.settlement_status ? `· ${row.settlement_status}` : ''}</p>
                       {isCardSaleVoided(row) && <p><span className="inline-block px-1.5 py-0.5 rounded bg-red-100 text-red-700" title="카드사가 중복 승인으로 해제한 건 — 수금 없음. 분개 · 수금 후보 · 주문 배분에서 제외">중복해제 — 수금 없음</span></p>}
                       {!isCardSaleVoided(row) && (row.settlement_status ?? '').trim() === '중복해제' && <p><span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800" title="정산상태는 중복해제지만 처리현황이 입금완료 — 정산된 것으로 본다(2026-11-24). 분할 결제(같은 카드로 같은 금액을 여러 번)를 카드사가 중복으로 판정한 건">중복해제 · 입금완료 — 정산으로 봄</span></p>}
-                      {row.deposit_expected_date && <p className="text-gray-400">입금예정 {row.deposit_expected_date}</p>}
+                      {row.deposit_expected_date && <p className="text-slate-500">입금예정 {row.deposit_expected_date}</p>}
                     </td>
                     <td className="py-2.5 px-3">
                       <SearchableSelect
@@ -511,12 +511,12 @@ export default function SalesTab() {
                         onCreateNew={name => createVendorAndAssign(row, name)}
                         createNewLabel={q => `+ '${q}' 새 거래처로 추가`}
                         className={`text-xs border rounded px-1.5 py-1 max-w-[140px] focus:outline-none focus:ring-1 focus:ring-slate-900 ${
-                          row.vendor_id ? 'border-gray-200 bg-white text-gray-700' : 'border-dashed border-gray-300 bg-gray-50 text-gray-400'
+                          row.vendor_id ? 'border-slate-300 bg-white text-slate-800' : 'border-dashed border-slate-400 bg-slate-50 text-slate-500'
                         }`}
                       />
                     </td>
                     <td className="py-2.5 px-3 whitespace-nowrap text-xs">
-                      {row.transaction_type !== 'approval' ? <span className="text-gray-400">취소 건</span> : (() => {
+                      {row.transaction_type !== 'approval' ? <span className="text-slate-500">취소 건</span> : (() => {
                         const st = orderMatchState(row)
                         const m = row.order_match_amount ?? 0
                         return (<>
@@ -524,7 +524,7 @@ export default function SalesTab() {
                           {st === 'partial' && <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">부분 {m.toLocaleString('ko-KR')}</span>}
                           {st === 'done' && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">완료 {m.toLocaleString('ko-KR')}</span>}
                           {st === 'over' && <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700" title="매칭 뒤 취소가 올라와 배분이 순액을 넘었습니다">재검토 — 배분 {m.toLocaleString('ko-KR')} &gt; 순액</span>}
-                          {(row.order_match_count ?? 0) > 0 && <span className="ml-1 text-gray-400">{row.order_match_count}건</span>}
+                          {(row.order_match_count ?? 0) > 0 && <span className="ml-1 text-slate-500">{row.order_match_count}건</span>}
                           <button onClick={() => setOrderMatchFor(row.id)} className="ml-1.5 text-blue-600 hover:underline">{st === 'none' ? '주문 매칭' : '수정'}</button>
                         </>)
                       })()}

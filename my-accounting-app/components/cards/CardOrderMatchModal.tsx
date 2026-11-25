@@ -83,84 +83,84 @@ export default function CardOrderMatchModal({ saleId, onClose, onSaved }: {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div onClick={e => e.stopPropagation()}>{reasonDlg.node}</div>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-gray-200">
+        <div className="px-5 py-4 border-b border-slate-300">
           <div className="flex items-center justify-between">
-            <div className="font-bold text-gray-900">
+            <div className="font-bold text-slate-900">
               주문 매칭 — 카드 결제 {sale ? `${sale.tx_date}${sale.tx_time ? ' ' + sale.tx_time.slice(0, 5) : ''} · ${sale.acquirer ?? ''} ${sale.card_number ?? ''} · ${won(sale.amount)}` : ''}
               {sale && sale.cancel_amount > 0 && <span className="text-xs font-normal text-red-600 ml-1">취소 −{won(sale.cancel_amount)} → 순액 {won(sale.net)}</span>}
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+            <button onClick={onClose} className="text-slate-500 hover:text-slate-700">✕</button>
           </div>
           {sale && (
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-slate-600 mt-1">
               거래처 <b>{sale.vendor_name ?? '(없음 — 전체 주문에서 고르면 그 주문의 매출처가 연결되고 카드번호가 학습됩니다)'}</b> ·
               배분 합 <b className={`tabular-nums ${over ? 'text-red-600' : sum === sale.net ? 'text-emerald-700' : ''}`}>{won(sum)}</b> / 순액 {won(sale.net)}
               {over && <span className="text-red-600"> — 순액을 넘어 저장할 수 없습니다</span>}
               {sale.over_allocated && !over && <span className="text-red-600"> · 현재 저장된 배분이 순액을 넘어 있습니다(취소 후). 금액을 줄여 저장하세요.</span>}
             </p>
           )}
-          <p className="text-[0.6875rem] text-gray-400 mt-1">ERP 미수(수금) 기준 매칭입니다. 카드사 정산 입금은 통장 내역에서 매출채권 회수로 따로 확정합니다.</p>
+          <p className="text-xs text-slate-500 mt-1">ERP 미수(수금) 기준 매칭입니다. 카드사 정산 입금은 통장 내역에서 매출채권 회수로 따로 확정합니다.</p>
         </div>
 
         <div className="px-5 py-3 overflow-auto flex-1 text-sm">
           <div className="flex flex-wrap items-center gap-2 text-xs mb-2">
-            <button onClick={() => { setMode('vendor'); setQ(''); load() }} className={`px-2 py-1 rounded-full border ${mode === 'vendor' ? 'bg-slate-900 border-slate-900 text-white' : 'border-gray-300 text-gray-600'}`}>이 매출처 주문</button>
-            <button onClick={() => setMode('all')} className={`px-2 py-1 rounded-full border ${mode === 'all' ? 'bg-slate-900 border-slate-900 text-white' : 'border-gray-300 text-gray-600'}`}>전체 주문 검색</button>
+            <button onClick={() => { setMode('vendor'); setQ(''); load() }} className={`px-2 py-1 rounded-full border ${mode === 'vendor' ? 'bg-slate-900 border-slate-900 text-white' : 'border-slate-400 text-slate-700'}`}>이 매출처 주문</button>
+            <button onClick={() => setMode('all')} className={`px-2 py-1 rounded-full border ${mode === 'all' ? 'bg-slate-900 border-slate-900 text-white' : 'border-slate-400 text-slate-700'}`}>전체 주문 검색</button>
             {mode === 'all' && (<>
-              <input value={q} onChange={e => setQ(e.target.value)} placeholder="주문번호 · 업체 · 지점" className="border border-gray-300 rounded px-2 py-1 w-48"
+              <input value={q} onChange={e => setQ(e.target.value)} placeholder="주문번호 · 업체 · 지점" className="border border-slate-400 rounded px-2 py-1 w-48"
                 onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) load(q) }} />
-              <button onClick={() => load(q)} className="px-2.5 py-1 border border-gray-300 rounded hover:bg-gray-50">찾기</button>
+              <button onClick={() => load(q)} className="px-2.5 py-1 border border-slate-400 rounded hover:bg-slate-50">찾기</button>
             </>)}
-            <span className="text-gray-400">정렬: 금액 일치 → 결제일 −7 ~ +60일 → 최근 주문</span>
+            <span className="text-slate-500">정렬: 금액 일치 → 결제일 −7 ~ +60일 → 최근 주문</span>
           </div>
 
-          {loading ? <p className="text-gray-400 py-6 text-center text-xs">조회 중...</p> : (
+          {loading ? <p className="text-slate-500 py-6 text-center text-xs">조회 중...</p> : (
             <table className="w-full text-xs">
-              <thead><tr className="text-left text-gray-400 border-b border-gray-200">
+              <thead><tr className="text-left text-slate-500 border-b border-slate-300">
                 <th className="py-1.5 pr-2 w-6"></th><th className="py-1.5 pr-3 font-medium">주문번호</th><th className="py-1.5 pr-3 font-medium">주문일</th><th className="py-1.5 pr-3 font-medium">업체 · 담당</th>
                 <th className="py-1.5 pr-3 font-medium text-right">주문액</th><th className="py-1.5 pr-3 font-medium text-right">남은 미수</th><th className="py-1.5 pr-3 font-medium text-right">배분 금액</th><th className="py-1.5 font-medium">근거</th>
               </tr></thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-200">
                 {extra.map(m => (
                   <tr key={m.order_id} className="bg-sky-50/50">
                     <td className="py-1.5 pr-2"><input type="checkbox" checked={m.order_id in alloc} onChange={() => toggle(m.order_id, m.amount)} /></td>
                     <td className="py-1.5 pr-3"><Link href={`/orders?c=order_no:${encodeURIComponent(m.order_no)}&from=&to=`} className="text-blue-700 hover:underline" title="주문 현황에서 열기">#{m.order_no}</Link></td>
                     <td className="py-1.5 pr-3 tabular-nums">{m.order_date ?? '-'}</td><td className="py-1.5 pr-3">{m.customer_name}</td>
-                    <td className="py-1.5 pr-3 text-right text-gray-400">-</td><td className="py-1.5 pr-3 text-right text-gray-400">-</td>
-                    <td className="py-1.5 pr-3 text-right">{m.order_id in alloc && <input value={alloc[m.order_id]} onChange={e => setAlloc(a => ({ ...a, [m.order_id]: e.target.value }))} className="border border-gray-300 rounded px-2 py-0.5 w-28 text-right tabular-nums" />}</td>
-                    <td className="py-1.5 text-gray-500">현재 배분됨 (목록 밖 주문)</td>
+                    <td className="py-1.5 pr-3 text-right text-slate-500">-</td><td className="py-1.5 pr-3 text-right text-slate-500">-</td>
+                    <td className="py-1.5 pr-3 text-right">{m.order_id in alloc && <input value={alloc[m.order_id]} onChange={e => setAlloc(a => ({ ...a, [m.order_id]: e.target.value }))} className="border border-slate-400 rounded px-2 py-0.5 w-28 text-right tabular-nums" />}</td>
+                    <td className="py-1.5 text-slate-600">현재 배분됨 (목록 밖 주문)</td>
                   </tr>
                 ))}
                 {cands.map(c => {
                   const on = c.id in alloc
                   const disabled = c.remaining <= 0 && !on
                   return (
-                    <tr key={c.id} className={`${on ? 'bg-sky-50/50' : disabled ? 'opacity-50' : 'hover:bg-gray-50'}`}>
+                    <tr key={c.id} className={`${on ? 'bg-sky-50/50' : disabled ? 'opacity-50' : 'hover:bg-slate-50'}`}>
                       <td className="py-1.5 pr-2"><input type="checkbox" checked={on} disabled={disabled} onChange={() => toggle(c.id, Math.min(c.remaining, sale?.remaining ?? c.remaining) || c.remaining)} /></td>
                       <td className="py-1.5 pr-3 whitespace-nowrap"><Link href={`/orders?c=order_no:${encodeURIComponent(c.order_no)}&from=&to=`} className="text-blue-700 hover:underline" title="주문 현황에서 열기">#{c.order_no}</Link></td>
                       <td className="py-1.5 pr-3 tabular-nums whitespace-nowrap">{c.order_date}</td>
-                      <td className="py-1.5 pr-3 truncate max-w-[200px]">{c.customer_name}{c.staff_name ? <span className="text-gray-400"> · {c.staff_name}</span> : null}</td>
+                      <td className="py-1.5 pr-3 truncate max-w-[200px]">{c.customer_name}{c.staff_name ? <span className="text-slate-500"> · {c.staff_name}</span> : null}</td>
                       <td className="py-1.5 pr-3 text-right tabular-nums">{c.net_amount.toLocaleString('ko-KR')}</td>
-                      <td className={`py-1.5 pr-3 text-right tabular-nums ${c.remaining > 0 ? 'text-red-600' : 'text-gray-400'}`}>{c.remaining.toLocaleString('ko-KR')}</td>
+                      <td className={`py-1.5 pr-3 text-right tabular-nums ${c.remaining > 0 ? 'text-red-600' : 'text-slate-500'}`}>{c.remaining.toLocaleString('ko-KR')}</td>
                       <td className="py-1.5 pr-3 text-right">
                         {on ? <input value={alloc[c.id]} onChange={e => setAlloc(a => ({ ...a, [c.id]: e.target.value }))}
-                          className={`border rounded px-2 py-0.5 w-28 text-right tabular-nums ${num(alloc[c.id]) > c.remaining ? 'border-red-400' : 'border-gray-300'}`} /> : <span className="text-gray-300">-</span>}
+                          className={`border rounded px-2 py-0.5 w-28 text-right tabular-nums ${num(alloc[c.id]) > c.remaining ? 'border-red-400' : 'border-slate-400'}`} /> : <span className="text-slate-400">-</span>}
                       </td>
-                      <td className={`py-1.5 ${c.score >= 50 ? 'text-emerald-700' : 'text-gray-500'}`}>{c.reason}</td>
+                      <td className={`py-1.5 ${c.score >= 50 ? 'text-emerald-700' : 'text-slate-600'}`}>{c.reason}</td>
                     </tr>
                   )
                 })}
-                {!cands.length && !extra.length && <tr><td colSpan={8} className="py-6 text-center text-gray-400">{mode === 'all' ? '검색 결과가 없습니다.' : sale?.vendor_id ? '이 매출처에 미수가 남은 주문이 없습니다. 전체 주문 검색으로 찾아보세요.' : '거래처가 없는 카드입니다. 전체 주문 검색으로 주문을 고르면 거래처가 연결됩니다.'}</td></tr>}
+                {!cands.length && !extra.length && <tr><td colSpan={8} className="py-6 text-center text-slate-500">{mode === 'all' ? '검색 결과가 없습니다.' : sale?.vendor_id ? '이 매출처에 미수가 남은 주문이 없습니다. 전체 주문 검색으로 찾아보세요.' : '거래처가 없는 카드입니다. 전체 주문 검색으로 주문을 고르면 거래처가 연결됩니다.'}</td></tr>}
               </tbody>
             </table>
           )}
           {err && <p className="text-xs text-red-600 mt-2">{err}</p>}
         </div>
 
-        <div className="px-5 py-3 border-t border-gray-200 flex items-center justify-between">
-          <Link href={`/erp-matching?depositId=card:${saleId}`} className="text-xs text-gray-500 hover:underline">입금 매칭 화면에서 열기 →</Link>
+        <div className="px-5 py-3 border-t border-slate-300 flex items-center justify-between">
+          <Link href={`/erp-matching?depositId=card:${saleId}`} className="text-xs text-slate-600 hover:underline">입금 매칭 화면에서 열기 →</Link>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
+            <button onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
             <button onClick={save} disabled={busy || over || !sale} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">
               {busy ? '저장 중...' : Object.keys(alloc).length ? '배분 저장' : '배분 전부 해제'}
             </button>

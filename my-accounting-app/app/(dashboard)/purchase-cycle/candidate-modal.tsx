@@ -54,8 +54,8 @@ export function CandidateModal({ vendorId, vendorName, onClose, onApplied }: {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-gray-900">{vendorName} — 지급 연결 후보</h3>
-        <p className="text-xs text-gray-500 mt-1 mb-4">
+        <h3 className="text-lg font-bold text-slate-900">{vendorName} — 지급 연결 후보</h3>
+        <p className="text-xs text-slate-600 mt-1 mb-4">
           금액이 정확히 맞는 조합만 제시합니다. 확인 후 확정하세요 (연결은 언제든 해제 가능).
           {summary && ` · 미결제 계산서 ${summary.unpaid_invoices}건 · 미연결 출금 ${summary.available_txs}건`}
         </p>
@@ -66,35 +66,35 @@ export function CandidateModal({ vendorId, vendorName, onClose, onApplied }: {
         )}
         {error && <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
         {!groups ? (
-          <p className="text-gray-400 text-sm py-8 text-center">후보 계산 중...</p>
+          <p className="text-slate-500 text-sm py-8 text-center">후보 계산 중...</p>
         ) : groups.length === 0 ? (
-          <p className="text-gray-500 text-sm py-8 text-center">
+          <p className="text-slate-600 text-sm py-8 text-center">
             금액이 맞는 후보가 없습니다.<br />
-            <span className="text-xs text-gray-400">통장 출금에 이 거래처가 연결(태깅)되어 있어야 후보에 잡힙니다.
+            <span className="text-xs text-slate-500">통장 출금에 이 거래처가 연결(태깅)되어 있어야 후보에 잡힙니다.
             거래내역 화면에서 해당 출금에 거래처를 지정한 뒤 다시 시도해보세요.</span>
           </p>
         ) : (
           <>
             <div className="space-y-3">
               {groups.map((g, i) => (
-                <label key={i} className={`block border rounded-lg p-3 cursor-pointer ${checked.has(i) ? 'border-slate-800 bg-slate-50' : 'border-gray-200'}`}>
+                <label key={i} className={`block border rounded-lg p-3 cursor-pointer ${checked.has(i) ? 'border-slate-800 bg-slate-50' : 'border-slate-300'}`}>
                   <div className="flex items-center gap-2">
                     <input type="checkbox" checked={checked.has(i)}
                       onChange={e => setChecked(prev => { const n = new Set(prev); if (e.target.checked) n.add(i); else n.delete(i); return n })} />
-                    <span className="text-sm font-medium text-gray-900">{g.label}</span>
+                    <span className="text-sm font-medium text-slate-900">{g.label}</span>
                     <span className="ml-auto text-sm font-semibold tabular-nums">{won(g.amount)}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3 mt-2 text-xs">
                     <div>
-                      <p className="text-gray-400 mb-1">계산서</p>
+                      <p className="text-slate-500 mb-1">계산서</p>
                       {g.invoices.map(inv => (
-                        <p key={inv.id} className="text-gray-700">{inv.issue_date.slice(0, 10)} · {(inv.item_name ?? '').slice(0, 14) || '-'} · {won(inv.remaining)}</p>
+                        <p key={inv.id} className="text-slate-800">{inv.issue_date.slice(0, 10)} · {(inv.item_name ?? '').slice(0, 14) || '-'} · {won(inv.remaining)}</p>
                       ))}
                     </div>
                     <div>
-                      <p className="text-gray-400 mb-1">통장 출금</p>
+                      <p className="text-slate-500 mb-1">통장 출금</p>
                       {g.txs.map(tx => (
-                        <p key={tx.id} className="text-gray-700">{tx.tx_date.slice(0, 10)}{tx.tx_time ? ' ' + tx.tx_time.slice(0, 8) : ''} · {(tx.description ?? '').slice(0, 14) || '-'} · {won(tx.remaining)}</p>
+                        <p key={tx.id} className="text-slate-800">{tx.tx_date.slice(0, 10)}{tx.tx_time ? ' ' + tx.tx_time.slice(0, 8) : ''} · {(tx.description ?? '').slice(0, 14) || '-'} · {won(tx.remaining)}</p>
                       ))}
                     </div>
                   </div>
@@ -102,7 +102,7 @@ export function CandidateModal({ vendorId, vendorName, onClose, onApplied }: {
               ))}
             </div>
             <div className="flex gap-2 mt-5">
-              <button onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
+              <button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
               <button onClick={apply} disabled={applying || checked.size === 0}
                 className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
                 {applying ? '연결 중...' : `선택 ${checked.size}개 그룹 연결 확정`}

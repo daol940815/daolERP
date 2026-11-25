@@ -8,7 +8,7 @@ export default function CashReportPage({ searchParams }: { searchParams: { tab?:
   const tab = searchParams.tab === 'daily' ? 'daily' : 'position'
   return (
     <div className="max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900">자금 · 계좌</h1>
+      <h1 className="text-2xl font-bold text-slate-900">자금 · 계좌</h1>
       <PageTabs className="mt-3 mb-4" active={tab} tabs={[
         { key: 'position', label: '계좌 통합현황', href: '/reports/cash' },
         { key: 'daily', label: '자금일보', href: '/reports/cash?tab=daily' },

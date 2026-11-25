@@ -68,8 +68,8 @@ export default function MergeHistoryDialog({ vendorId, vendorName, onClose, onCh
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
         {!pv && (
           <>
-            <h3 className="text-base font-bold text-gray-900">병합 이력</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <h3 className="text-base font-bold text-slate-900">병합 이력</h3>
+            <p className="text-xs text-slate-600 mt-0.5">
               &lsquo;{vendorName}&rsquo;(으)로 합쳐진 매출처입니다. 잘못 합쳤으면 병합 취소로 다시 나눌 수 있습니다 — 병합 때 옮겨 온 건만 돌아가고, 합친 뒤 새로 들어온 건은 이 매출처에 남습니다.
             </p>
             {done && (
@@ -79,25 +79,25 @@ export default function MergeHistoryDialog({ vendorId, vendorName, onClose, onCh
                 <a href={`/sales-hub/${done.from_id}`} className="underline font-semibold">되살아난 매출처 보기</a>
               </div>
             )}
-            {rows === null && <p className="text-sm text-gray-400 mt-4">불러오는 중...</p>}
-            {rows !== null && rows.length === 0 && <p className="text-sm text-gray-400 mt-4">이 매출처로 합쳐진 기록이 없습니다.</p>}
+            {rows === null && <p className="text-sm text-slate-500 mt-4">불러오는 중...</p>}
+            {rows !== null && rows.length === 0 && <p className="text-sm text-slate-500 mt-4">이 매출처로 합쳐진 기록이 없습니다.</p>}
             {rows !== null && rows.length > 0 && (
               <table className="w-full text-sm mt-3">
-                <thead><tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                   <th className="py-1.5 font-medium">합친 날</th><th className="py-1.5 font-medium">흡수된 매출처</th>
                   <th className="py-1.5 font-medium text-right">옮긴 건</th><th className="py-1.5 font-medium">한 사람</th><th className="py-1.5" />
                 </tr></thead>
                 <tbody>
                   {rows.map(r => (
-                    <tr key={r.log_id} className="border-b border-gray-50 align-top">
+                    <tr key={r.log_id} className="border-b border-slate-200 align-top">
                       <td className="py-1.5 tabular-nums whitespace-nowrap">{day(r.merged_at)}</td>
                       <td className="py-1.5">
-                        <span className={r.undone_at ? 'text-gray-400 line-through' : 'text-gray-900 font-medium'}>{r.from_name}</span>
-                        {r.undone_at && <div className="text-[0.6875rem] text-gray-500">{day(r.undone_at)} 취소됨{r.undone_by ? ` · ${r.undone_by}` : ''}</div>}
-                        {!r.can_undo && !r.undone_at && <div className="text-[0.6875rem] text-gray-400">{r.why_not}</div>}
+                        <span className={r.undone_at ? 'text-slate-500 line-through' : 'text-slate-900 font-medium'}>{r.from_name}</span>
+                        {r.undone_at && <div className="text-xs text-slate-600">{day(r.undone_at)} 취소됨{r.undone_by ? ` · ${r.undone_by}` : ''}</div>}
+                        {!r.can_undo && !r.undone_at && <div className="text-xs text-slate-500">{r.why_not}</div>}
                       </td>
-                      <td className="py-1.5 text-right tabular-nums text-gray-600">{r.moved_total.toLocaleString()}</td>
-                      <td className="py-1.5 text-xs text-gray-500">{r.actor ?? '-'}</td>
+                      <td className="py-1.5 text-right tabular-nums text-slate-700">{r.moved_total.toLocaleString()}</td>
+                      <td className="py-1.5 text-xs text-slate-600">{r.actor ?? '-'}</td>
                       <td className="py-1.5 text-right whitespace-nowrap">
                         {r.can_undo && r.snapshot_id && (
                           <button disabled={busy} onClick={() => openPreview(r.snapshot_id!)}
@@ -111,33 +111,33 @@ export default function MergeHistoryDialog({ vendorId, vendorName, onClose, onCh
             )}
             {msg && <p className="text-xs text-red-600 mt-3">{msg}</p>}
             <div className="flex justify-end mt-5">
-              <button onClick={onClose} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">닫기</button>
+              <button onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">닫기</button>
             </div>
           </>
         )}
 
         {pv && (
           <>
-            <h3 className="text-base font-bold text-gray-900">병합 취소 미리보기</h3>
-            <p className="text-sm text-gray-600 mt-1"><b>{pv.from_name}</b> <span className="text-gray-400">(되살림)</span> <b>←</b> {pv.into_name}</p>
+            <h3 className="text-base font-bold text-slate-900">병합 취소 미리보기</h3>
+            <p className="text-sm text-slate-700 mt-1"><b>{pv.from_name}</b> <span className="text-slate-500">(되살림)</span> <b>←</b> {pv.into_name}</p>
             <table className="w-full text-sm mt-3">
-              <thead><tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-1.5 font-medium">항목</th><th className="py-1.5 font-medium text-right">병합 때 옮긴 것</th><th className="py-1.5 font-medium text-right">지금 돌아가는 것</th>
               </tr></thead>
               <tbody>
                 {pv.counts.map(c => (
-                  <tr key={c.table} className="border-b border-gray-50">
+                  <tr key={c.table} className="border-b border-slate-200">
                     <td className="py-1.5">{c.label}</td>
-                    <td className="py-1.5 text-right tabular-nums text-gray-500">{c.total}</td>
-                    <td className={`py-1.5 text-right tabular-nums ${c.back > 0 ? 'font-semibold text-gray-900' : 'text-gray-300'}`}>
+                    <td className="py-1.5 text-right tabular-nums text-slate-600">{c.total}</td>
+                    <td className={`py-1.5 text-right tabular-nums ${c.back > 0 ? 'font-semibold text-slate-900' : 'text-slate-400'}`}>
                       {c.back}{c.back < c.total && <span className="text-orange-600 font-normal text-xs"> ({c.total - c.back} 남음)</span>}
                     </td>
                   </tr>
                 ))}
-                {pv.counts.length === 0 && <tr><td colSpan={3} className="py-2 text-xs text-gray-400">옮겨 온 연결이 없는 병합입니다 — 매출처만 되살아납니다.</td></tr>}
+                {pv.counts.length === 0 && <tr><td colSpan={3} className="py-2 text-xs text-slate-500">옮겨 온 연결이 없는 병합입니다 — 매출처만 되살아납니다.</td></tr>}
               </tbody>
             </table>
-            <ul className="mt-3 text-xs text-gray-600 space-y-1 list-disc pl-4">
+            <ul className="mt-3 text-xs text-slate-700 space-y-1 list-disc pl-4">
               <li>&lsquo;{pv.from_name}&rsquo;이(가) 병합 전 상태로 되살아나 목록에 다시 나타납니다.</li>
               {pv.aliases_remove.length > 0 && <li>이 매출처의 별칭에서 {pv.aliases_remove.map(a => `'${a}'`).join(', ')}을(를) 뺍니다 — 그 이름은 다시 되살아난 매출처로 잡힙니다.</li>}
               {pv.staff_restore > 0 && <li>같은 직원이 양쪽 담당이어서 병합 때 정리된 지점 담당 {pv.staff_restore}줄을 되살립니다.</li>}
@@ -157,7 +157,7 @@ export default function MergeHistoryDialog({ vendorId, vendorName, onClose, onCh
             {pv.blockers.map((w, i) => <div key={i} className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{w}</div>)}
             {msg && <p className="text-xs text-red-600 mt-3">{msg}</p>}
             <div className="flex justify-end gap-2 mt-5">
-              <button disabled={busy} onClick={() => { setPv(null); setMsg(null) }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">뒤로</button>
+              <button disabled={busy} onClick={() => { setPv(null); setMsg(null) }} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">뒤로</button>
               <button disabled={busy || pv.blockers.length > 0} onClick={run} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm disabled:opacity-40">
                 {busy ? '취소하는 중...' : '병합 취소 실행'}
               </button>

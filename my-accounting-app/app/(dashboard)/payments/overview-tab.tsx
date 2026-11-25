@@ -114,33 +114,33 @@ export default function OverviewTab() {
 
   const recLine = (x: Rec) => `${x.cancel ? '취소' : METHOD[x.method] ?? x.method}${x.kind ? `(${x.kind})` : ''} ${x.clue} · ${x.cancel ? '−' : ''}${won(x.amount)}`
   const chip = (on: boolean, label: string, onClick: () => void) => (
-    <button key={label} onClick={onClick} className={`px-3 py-1 rounded-full text-xs border whitespace-nowrap ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>{label}</button>
+    <button key={label} onClick={onClick} className={`px-3 py-1 rounded-full text-xs border whitespace-nowrap ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>{label}</button>
   )
 
   return (
     <div className="w-full">
       {reasonDlg.node}
-      <p className="text-sm text-gray-500 mb-3">주문마다 결제가 어디까지 왔는지 한눈에 봅니다. 처리할 것은 줄을 펼쳐 매칭 대기 · 결제 안내 대상 탭으로 넘어가서 합니다.</p>
+      <p className="text-sm text-slate-600 mb-3">주문마다 결제가 어디까지 왔는지 한눈에 봅니다. 처리할 것은 줄을 펼쳐 매칭 대기 · 결제 안내 대상 탭으로 넘어가서 합니다.</p>
       {msg && <div className="mb-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       {error && <div className="mb-3 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
 
       <PayFilterBar filter={filter} update={update} scope={scope} noneCount={noneCount} />
       <div className="flex items-center gap-1.5 flex-wrap mb-3">
         {STAGES.map(s => chip(stage === s.key, `${s.label} ${counts[s.key] ?? 0}`, () => setStage(s.key)))}
-        <span className="ml-auto text-sm text-gray-600">미수 합계 <b className="tabular-nums text-gray-900">{won(outstandingSum)}원</b></span>
+        <span className="ml-auto text-sm text-slate-700">미수 합계 <b className="tabular-nums text-slate-900">{won(outstandingSum)}원</b></span>
       </div>
 
       {loading || !ready ? (
-        <div className="text-center py-20 text-gray-400">불러오는 중...</div>
+        <div className="text-center py-20 text-slate-500">불러오는 중...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">
+        <div className="text-center py-20 text-slate-500 text-sm">
           {rows.length === 0 ? '직접 입력한 주문이 아직 없습니다.' : '조건에 맞는 주문이 없습니다. 지점 담당을 "전체"로 바꾸거나 기간 · 검색을 확인하세요.'}
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm min-w-[68rem]">
             <thead>
-              <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
+              <tr className="text-left text-xs text-slate-600 border-b border-slate-300 bg-slate-50">
                 <th className="py-2.5 px-3 font-medium">주문일 / 번호</th>
                 <th className="py-2.5 px-3 font-medium">매출처 · 고객</th>
                 <th className="py-2.5 px-3 font-medium">지점 담당</th>
@@ -159,53 +159,53 @@ export default function OverviewTab() {
                 const det = details[r.order_id]
                 return (
                   <Fragment key={r.order_id}>
-                    <tr className={`border-b border-gray-100 align-top ${open ? 'bg-slate-50' : ''}`}>
-                      <td className="py-2.5 px-3 whitespace-nowrap tabular-nums">{r.order_date}<div className="text-[0.6875rem]"><OrderNoLink id={r.order_id} no={r.order_no} /></div></td>
-                      <td className="py-2.5 px-3"><div className="text-gray-900">{r.customer_name || '-'}</div><div className="text-[0.6875rem] text-gray-500">{r.manager}</div></td>
-                      <td className="py-2.5 px-3 text-xs whitespace-nowrap">{r.staff_names.length ? r.staff_names.join(', ') : <span className="text-gray-400">담당 미지정</span>}</td>
-                      <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">{won(r.net)}{r.prepay > 0 && <div className="text-[0.6875rem] text-violet-700">선결제 {won(r.prepay)} 포함</div>}</td>
-                      <td className={`py-2.5 px-3 text-right tabular-nums whitespace-nowrap ${r.outstanding > 0 ? 'font-semibold' : 'text-gray-400'}`}>{won(r.outstanding)}</td>
+                    <tr className={`border-b border-slate-200 align-top ${open ? 'bg-slate-50' : ''}`}>
+                      <td className="py-2.5 px-3 whitespace-nowrap tabular-nums">{r.order_date}<div className="text-xs"><OrderNoLink id={r.order_id} no={r.order_no} /></div></td>
+                      <td className="py-2.5 px-3"><div className="text-slate-900">{r.customer_name || '-'}</div><div className="text-xs text-slate-600">{r.manager}</div></td>
+                      <td className="py-2.5 px-3 text-xs whitespace-nowrap">{r.staff_names.length ? r.staff_names.join(', ') : <span className="text-slate-500">담당 미지정</span>}</td>
+                      <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">{won(r.net)}{r.prepay > 0 && <div className="text-xs text-violet-700">선결제 {won(r.prepay)} 포함</div>}</td>
+                      <td className={`py-2.5 px-3 text-right tabular-nums whitespace-nowrap ${r.outstanding > 0 ? 'font-semibold' : 'text-slate-500'}`}>{won(r.outstanding)}</td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold ${PAY_STAGE_CLS[r.pay.stage]}`}>{PAY_STAGE_LABEL[r.pay.stage]}</span>
-                        {showMethodTag(r.pay.stage) && r.pay.method && <span className={`ml-1 inline-block px-1.5 py-0.5 rounded text-[0.6875rem] ${PAY_METHOD_TAG_CLS[r.pay.method]}`}>{PAY_METHOD_TAG_LABEL[r.pay.method]}</span>}
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold ${PAY_STAGE_CLS[r.pay.stage]}`}>{PAY_STAGE_LABEL[r.pay.stage]}</span>
+                        {showMethodTag(r.pay.stage) && r.pay.method && <span className={`ml-1 inline-block px-1.5 py-0.5 rounded text-xs ${PAY_METHOD_TAG_CLS[r.pay.method]}`}>{PAY_METHOD_TAG_LABEL[r.pay.method]}</span>}
                       </td>
-                      <td className="py-2.5 px-3 text-xs text-gray-700">
+                      <td className="py-2.5 px-3 text-xs text-slate-800">
                         {first ? (<>
-                          {recLine(first)}{r.records.length > 1 && <span className="text-gray-400"> 외 {r.records.length - 1}건</span>}
-                          <div className="text-[0.6875rem] text-gray-500">기재 {first.created_by_name ?? '-'} · {when(first.created_at)}{first.confirmed_at && ` · 매칭 ${first.confirmed_by_name ?? '-'} · ${when(first.confirmed_at)}`}</div>
-                        </>) : r.pay.matched > 0 ? <span className="text-gray-500">기록 없이 입금 · 결제를 직접 붙임</span>
-                          : <span className="text-gray-400">기록 없음</span>}
+                          {recLine(first)}{r.records.length > 1 && <span className="text-slate-500"> 외 {r.records.length - 1}건</span>}
+                          <div className="text-xs text-slate-600">기재 {first.created_by_name ?? '-'} · {when(first.created_at)}{first.confirmed_at && ` · 매칭 ${first.confirmed_by_name ?? '-'} · ${when(first.confirmed_at)}`}</div>
+                        </>) : r.pay.matched > 0 ? <span className="text-slate-600">기록 없이 입금 · 결제를 직접 붙임</span>
+                          : <span className="text-slate-500">기록 없음</span>}
                       </td>
                       <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                        <button onClick={() => setOpenId(open ? null : r.order_id)} className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">{open ? '접기' : '펼치기'}</button>
+                        <button onClick={() => setOpenId(open ? null : r.order_id)} className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">{open ? '접기' : '펼치기'}</button>
                       </td>
                     </tr>
                     {open && (
-                      <tr className="border-b border-gray-100 bg-slate-50">
+                      <tr className="border-b border-slate-200 bg-slate-50">
                         <td colSpan={8} className="px-3 pb-3">
-                          <div className="bg-white border border-gray-200 rounded-lg p-3 text-xs">
-                            <div className="text-gray-500 mb-1.5">결제 기록 {r.records.filter(x => !x.cancel).length}건{det ? ` · 수금 매칭 ${det.matches.length}건 · 연락 기록 ${det.contact_count}건${det.last_contact ? ` (최근 ${det.last_contact.slice(5)})` : ''}` : ' · 매칭 내역 불러오는 중...'}</div>
+                          <div className="bg-white border border-slate-300 rounded-lg p-3 text-xs">
+                            <div className="text-slate-600 mb-1.5">결제 기록 {r.records.filter(x => !x.cancel).length}건{det ? ` · 수금 매칭 ${det.matches.length}건 · 연락 기록 ${det.contact_count}건${det.last_contact ? ` (최근 ${det.last_contact.slice(5)})` : ''}` : ' · 매칭 내역 불러오는 중...'}</div>
                             {r.records.map(x => (
-                              <div key={x.id} className={`py-1 border-t border-gray-100 first:border-t-0 ${x.cancel ? 'text-orange-800' : 'text-gray-800'}`}>
+                              <div key={x.id} className={`py-1 border-t border-slate-200 first:border-t-0 ${x.cancel ? 'text-orange-800' : 'text-slate-900'}`}>
                                 <span className="tabular-nums">{x.pay_date}</span> · {recLine(x)}원
-                                <span className={`ml-1.5 px-1.5 py-px rounded text-[0.625rem] font-semibold ${x.confirmed_at ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{x.cancel ? (x.confirmed_at ? '취소 매칭 완료' : '취소 대기') : (x.confirmed_at ? '매칭 완료' : '매칭 대기')}</span>
-                                <span className="text-gray-500"> 기재 {x.created_by_name ?? '-'} · {when(x.created_at)}{x.confirmed_at && ` · 매칭 ${x.confirmed_by_name ?? '-'} · ${when(x.confirmed_at)}`}</span>
+                                <span className={`ml-1.5 px-1.5 py-px rounded text-xs font-semibold ${x.confirmed_at ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{x.cancel ? (x.confirmed_at ? '취소 매칭 완료' : '취소 대기') : (x.confirmed_at ? '매칭 완료' : '매칭 대기')}</span>
+                                <span className="text-slate-600"> 기재 {x.created_by_name ?? '-'} · {when(x.created_at)}{x.confirmed_at && ` · 매칭 ${x.confirmed_by_name ?? '-'} · ${when(x.confirmed_at)}`}</span>
                               </div>
                             ))}
                             {(det?.matches ?? []).map(m => (
-                              <div key={m.id} className="py-1 border-t border-gray-100 flex items-center gap-2 flex-wrap">
-                                <span className="text-gray-800"><span className="tabular-nums">{m.paid_date}</span> · {m.label} · <b className={`tabular-nums ${m.amount < 0 ? 'text-red-700' : ''}`}>{won(m.amount)}원</b></span>
-                                <span className="text-gray-500">매칭 {m.matched_by_name ?? (m.derived ? '계산서 입금에서 넘어옴' : '기록 없음')}{m.created_at && ` · ${when(m.created_at)}`}</span>
+                              <div key={m.id} className="py-1 border-t border-slate-200 flex items-center gap-2 flex-wrap">
+                                <span className="text-slate-900"><span className="tabular-nums">{m.paid_date}</span> · {m.label} · <b className={`tabular-nums ${m.amount < 0 ? 'text-red-700' : ''}`}>{won(m.amount)}원</b></span>
+                                <span className="text-slate-600">매칭 {m.matched_by_name ?? (m.derived ? '계산서 입금에서 넘어옴' : '기록 없음')}{m.created_at && ` · ${when(m.created_at)}`}</span>
                                 {canEdit && !m.derived && m.amount > 0 && m.source_type !== 'prepay' && (
                                   <button onClick={() => unmatch(r, m)} className="ml-auto px-2 py-0.5 border border-red-200 text-red-600 rounded hover:bg-red-50">매칭 해제</button>
                                 )}
                               </div>
                             ))}
-                            {det && r.records.length === 0 && det.matches.length === 0 && <div className="text-gray-400 py-1">결제 기록과 수금 매칭이 없습니다.</div>}
+                            {det && r.records.length === 0 && det.matches.length === 0 && <div className="text-slate-500 py-1">결제 기록과 수금 매칭이 없습니다.</div>}
                             <div className="flex gap-2 flex-wrap mt-2.5">
                               {pendingRec && <Link href={`/payments?tab=match&q=${encodeURIComponent(r.order_no ?? '')}`} className="px-2.5 py-1 rounded bg-slate-900 text-white font-semibold">매칭 대기에서 열기</Link>}
                               {(r.pay.stage === 'unpaid' || r.pay.stage === 'partial_pay') && <Link href={`/payments?tab=guide&q=${encodeURIComponent(r.order_no ?? '')}`} className="px-2.5 py-1 rounded bg-slate-900 text-white font-semibold">결제 안내에서 열기</Link>}
-                              <Link href={`/orders/${r.order_id}`} className="px-2.5 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">주문 상세</Link>
+                              <Link href={`/orders/${r.order_id}`} className="px-2.5 py-1 border border-slate-400 rounded text-slate-800 hover:bg-slate-50">주문 상세</Link>
                             </div>
                           </div>
                         </td>
@@ -217,8 +217,8 @@ export default function OverviewTab() {
             </tbody>
           </table>
           {filtered.length > shown && (
-            <div className="p-3 text-center border-t border-gray-100">
-              <button onClick={() => setShown(n => n + PAGE)} className="px-4 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">더 보기 ({shown} / {filtered.length})</button>
+            <div className="p-3 text-center border-t border-slate-200">
+              <button onClick={() => setShown(n => n + PAGE)} className="px-4 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">더 보기 ({shown} / {filtered.length})</button>
             </div>
           )}
         </div>
@@ -226,24 +226,24 @@ export default function OverviewTab() {
 
       {released.length > 0 && (
         <div className="mt-4">
-          <button onClick={() => setShowReleased(v => !v)} className="text-sm text-gray-600 hover:underline">{showReleased ? '▾' : '▸'} 최근 매칭 해제 이력 ({released.length}건)</button>
+          <button onClick={() => setShowReleased(v => !v)} className="text-sm text-slate-700 hover:underline">{showReleased ? '▾' : '▸'} 최근 매칭 해제 이력 ({released.length}건)</button>
           {showReleased && (
-            <div className="mt-2 bg-white border border-gray-200 rounded-xl overflow-x-auto">
+            <div className="mt-2 bg-white border border-slate-300 rounded-xl overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                   <th className="py-2 px-3 font-medium">해제 시각</th><th className="py-2 px-3 font-medium">해제한 사람</th><th className="py-2 px-3 font-medium">주문번호</th>
                   <th className="py-2 px-3 font-medium">결제일</th><th className="py-2 px-3 font-medium text-right">금액</th><th className="py-2 px-3 font-medium">어디서</th><th className="py-2 px-3 font-medium">사유</th>
                 </tr></thead>
                 <tbody>
                   {released.map(l => (
-                    <tr key={l.id} className="border-b border-gray-100">
-                      <td className="py-2 px-3 whitespace-nowrap tabular-nums text-gray-600">{when(l.created_at)}</td>
+                    <tr key={l.id} className="border-b border-slate-200">
+                      <td className="py-2 px-3 whitespace-nowrap tabular-nums text-slate-700">{when(l.created_at)}</td>
                       <td className="py-2 px-3 whitespace-nowrap">{l.employee_name ?? '-'}</td>
                       <td className="py-2 px-3 whitespace-nowrap">{l.order_no ?? '-'}</td>
-                      <td className="py-2 px-3 whitespace-nowrap text-gray-600">{l.paid_date ?? '-'}</td>
+                      <td className="py-2 px-3 whitespace-nowrap text-slate-700">{l.paid_date ?? '-'}</td>
                       <td className="py-2 px-3 text-right whitespace-nowrap tabular-nums">{l.amount != null ? won(l.amount) : '-'}</td>
-                      <td className="py-2 px-3 text-xs text-gray-500">{l.origin ?? ''}</td>
-                      <td className="py-2 px-3 text-gray-700">{l.reason_text ?? <span className="text-gray-400">사유 없음</span>}</td>
+                      <td className="py-2 px-3 text-xs text-slate-600">{l.origin ?? ''}</td>
+                      <td className="py-2 px-3 text-slate-800">{l.reason_text ?? <span className="text-slate-500">사유 없음</span>}</td>
                     </tr>
                   ))}
                 </tbody>

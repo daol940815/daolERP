@@ -98,8 +98,8 @@ function AccountLedgerContent() {
 
   return (
     <div className="w-full">
-      <h1 className="text-2xl font-bold text-gray-900">계정별 원장</h1>
-      <p className="text-sm mt-1 text-gray-500">분개장을 원천으로 계정별 거래내역과 잔액 누계를 확인합니다.</p>
+      <h1 className="text-2xl font-bold text-slate-900">계정별 원장</h1>
+      <p className="text-sm mt-1 text-slate-600">분개장을 원천으로 계정별 거래내역과 잔액 누계를 확인합니다.</p>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
@@ -109,7 +109,7 @@ function AccountLedgerContent() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <select value={accountId} onChange={e => setAccountId(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm min-w-[240px]">
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm min-w-[240px]">
           {accounts.length === 0 && <option value="">분개된 계정이 없습니다</option>}
           {accounts.map(a => (
             <option key={a.id} value={a.id}>
@@ -118,16 +118,16 @@ function AccountLedgerContent() {
           ))}
         </select>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-        <span className="text-gray-400 text-sm">~</span>
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+        <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
         <button onClick={() => {
           if (!accountId) return
           const a = document.createElement('a')
           a.href = `/api/ledger/account/export?accountId=${accountId}&from=${dateFrom}&to=${dateTo}`; a.click()
         }} disabled={!ledger}
-          className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap">
+          className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap">
           ↓ 엑셀
         </button>
       </div>
@@ -143,14 +143,14 @@ function AccountLedgerContent() {
       )}
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : !ledger ? (
-        <div className="text-center py-20 text-gray-400 text-sm">계정을 선택하면 원장이 표시됩니다.</div>
+        <div className="text-center py-20 text-slate-500 text-sm">계정을 선택하면 원장이 표시됩니다.</div>
       ) : (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="border border-slate-300 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 px-3 text-left font-medium w-24">일자</th>
                 <th className="py-2 px-2 text-left font-medium">적요</th>
                 <th className="py-2 px-2 text-left font-medium">상대계정</th>
@@ -163,32 +163,32 @@ function AccountLedgerContent() {
             </thead>
             <tbody>
               {/* 전월이월 */}
-              <tr className="bg-amber-50/60 border-b border-gray-100 text-gray-600">
+              <tr className="bg-amber-50/60 border-b border-slate-200 text-slate-700">
                 <td className="py-1.5 px-3" colSpan={4}>[전월이월]</td>
-                <td className="py-1.5 px-3 text-right text-gray-300">-</td>
-                <td className="py-1.5 px-3 text-right text-gray-300">-</td>
+                <td className="py-1.5 px-3 text-right text-slate-400">-</td>
+                <td className="py-1.5 px-3 text-right text-slate-400">-</td>
                 <td className="py-1.5 px-3 text-right font-medium">{won(ledger.opening)}</td>
                 <td></td>
               </tr>
 
               {ledger.rows.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-10 text-gray-400 text-sm">해당 기간 거래가 없습니다.</td></tr>
+                <tr><td colSpan={8} className="text-center py-10 text-slate-500 text-sm">해당 기간 거래가 없습니다.</td></tr>
               ) : display.map((item, i) =>
                 item.kind === 'row' ? (
-                  <tr key={`r${i}`} className="border-b border-gray-50 hover:bg-slate-50/60">
-                    <td className="py-1.5 px-3 whitespace-nowrap text-gray-600">{item.r.entry_date}</td>
-                    <td className="py-1.5 px-2 text-gray-800">{item.r.description ?? ''}</td>
-                    <td className="py-1.5 px-2 text-gray-500">{item.r.counterpart ?? ''}</td>
-                    <td className="py-1.5 px-2 text-gray-500">{item.r.vendor ?? ''}</td>
+                  <tr key={`r${i}`} className="border-b border-slate-200 hover:bg-slate-50/60">
+                    <td className="py-1.5 px-3 whitespace-nowrap text-slate-700">{item.r.entry_date}</td>
+                    <td className="py-1.5 px-2 text-slate-900">{item.r.description ?? ''}</td>
+                    <td className="py-1.5 px-2 text-slate-600">{item.r.counterpart ?? ''}</td>
+                    <td className="py-1.5 px-2 text-slate-600">{item.r.vendor ?? ''}</td>
                     <td className="py-1.5 px-3 text-right text-blue-700 whitespace-nowrap">{item.r.debit ? won(item.r.debit) : ''}</td>
                     <td className="py-1.5 px-3 text-right text-red-700 whitespace-nowrap">{item.r.credit ? won(item.r.credit) : ''}</td>
-                    <td className={`py-1.5 px-3 text-right whitespace-nowrap ${item.r.balance < 0 ? 'text-red-600' : 'text-gray-800'}`}>{won(item.r.balance)}</td>
-                    <td className="py-1.5 px-3 font-mono text-xs text-gray-400 whitespace-nowrap">
+                    <td className={`py-1.5 px-3 text-right whitespace-nowrap ${item.r.balance < 0 ? 'text-red-600' : 'text-slate-900'}`}>{won(item.r.balance)}</td>
+                    <td className="py-1.5 px-3 font-mono text-xs text-slate-500 whitespace-nowrap">
                       {item.r.entry_no}
                       {item.r.source_type && item.r.source_type !== 'manual' && item.r.source_id && (
                         <Link
                           href={`/source/${item.r.source_type}/${item.r.source_id}`}
-                          className="ml-1.5 px-1 py-0.5 rounded bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 font-sans"
+                          className="ml-1.5 px-1 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800 font-sans"
                           title="원본 레코드 보기"
                         >
                           {SOURCE_LABEL[item.r.source_type] ?? '원본'}↗
@@ -197,7 +197,7 @@ function AccountLedgerContent() {
                     </td>
                   </tr>
                 ) : multiMonth ? (
-                  <tr key={`s${i}`} className="bg-slate-50 border-b border-gray-100 text-gray-500 text-xs">
+                  <tr key={`s${i}`} className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs">
                     <td className="py-1.5 px-3" colSpan={4}>[{item.ym} 월계]</td>
                     <td className="py-1.5 px-3 text-right text-blue-700">{won(item.debit)}</td>
                     <td className="py-1.5 px-3 text-right text-red-700">{won(item.credit)}</td>
@@ -207,7 +207,7 @@ function AccountLedgerContent() {
               )}
 
               {/* 누계 */}
-              <tr className="bg-slate-100 border-t-2 border-slate-300 font-semibold text-gray-800">
+              <tr className="bg-slate-100 border-t-2 border-slate-400 font-semibold text-slate-900">
                 <td className="py-2 px-3" colSpan={4}>[누계]</td>
                 <td className="py-2 px-3 text-right text-blue-700">{won(ledger.total_debit)}</td>
                 <td className="py-2 px-3 text-right text-red-700">{won(ledger.total_credit)}</td>
@@ -220,7 +220,7 @@ function AccountLedgerContent() {
       )}
 
       {selected && (
-        <p className="text-xs text-gray-400 mt-2">
+        <p className="text-xs text-slate-500 mt-2">
           {selected.code ? `${selected.code} · ` : ''}{selected.name} · 전체 분개 라인 {selected.line_count.toLocaleString()}건
           · 잔액 부호: {['asset', 'expense'].includes(selected.type) ? '차변(+)' : '대변(+)'} 기준
         </p>
@@ -232,18 +232,18 @@ function AccountLedgerContent() {
 // useSearchParams는 Suspense 경계 필요 — 손익현황 드릴다운 진입(?accountId&from&to) 지원
 export default function AccountLedgerPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-gray-400 text-sm">로딩 중...</div>}>
+    <Suspense fallback={<div className="p-6 text-slate-500 text-sm">로딩 중...</div>}>
       <AccountLedgerContent />
     </Suspense>
   )
 }
 
 function SummaryBox({ label, value, accent }: { label: string; value: string; accent?: 'blue' | 'red' | 'dark' }) {
-  const cls = accent === 'blue' ? 'text-blue-700' : accent === 'red' ? 'text-red-700' : accent === 'dark' ? 'text-gray-900' : 'text-gray-700'
+  const cls = accent === 'blue' ? 'text-blue-700' : accent === 'red' ? 'text-red-700' : accent === 'dark' ? 'text-slate-900' : 'text-slate-800'
   return (
-    <div className="border border-gray-200 rounded-lg px-4 py-2.5 flex-1 min-w-[140px]">
-      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-      <p className={`text-base font-bold ${cls}`}>{value}<span className="text-xs font-normal text-gray-400">원</span></p>
+    <div className="border border-slate-300 rounded-lg px-4 py-2.5 flex-1 min-w-[140px]">
+      <p className="text-xs text-slate-500 mb-0.5">{label}</p>
+      <p className={`text-base font-bold ${cls}`}>{value}<span className="text-xs font-normal text-slate-500">원</span></p>
     </div>
   )
 }

@@ -63,45 +63,45 @@ export function OrgHeader({ org, vendorName, onEdit, scope, setScope, part }: {
   return (
     <div className="mb-1">
       {part === 'crumb' && (
-        <div className="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
+        <div className="text-xs text-slate-600 flex items-center gap-1 flex-wrap">
           {/* 맨 위 상위 조직이 업체명과 같은 이름(업체 메인 매출처)이면 업체 이름을 따로 쓰지 않고 그 링크 하나만 보인다(2026-11-24) */}
           {org.group && org.path[0]?.unit.replace(/\s+/g, '') !== org.group.name.replace(/\s+/g, '') && <span>{org.group.name}</span>}
           {org.path.map((p, i) => (
             <span key={p.id} className="flex items-center gap-1">
-              {(i > 0 || (org.group && p.unit.replace(/\s+/g, '') !== org.group.name.replace(/\s+/g, ''))) && <span className="text-gray-300">›</span>}
+              {(i > 0 || (org.group && p.unit.replace(/\s+/g, '') !== org.group.name.replace(/\s+/g, ''))) && <span className="text-slate-400">›</span>}
               <Link href={`/sales-hub/${p.id}`} className="text-blue-700 hover:underline">{p.unit}</Link>
             </span>
           ))}
-          <span className="text-gray-300">›</span><b className="text-gray-800">{org.unit || vendorName}</b>
+          <span className="text-slate-400">›</span><b className="text-slate-900">{org.unit || vendorName}</b>
         </div>
       )}
       {part === 'rest' && <>
       <div className="flex items-center gap-1.5 flex-wrap mt-1">
         {org.location && (
-          <Link href={`/sales-hub/${org.location.id}`} className="px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-amber-100 text-amber-800 hover:underline">
+          <Link href={`/sales-hub/${org.location.id}`} className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800 hover:underline">
             위치: {org.location.name}
           </Link>
         )}
         {org.can_edit && (
           <>
-            <button onClick={() => onEdit('set')} className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">상위 조직 · 위치</button>
-            <button onClick={() => onEdit('create')} className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">하위 조직 추가</button>
+            <button onClick={() => onEdit('set')} className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">상위 조직 · 위치</button>
+            <button onClick={() => onEdit('create')} className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">하위 조직 추가</button>
           </>
         )}
       </div>
       {!!org.located?.length && <LocatedBox rows={org.located} />}
       {org.child_count > 0 && (
-        <div className="mt-2 flex items-center gap-3 flex-wrap bg-white border border-gray-200 rounded-xl px-3 py-2">
-          <span className="text-xs text-gray-500">집계 범위</span>
-          <span className="inline-flex border border-gray-300 rounded-lg overflow-hidden">
-            <button onClick={() => setScope('self')} className={`px-2.5 py-1 text-xs ${scope === 'self' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-gray-600'}`}>이 조직만</button>
-            <button onClick={() => setScope('subtree')} className={`px-2.5 py-1 text-xs ${scope === 'subtree' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-gray-600'}`}>하위 포함 ({org.child_count})</button>
+        <div className="mt-2 flex items-center gap-3 flex-wrap bg-white border border-slate-300 rounded-xl px-3 py-2">
+          <span className="text-xs text-slate-600">집계 범위</span>
+          <span className="inline-flex border border-slate-400 rounded-lg overflow-hidden">
+            <button onClick={() => setScope('self')} className={`px-2.5 py-1 text-xs ${scope === 'self' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-slate-700'}`}>이 조직만</button>
+            <button onClick={() => setScope('subtree')} className={`px-2.5 py-1 text-xs ${scope === 'subtree' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-slate-700'}`}>하위 포함 ({org.child_count})</button>
           </span>
-          <span className="text-xs text-gray-600">기간 매출 <b className="text-gray-900 tabular-nums">{won(t.net)}</b></span>
-          <span className="text-xs text-gray-600">미수 <b className={`tabular-nums ${t.outstanding > 0 ? 'text-red-600' : 'text-gray-900'}`}>{won(t.outstanding)}</b></span>
-          <span className="text-xs text-gray-600">주문 <b className="text-gray-900 tabular-nums">{t.order_count}</b>건</span>
-          <span className="text-xs text-gray-600">현재 담당자 <b className="text-gray-900 tabular-nums">{t.contacts}</b>명</span>
-          <span className="text-[0.6875rem] text-gray-400">각 조직 숫자는 &lsquo;하위 조직&rsquo; 탭에서 · 아래 카드 · 탭은 이 조직 기준</span>
+          <span className="text-xs text-slate-700">기간 매출 <b className="text-slate-900 tabular-nums">{won(t.net)}</b></span>
+          <span className="text-xs text-slate-700">미수 <b className={`tabular-nums ${t.outstanding > 0 ? 'text-red-600' : 'text-slate-900'}`}>{won(t.outstanding)}</b></span>
+          <span className="text-xs text-slate-700">주문 <b className="text-slate-900 tabular-nums">{t.order_count}</b>건</span>
+          <span className="text-xs text-slate-700">현재 담당자 <b className="text-slate-900 tabular-nums">{t.contacts}</b>명</span>
+          <span className="text-xs text-slate-500">각 조직 숫자는 &lsquo;하위 조직&rsquo; 탭에서 · 아래 카드 · 탭은 이 조직 기준</span>
         </div>
       )}
       </>}
@@ -114,18 +114,18 @@ function LocatedBox({ rows }: { rows: LocatedRow[] }) {
   const [open, setOpen] = useState(false)
   const sum = rows.reduce((a, r) => ({ net: a.net + r.net, outstanding: a.outstanding + r.outstanding }), { net: 0, outstanding: 0 })
   return (
-    <div className="mt-2 bg-white border border-gray-200 rounded-xl">
+    <div className="mt-2 bg-white border border-slate-300 rounded-xl">
       <button onClick={() => setOpen(o => !o)} className="w-full px-3 py-2 flex items-center gap-2 flex-wrap text-left">
-        <span className="text-xs font-bold text-gray-700">이 지점에 있는 조직 {rows.length}</span>
-        <span className="text-xs text-gray-600 truncate">{rows.filter(r => r.depth === 0).map(r => r.path).join(' · ')}{rows.some(r => r.depth > 0) ? ` 외 하위 ${rows.filter(r => r.depth > 0).length}` : ''}</span>
-        <span className="text-[0.6875rem] text-gray-400">소속이 달라 이 지점 집계에는 들어가지 않습니다</span>
+        <span className="text-xs font-bold text-slate-800">이 지점에 있는 조직 {rows.length}</span>
+        <span className="text-xs text-slate-700 truncate">{rows.filter(r => r.depth === 0).map(r => r.path).join(' · ')}{rows.some(r => r.depth > 0) ? ` 외 하위 ${rows.filter(r => r.depth > 0).length}` : ''}</span>
+        <span className="text-xs text-slate-500">소속이 달라 이 지점 집계에는 들어가지 않습니다</span>
         <span className="ml-auto text-xs text-blue-700">{open ? '접기' : '목록 보기'}</span>
       </button>
       {open && (
-        <div className="overflow-x-auto border-t border-gray-100">
+        <div className="overflow-x-auto border-t border-slate-200">
           <table className="w-full text-sm min-w-[640px]">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 px-3 text-left font-medium">조직 (소속 경로)</th>
                 <th className="py-2 px-3 text-left font-medium">대표 담당자</th>
                 <th className="py-2 px-3 text-right font-medium">담당자</th>
@@ -135,23 +135,23 @@ function LocatedBox({ rows }: { rows: LocatedRow[] }) {
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
+                <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50">
                   <td className="py-1.5 px-3">
                     <span style={{ paddingLeft: `${r.depth * 1.1}rem` }} className="inline-flex items-center gap-1">
-                      {r.depth > 0 && <span className="text-gray-300">└</span>}
-                      <Link href={`/sales-hub/${r.id}`} className="text-gray-800 hover:underline">{r.path}</Link>
+                      {r.depth > 0 && <span className="text-slate-400">└</span>}
+                      <Link href={`/sales-hub/${r.id}`} className="text-slate-900 hover:underline">{r.path}</Link>
                     </span>
                   </td>
-                  <td className="py-1.5 px-3 text-xs text-gray-700">{r.contact_rep ?? <span className="text-gray-300">-</span>}</td>
+                  <td className="py-1.5 px-3 text-xs text-slate-800">{r.contact_rep ?? <span className="text-slate-400">-</span>}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{r.contacts}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(r.net)}</td>
-                  <td className={`py-1.5 px-3 text-right tabular-nums ${r.outstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(r.outstanding)}</td>
+                  <td className={`py-1.5 px-3 text-right tabular-nums ${r.outstanding > 0 ? 'text-red-600' : 'text-slate-500'}`}>{won(r.outstanding)}</td>
                 </tr>
               ))}
-              <tr className="bg-gray-50">
-                <td className="py-1.5 px-3 text-xs text-gray-500" colSpan={3}>참고 합계 (이 지점 숫자와 별도)</td>
-                <td className="py-1.5 px-3 text-right tabular-nums text-gray-600">{won(sum.net)}</td>
-                <td className="py-1.5 px-3 text-right tabular-nums text-gray-600">{won(sum.outstanding)}</td>
+              <tr className="bg-slate-50">
+                <td className="py-1.5 px-3 text-xs text-slate-600" colSpan={3}>참고 합계 (이 지점 숫자와 별도)</td>
+                <td className="py-1.5 px-3 text-right tabular-nums text-slate-700">{won(sum.net)}</td>
+                <td className="py-1.5 px-3 text-right tabular-nums text-slate-700">{won(sum.outstanding)}</td>
               </tr>
             </tbody>
           </table>
@@ -176,20 +176,20 @@ export function OrgTab({ org, onEdit, onChanged }: {
   }
   return (
     <div className="space-y-3">
-      <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+      <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
         <div className="px-4 pt-3 pb-2 flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-bold text-gray-800">하위 조직 {org.child_count}</span>
-          <span className="text-[0.6875rem] text-gray-400">주문 · 계산서 · 담당자는 각 조직에 붙습니다 — 행을 누르면 그 조직 상세</span>
+          <span className="text-sm font-bold text-slate-900">하위 조직 {org.child_count}</span>
+          <span className="text-xs text-slate-500">주문 · 계산서 · 담당자는 각 조직에 붙습니다 — 행을 누르면 그 조직 상세</span>
           {org.can_edit && (
             <span className="ml-auto flex gap-1.5">
               <button onClick={() => onEdit('create')} className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-xs">새 하위 조직 등록</button>
-              <button onClick={() => onEdit('attach')} className="px-2.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-gray-50">기존 매출처 편입</button>
+              <button onClick={() => onEdit('attach')} className="px-2.5 py-1 border border-slate-400 rounded-lg text-xs text-slate-800 hover:bg-slate-50">기존 매출처 편입</button>
             </span>
           )}
         </div>
         <table className="w-full text-sm min-w-[760px]">
           <thead>
-            <tr className="bg-gray-50 text-gray-500 text-xs border-y border-gray-200">
+            <tr className="bg-slate-50 text-slate-600 text-xs border-y border-slate-300">
               <th className="py-2 px-3 text-left font-medium">조직</th>
               <th className="py-2 px-3 text-left font-medium">위치</th>
               <th className="py-2 px-3 text-left font-medium">대표 담당자</th>
@@ -202,34 +202,34 @@ export function OrgTab({ org, onEdit, onChanged }: {
           </thead>
           <tbody>
             {org.rows.map(r => (
-              <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
+              <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50">
                 <td className="py-1.5 px-3">
                   <span style={{ paddingLeft: `${r.depth * 1.1}rem` }} className="inline-flex items-center gap-1">
-                    {r.depth > 0 && <span className="text-gray-300">└</span>}
+                    {r.depth > 0 && <span className="text-slate-400">└</span>}
                     {r.is_self
-                      ? <b className="text-gray-900">{r.unit}</b>
-                      : <Link href={`/sales-hub/${r.id}`} className="text-gray-800 hover:underline">{r.unit}</Link>}
-                    {r.is_self && <span className="px-1.5 py-0.5 rounded text-[0.625rem] bg-gray-100 text-gray-500">이 조직</span>}
-                    {!r.is_active && <span className="px-1.5 py-0.5 rounded text-[0.625rem] bg-gray-200 text-gray-600">비활성</span>}
+                      ? <b className="text-slate-900">{r.unit}</b>
+                      : <Link href={`/sales-hub/${r.id}`} className="text-slate-900 hover:underline">{r.unit}</Link>}
+                    {r.is_self && <span className="px-1.5 py-0.5 rounded text-xs bg-slate-100 text-slate-600">이 조직</span>}
+                    {!r.is_active && <span className="px-1.5 py-0.5 rounded text-xs bg-slate-200 text-slate-700">비활성</span>}
                   </span>
                 </td>
-                <td className="py-1.5 px-3 text-xs">{r.location_name ? <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">{r.location_name}</span> : <span className="text-gray-300">-</span>}</td>
-                <td className="py-1.5 px-3 text-xs text-gray-700">{r.contact_rep ?? <span className="text-gray-300">-</span>}</td>
+                <td className="py-1.5 px-3 text-xs">{r.location_name ? <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">{r.location_name}</span> : <span className="text-slate-400">-</span>}</td>
+                <td className="py-1.5 px-3 text-xs text-slate-800">{r.contact_rep ?? <span className="text-slate-400">-</span>}</td>
                 <td className="py-1.5 px-3 text-right tabular-nums">{r.contacts}</td>
                 <td className="py-1.5 px-3 text-right tabular-nums">{won(r.net)}</td>
-                <td className={`py-1.5 px-3 text-right tabular-nums ${r.outstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(r.outstanding)}</td>
-                <td className="py-1.5 px-3 text-xs text-gray-600">{r.staff_primary ?? '-'}</td>
+                <td className={`py-1.5 px-3 text-right tabular-nums ${r.outstanding > 0 ? 'text-red-600' : 'text-slate-500'}`}>{won(r.outstanding)}</td>
+                <td className="py-1.5 px-3 text-xs text-slate-700">{r.staff_primary ?? '-'}</td>
                 {org.can_edit && (
                   <td className="py-1.5 px-3 text-right">
                     {!r.is_self && r.depth === 1 && (
-                      <button disabled={busy} onClick={() => detach(r)} className="text-[0.6875rem] text-gray-500 hover:text-red-600 underline">빼기</button>
+                      <button disabled={busy} onClick={() => detach(r)} className="text-xs text-slate-600 hover:text-red-600 underline">빼기</button>
                     )}
                   </td>
                 )}
               </tr>
             ))}
-            <tr className="bg-gray-50 font-semibold">
-              <td className="py-1.5 px-3 text-xs text-gray-600" colSpan={3}>합계 (하위 포함)</td>
+            <tr className="bg-slate-50 font-semibold">
+              <td className="py-1.5 px-3 text-xs text-slate-700" colSpan={3}>합계 (하위 포함)</td>
               <td className="py-1.5 px-3 text-right tabular-nums">{org.totals.subtree.contacts}</td>
               <td className="py-1.5 px-3 text-right tabular-nums">{won(org.totals.subtree.net)}</td>
               <td className="py-1.5 px-3 text-right tabular-nums">{won(org.totals.subtree.outstanding)}</td>
@@ -239,17 +239,17 @@ export function OrgTab({ org, onEdit, onChanged }: {
         </table>
       </div>
       {org.changes.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <div className="text-xs font-bold text-gray-700 mb-1">상위 조직 · 위치 변경 이력 (이 조직)</div>
+        <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
+          <div className="text-xs font-bold text-slate-800 mb-1">상위 조직 · 위치 변경 이력 (이 조직)</div>
           {org.changes.map((c, i) => (
-            <div key={i} className="text-xs text-gray-600 py-0.5">
+            <div key={i} className="text-xs text-slate-700 py-0.5">
               {c.changed_at.slice(0, 10)} · {c.field === 'parent' ? '상위 조직' : '위치'} {c.old_name ?? '(없음)'} → <b>{c.new_name ?? '(없음)'}</b>{c.changed_by_name ? ` · ${c.changed_by_name}` : ''}
             </div>
           ))}
         </div>
       )}
-      {!org.child_count && <p className="text-xs text-gray-400 px-1">하위 조직이 없습니다. 팀 · 부서를 &ldquo;새 하위 조직 등록&rdquo;으로 만들거나, 이미 있는 매출처를 &ldquo;기존 매출처 편입&rdquo;으로 이 조직 아래에 넣으세요.</p>}
-      <p className="text-[0.6875rem] text-gray-400 px-1">이 조직 자체를 다른 조직 아래로 넣으려면 위의 &ldquo;상위 조직 · 위치&rdquo;를 쓰세요. 새 상위 조직이 필요하면 매출처를 먼저 등록한 뒤 거기서 이 조직을 편입하면 됩니다.</p>
+      {!org.child_count && <p className="text-xs text-slate-500 px-1">하위 조직이 없습니다. 팀 · 부서를 &ldquo;새 하위 조직 등록&rdquo;으로 만들거나, 이미 있는 매출처를 &ldquo;기존 매출처 편입&rdquo;으로 이 조직 아래에 넣으세요.</p>}
+      <p className="text-xs text-slate-500 px-1">이 조직 자체를 다른 조직 아래로 넣으려면 위의 &ldquo;상위 조직 · 위치&rdquo;를 쓰세요. 새 상위 조직이 필요하면 매출처를 먼저 등록한 뒤 거기서 이 조직을 편입하면 됩니다.</p>
     </div>
   )
 }
@@ -272,7 +272,7 @@ function SearchPick({ kind, vendorId, value, onPick, placeholder }: {
   if (value) {
     return (
       <div className="flex items-center justify-between text-sm bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-        <span><b className="text-blue-900">{value.name}</b>{value.path && <span className="text-[0.6875rem] text-blue-700 ml-1.5">{value.path}</span>}</span>
+        <span><b className="text-blue-900">{value.name}</b>{value.path && <span className="text-xs text-blue-700 ml-1.5">{value.path}</span>}</span>
         <button onClick={() => onPick(null)} className="text-xs text-blue-700 underline">변경</button>
       </div>
     )
@@ -280,14 +280,14 @@ function SearchPick({ kind, vendorId, value, onPick, placeholder }: {
   return (
     <div>
       <input value={q} onChange={e => setQ(e.target.value)} placeholder={placeholder}
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
       {(q.trim() || kind !== 'location') && (
-        <div className="mt-1 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
-          {items.length === 0 && <p className="text-xs text-gray-400 px-3 py-2">{q.trim() ? '검색 결과 없음' : '이름 일부를 입력하세요'}</p>}
+        <div className="mt-1 border border-slate-300 rounded-lg max-h-48 overflow-y-auto">
+          {items.length === 0 && <p className="text-xs text-slate-500 px-3 py-2">{q.trim() ? '검색 결과 없음' : '이름 일부를 입력하세요'}</p>}
           {items.map(c => (
-            <button key={c.id} onClick={() => onPick(c)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0">
-              <span className="text-gray-900">{c.name}</span>
-              {c.path && <span className="block text-[0.6875rem] text-gray-400">{c.path}{c.children ? ` · 하위 ${c.children}` : ''}</span>}
+            <button key={c.id} onClick={() => onPick(c)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 border-b border-slate-200 last:border-0">
+              <span className="text-slate-900">{c.name}</span>
+              {c.path && <span className="block text-xs text-slate-500">{c.path}{c.children ? ` · 하위 ${c.children}` : ''}</span>}
             </button>
           ))}
         </div>
@@ -344,38 +344,38 @@ export function OrgDialog({ mode, org, vendorId, vendorName, onClose, onDone }: 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !busy && onClose()}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
-        <h3 className="text-base font-bold text-gray-900">{title}</h3>
-        <p className="text-xs text-gray-500 mt-0.5">팀도 매출처 하나입니다(주문 · 담당자가 붙는 곳). 상위 조직은 같은 업체 안에서만 고를 수 있습니다. 청구처(계산서 법인)와는 별개입니다.</p>
+        <h3 className="text-base font-bold text-slate-900">{title}</h3>
+        <p className="text-xs text-slate-600 mt-0.5">팀도 매출처 하나입니다(주문 · 담당자가 붙는 곳). 상위 조직은 같은 업체 안에서만 고를 수 있습니다. 청구처(계산서 법인)와는 별개입니다.</p>
 
         {mode === 'set' && (
           <>
-            <label className="block text-xs font-medium text-gray-700 mt-4 mb-1">상위 조직</label>
+            <label className="block text-xs font-medium text-slate-800 mt-4 mb-1">상위 조직</label>
             {noParent
-              ? <div className="flex items-center justify-between text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2"><span>업체 바로 아래 (상위 없음)</span><button onClick={() => setNoParent(false)} className="text-xs underline text-gray-600">상위 고르기</button></div>
+              ? <div className="flex items-center justify-between text-sm bg-slate-50 border border-slate-300 rounded-lg px-3 py-2"><span>업체 바로 아래 (상위 없음)</span><button onClick={() => setNoParent(false)} className="text-xs underline text-slate-700">상위 고르기</button></div>
               : <SearchPick kind="parent" vendorId={vendorId} value={parent} onPick={setParent} placeholder="상위 조직 이름 일부 (예: 원큐 · 본점)" />}
-            {!noParent && <button onClick={() => { setNoParent(true); setParent(null) }} className="mt-1 text-[0.6875rem] text-gray-500 underline">상위 없이 업체 바로 아래로</button>}
+            {!noParent && <button onClick={() => { setNoParent(true); setParent(null) }} className="mt-1 text-xs text-slate-600 underline">상위 없이 업체 바로 아래로</button>}
           </>
         )}
         {mode === 'attach' && (
           <>
-            <label className="block text-xs font-medium text-gray-700 mt-4 mb-1">편입할 매출처 (같은 업체)</label>
+            <label className="block text-xs font-medium text-slate-800 mt-4 mb-1">편입할 매출처 (같은 업체)</label>
             <SearchPick kind="child" vendorId={vendorId} value={child} onPick={setChild} placeholder="매출처 이름 일부 (예: 자동차금융)" />
           </>
         )}
         {mode === 'create' && (
           <>
-            <label className="block text-xs font-medium text-gray-700 mt-4 mb-1">조직 이름 (팀 · 부서명)</label>
+            <label className="block text-xs font-medium text-slate-800 mt-4 mb-1">조직 이름 (팀 · 부서명)</label>
             <input autoFocus value={unit} onChange={e => setUnit(e.target.value)} placeholder="예: 자동차금융팀"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
             {createPreview && (
-              <div className="mt-2 text-xs text-gray-500 bg-gray-50 border border-dashed border-gray-300 rounded-lg px-3 py-2">
-                등록될 매출처 이름 <b className="text-gray-900">{createPreview}</b> <span className="text-gray-400">(업체명 + 상위 단위 + 팀명)</span>
+              <div className="mt-2 text-xs text-slate-600 bg-slate-50 border border-dashed border-slate-400 rounded-lg px-3 py-2">
+                등록될 매출처 이름 <b className="text-slate-900">{createPreview}</b> <span className="text-slate-500">(업체명 + 상위 단위 + 팀명)</span>
               </div>
             )}
           </>
         )}
 
-        <label className="block text-xs font-medium text-gray-700 mt-4 mb-1">위치(소재 지점) <span className="font-normal text-gray-400">— 상위 조직과 다른 곳에 있을 때만</span></label>
+        <label className="block text-xs font-medium text-slate-800 mt-4 mb-1">위치(소재 지점) <span className="font-normal text-slate-500">— 상위 조직과 다른 곳에 있을 때만</span></label>
         <SearchPick kind="location" vendorId={mode === 'attach' && child ? child.id : vendorId} value={location} onPick={setLocation} placeholder="비우면 상위 조직과 같은 곳 (예: 서면역)" />
 
         {mode !== 'create' && rename && (
@@ -383,14 +383,14 @@ export function OrgDialog({ mode, org, vendorId, vendorName, onClose, onDone }: 
             <input type="checkbox" checked={useRename} onChange={e => setUseRename(e.target.checked)} className="mt-0.5" />
             <span className="flex-1">이름도 규칙에 맞춰 바꾸기 (고쳐 쓸 수 있음)
               <input value={renameText} disabled={!useRename} onChange={e => setRenameText(e.target.value)}
-                className="mt-1 w-full border border-blue-200 rounded px-2 py-1 text-sm text-gray-900 bg-white disabled:opacity-50" />
+                className="mt-1 w-full border border-blue-200 rounded px-2 py-1 text-sm text-slate-900 bg-white disabled:opacity-50" />
               <span className="text-blue-700">업체명 + 상위 단위 + 팀명. 옛 이름은 별칭으로 남아 계산서 · ERP 표기 연결은 그대로입니다.</span></span>
           </label>
         )}
 
         {msg && <p className="text-xs text-red-600 mt-3">{msg}</p>}
         <div className="flex justify-end gap-2 mt-5">
-          <button disabled={busy} onClick={onClose} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
+          <button disabled={busy} onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
           <button disabled={busy} onClick={save} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-40">
             {busy ? '저장 중...' : mode === 'create' ? '등록' : mode === 'attach' ? '편입' : '저장'}
           </button>

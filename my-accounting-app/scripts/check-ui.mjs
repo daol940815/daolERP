@@ -17,12 +17,20 @@ const rules = [
   { re: /\b(?:bg|text|border|ring|from|via|to|fill|stroke|outline|decoration|divide|shadow)-\[#[0-9a-fA-F]{3,8}\]/g, msg: '클래스에 색 코드 직접 — Tailwind 색 이름으로' },
   { re: /\b(?:bg|text|border|ring|from|via|to|divide)-(?:zinc|neutral|stone)-\d{2,3}\b/g, msg: '기본 회색은 slate · gray 만 (zinc · neutral · stone 금지)' },
 ]
+// 경고(실패 아님) — UI 통일 기준(2026-11-25): 회색은 slate 한 계열, 12px 보다 작은 글자 금지. `node scripts/ui-codemod.mjs` 로 한 번에 고친다.
+//  병행 세션이 작업 중인 브랜치가 있어 당분간 경고로만 둔다 — 전 트랙 반영 뒤 실패로 올릴 예정.
+const softRules = [
+  { re: /\b(?:text|bg|border|ring|divide|from|via|to|placeholder)-gray-\d{2,3}\b/g, msg: 'gray 회색' },
+  { re: /\btext-\[0\.(?:625|65625|6875|71875)rem\]/g, msg: '12px 보다 작은 글자' },
+]
+const soft = {}
 const errors = []
 let inlineHex = 0
 for (const f of files) {
   const lines = readFileSync(f, 'utf8').split('\n')
   lines.forEach((line, i) => {
     if (/^\s*(\/\/|\*)/.test(line)) return   // 주석 줄은 건너뜀
+    if (!/components\/layout\/(AreaSidebar|NotificationCenter)|app\/(portal|login)\/|check-widget/.test(f.split('\\').join('/'))) for (const r of softRules) { const n = (line.match(r.re) ?? []).length; if (n) soft[r.msg] = (soft[r.msg] ?? 0) + n }
     for (const r of rules) for (const m of line.matchAll(r.re)) errors.push(`${relative(root, f)}:${i + 1}  ${m[0]}  — ${r.msg}`)
     if (f.endsWith('.tsx')) inlineHex += (line.match(/['"]#[0-9a-fA-F]{6}['"]/g) ?? []).length
   })
@@ -33,4 +41,5 @@ if (errors.length) {
   if (errors.length > 40) console.error(`  … 외 ${errors.length - 40}건`)
   process.exit(1)
 }
+for (const [k, n] of Object.entries(soft)) console.warn(`[check-ui] 경고 — ${k} ${n}곳: node scripts/ui-codemod.mjs 로 통일 기준에 맞출 것`)
 console.log(`[check-ui] 통과 — 파일 ${files.length} · 인라인 색 코드 ${inlineHex}곳(차트 · 의미 색, 테마 대상 아님)`)

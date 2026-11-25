@@ -68,11 +68,11 @@ const txDateComparator = (
 // 상태 배지 렌더러
 function StatusBadge(p: ICellRendererParams<Transaction>) {
   const map: Record<string, { label: string; cls: string }> = {
-    pending:   { label: '미검토',  cls: 'bg-gray-100 text-gray-600' },
+    pending:   { label: '미검토',  cls: 'bg-slate-100 text-slate-700' },
     reviewed:  { label: '검토완료', cls: 'bg-yellow-100 text-yellow-700' },
     confirmed: { label: '확정',    cls: 'bg-green-100 text-green-700' },
   }
-  const s = map[p.value as string] ?? { label: p.value, cls: 'bg-gray-100 text-gray-500' }
+  const s = map[p.value as string] ?? { label: p.value, cls: 'bg-slate-100 text-slate-600' }
   return (
     <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${s.cls}`}>
       {s.label}
@@ -158,23 +158,23 @@ function NewVendorModal({ tx, vendors, onClose, onCreated }: {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-gray-900 mb-1">새 거래처 등록</h2>
-        <p className="text-sm text-gray-500 mb-4">
+        <h2 className="text-lg font-bold text-slate-900 mb-1">새 거래처 등록</h2>
+        <p className="text-sm text-slate-600 mb-4">
           등록과 동시에 이 거래에 연결됩니다. 이후 세금계산서가 올라오면 사업자번호가 자동 보완됩니다.
         </p>
-        <label className="block text-xs text-gray-500 mb-1">거래처명</label>
+        <label className="block text-xs text-slate-600 mb-1">거래처명</label>
         <input autoFocus value={name} onChange={e => setName(e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-        <label className="block text-xs text-gray-500 mb-1 mt-3">유형</label>
+          className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <label className="block text-xs text-slate-600 mb-1 mt-3">유형</label>
         <select value={type} onChange={e => setType(e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
           <option value="vendor">매입처{(tx.amount_out ?? 0) > 0 ? ' (출금 거래라 기본값)' : ''}</option>
           <option value="customer">매출처{(tx.amount_in ?? 0) > 0 ? ' (입금 거래라 기본값)' : ''}</option>
           <option value="both">매입·매출 겸용</option>
         </select>
-        <label className="block text-xs text-gray-500 mb-1 mt-3">사업자번호 (선택)</label>
+        <label className="block text-xs text-slate-600 mb-1 mt-3">사업자번호 (선택)</label>
         <input value={bizNumber} onChange={e => setBizNumber(e.target.value)} placeholder="000-00-00000"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
         {similar.length > 0 && (
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
             유사한 기존 거래처가 있습니다: {similar.map(v => v.name).join(', ')} — 같은 곳이면 등록 대신 셀에서 그 거래처를 선택하세요.
@@ -182,7 +182,7 @@ function NewVendorModal({ tx, vendors, onClose, onCreated }: {
         )}
         {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
         <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</button>
+          <button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</button>
           <button onClick={submit} disabled={saving}
             className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
             {saving ? '등록 중...' : '등록하고 이 거래에 연결'}
@@ -1006,9 +1006,9 @@ function TransactionsContent() {
       },
       cellClass: (p) => {
         if (!p.data) return ''
-        if (p.data.confirmed_account_id) return 'font-semibold text-gray-900'
-        if (p.data.suggested_account_id) return 'italic text-gray-500'
-        return 'text-gray-300'
+        if (p.data.confirmed_account_id) return 'font-semibold text-slate-900'
+        if (p.data.suggested_account_id) return 'italic text-slate-600'
+        return 'text-slate-400'
       },
     },
     {
@@ -1039,7 +1039,7 @@ function TransactionsContent() {
         p.data.vendor_id = vendor?.id ?? null
         return true
       },
-      cellClass: (p) => p.data?.vendor_id ? 'text-gray-900' : 'text-gray-300',
+      cellClass: (p) => p.data?.vendor_id ? 'text-slate-900' : 'text-slate-400',
     },
     {
       field: 'memo',
@@ -1063,7 +1063,7 @@ function TransactionsContent() {
       filter: false,
       cellRenderer: (p: ICellRendererParams<Transaction>) => {
         const links = p.data?.invoice_links
-        if (!links?.length) return <span className="text-gray-300 text-xs">—</span>
+        if (!links?.length) return <span className="text-slate-400 text-xs">—</span>
         const first = links[0].invoice
         const label = links.length === 1
           ? `${(first.counterparty_name ?? '계산서').slice(0, 8)} ${links[0].amount.toLocaleString('ko-KR')}`
@@ -1092,7 +1092,7 @@ function TransactionsContent() {
       filter: false,
       cellRenderer: (p: ICellRendererParams<Transaction>) => {
         const links = p.data?.cash_receipt_links
-        if (!links?.length) return <span className="text-gray-300 text-xs">—</span>
+        if (!links?.length) return <span className="text-slate-400 text-xs">—</span>
         const first = links[0].receipt
         const label = links.length === 1
           ? `${first.tx_date.slice(5)} ${(first.issue_type ?? '').slice(0, 3)} ${links[0].amount.toLocaleString('ko-KR')}`
@@ -1113,7 +1113,7 @@ function TransactionsContent() {
       width: 130,
       sortable: false,
       cellRenderer: (p: ICellRendererParams<Transaction>) => {
-        if (!p.value) return <span className="text-gray-300 text-xs">—</span>
+        if (!p.value) return <span className="text-slate-400 text-xs">—</span>
         const pair  = pairMap.get(p.value as string)
         const other = pair?.find(t => t.id !== p.data?.id)
         const alias = other?.account_alias ?? null
@@ -1159,18 +1159,18 @@ function TransactionsContent() {
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center gap-3 mb-1 flex-wrap">
         {activeBank && (
-          <span className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-full text-sm font-medium">
+          <span className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-800 rounded-full text-sm font-medium">
             {activeBank.bank_name}
             {activeBank.current_balance !== null && (
-              <span className="text-slate-500 font-normal">
-                잔액 <strong className={activeBank.current_balance < 0 ? 'text-red-600' : 'text-slate-800'}>
+              <span className="text-slate-600 font-normal">
+                잔액 <strong className={activeBank.current_balance < 0 ? 'text-red-600' : 'text-slate-900'}>
                   {activeBank.current_balance.toLocaleString('ko-KR')}원
                 </strong>
               </span>
             )}
             <a
               href="/transactions"
-              className="ml-1 text-slate-400 hover:text-slate-600 leading-none"
+              className="ml-1 text-slate-500 hover:text-slate-700 leading-none"
               title="필터 해제"
             >
               ✕
@@ -1195,17 +1195,17 @@ function TransactionsContent() {
       <div className="flex flex-wrap items-center gap-2 mb-2">
         {/* 기간 칩은 누르는 즉시 다시 불러온다 — 날짜 칸은 입력 중 값이 바뀌므로 조회 버튼으로 */}
         <PeriodPresets from={filters.from ?? ''} to={filters.to ?? ''} onChange={(from, to) => { setFilters(f => ({ ...f, from, to })); setAutoFetchFlag(n => n + 1) }} />
-        <span className="text-gray-300 text-sm">|</span>
+        <span className="text-slate-400 text-sm">|</span>
         <input
           type="date" value={filters.from}
           onChange={e => setFilters(f => ({ ...f, from: e.target.value }))}
-          className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
-        <span className="text-gray-400 text-xs">~</span>
+        <span className="text-slate-500 text-xs">~</span>
         <input
           type="date" value={filters.to}
           onChange={e => setFilters(f => ({ ...f, to: e.target.value }))}
-          className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
         <button
           onClick={fetchTransactions}
@@ -1237,17 +1237,17 @@ function TransactionsContent() {
           {([['all', '전체'], ['pending', '미검토'], ['reviewed', '검토완료'], ['confirmed', '확정']] as const).map(([k, label]) => (
             <button key={k} onClick={() => pickStatus(k)}
               title={k === 'all' ? '상태 조건 해제' : `${label}만 보기 (다시 누르면 해제)`}
-              className={`px-2.5 py-1 rounded-full text-xs border ${activeStatus === k ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+              className={`px-2.5 py-1 rounded-full text-xs border ${activeStatus === k ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>
               {label} <span className="tabular-nums">{statusCounts[k].toLocaleString('ko-KR')}</span>
             </button>
           ))}
         </div>
         <div className="flex flex-wrap gap-3 text-sm">
-          <span className="text-gray-500">보이는 <strong className="text-gray-900">{stats.total.toLocaleString()}건</strong></span>
+          <span className="text-slate-600">보이는 <strong className="text-slate-900">{stats.total.toLocaleString()}건</strong></span>
           <span className="text-blue-600">입금 <strong>{stats.totalIn.toLocaleString()}원</strong></span>
           <span className="text-red-600">출금 <strong>{stats.totalOut.toLocaleString()}원</strong></span>
           {stats.unclassified > 0 && (
-            <span className="text-gray-400">미분류 <strong>{stats.unclassified}건</strong></span>
+            <span className="text-slate-500">미분류 <strong>{stats.unclassified}건</strong></span>
           )}
         </div>
 
@@ -1255,19 +1255,19 @@ function TransactionsContent() {
           <input ref={uploadRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport} />
           <button onClick={handleClassify} disabled={classifying}
             title="계정과목이 없는 거래에 추천을 붙입니다(키워드 · 카드 정산). 추천만 붙고 확정은 따로 합니다. 화면의 기간과 무관하게 전부 대상입니다."
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-50">
             {classifying ? '추천 중...' : '계정과목 자동 추천'}
           </button>
           <button onClick={handleMatchVendors} disabled={matchingVendors}
             title="거래처가 없는 거래 중 적요 · 입금자명이 한 거래처에만 일치하는 것을 찾아 보여 줍니다. 목록을 확인한 뒤 저장됩니다. 화면의 기간과 무관하게 전부 대상입니다."
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-50">
             {matchingVendors ? '찾는 중...' : '거래처 자동 연결'}
           </button>
           <button onClick={openTransfers} disabled={previewing}
             title="우리 계좌끼리 옮긴 돈(출금 1건 + 입금 1건)을 한 쌍으로 묶습니다. 묶을 후보를 확인해 묶거나, 이미 묶인 쌍을 해제합니다."
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-50">
             {previewing ? '조회 중...' : '계좌 간 이체 묶기'}
-            {transferCandCount ? <span className="ml-1 text-xs text-gray-400 tabular-nums">{transferCandCount}</span> : null}
+            {transferCandCount ? <span className="ml-1 text-xs text-slate-500 tabular-nums">{transferCandCount}</span> : null}
           </button>
           <div className="relative">
             <button onClick={() => setExcelOpen(v => !v)}
@@ -1277,23 +1277,23 @@ function TransactionsContent() {
             {excelOpen && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setExcelOpen(false)} />
-                <div className="absolute right-0 mt-1 w-80 max-w-[90vw] bg-white border border-gray-300 rounded-xl shadow-xl z-30 overflow-hidden text-left">
-                  <button onClick={() => { setExcelOpen(false); handleExportVisible() }} className="block w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-gray-100">
-                    <span className="block text-sm font-semibold text-gray-900">지금 보이는 {stats.total.toLocaleString()}건 내려받기</span>
-                    <span className="block text-xs text-gray-500">기간 · + 필터 · 검색어 · 머리글 필터 · 정렬을 화면 그대로</span>
+                <div className="absolute right-0 mt-1 w-80 max-w-[90vw] bg-white border border-slate-400 rounded-xl shadow-xl z-30 overflow-hidden text-left">
+                  <button onClick={() => { setExcelOpen(false); handleExportVisible() }} className="block w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-200">
+                    <span className="block text-sm font-semibold text-slate-900">지금 보이는 {stats.total.toLocaleString()}건 내려받기</span>
+                    <span className="block text-xs text-slate-600">기간 · + 필터 · 검색어 · 머리글 필터 · 정렬을 화면 그대로</span>
                   </button>
-                  <button onClick={() => { setExcelOpen(false); handleExportAll() }} className="block w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-gray-100">
-                    <span className="block text-sm font-semibold text-gray-900">기간 전체 {rowData.length.toLocaleString()}건 내려받기</span>
-                    <span className="block text-xs text-gray-500">필터 무시 — 불러온 기간 · 계좌 전부</span>
+                  <button onClick={() => { setExcelOpen(false); handleExportAll() }} className="block w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-200">
+                    <span className="block text-sm font-semibold text-slate-900">기간 전체 {rowData.length.toLocaleString()}건 내려받기</span>
+                    <span className="block text-xs text-slate-600">필터 무시 — 불러온 기간 · 계좌 전부</span>
                   </button>
-                  <div className="px-3 pt-2 pb-1 text-[0.6875rem] text-gray-400 bg-gray-50">계정과목 일괄 입력</div>
-                  <button onClick={() => { setExcelOpen(false); handleExport() }} className="block w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-gray-100">
-                    <span className="block text-sm font-semibold text-gray-900">분류용 양식 내려받기</span>
-                    <span className="block text-xs text-gray-500">계정과목 없는 거래 + 추천 + 계정과목 목록</span>
+                  <div className="px-3 pt-2 pb-1 text-xs text-slate-500 bg-slate-50">계정과목 일괄 입력</div>
+                  <button onClick={() => { setExcelOpen(false); handleExport() }} className="block w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-200">
+                    <span className="block text-sm font-semibold text-slate-900">분류용 양식 내려받기</span>
+                    <span className="block text-xs text-slate-600">계정과목 없는 거래 + 추천 + 계정과목 목록</span>
                   </button>
                   <button onClick={() => { setExcelOpen(false); uploadRef.current?.click() }} disabled={importing} className="block w-full text-left px-3 py-2.5 hover:bg-slate-50 disabled:opacity-50">
-                    <span className="block text-sm font-semibold text-gray-900">분류용 양식 올리기</span>
-                    <span className="block text-xs text-gray-500">양식에 계정과목을 적어 올리면 검토완료로 반영</span>
+                    <span className="block text-sm font-semibold text-slate-900">분류용 양식 올리기</span>
+                    <span className="block text-xs text-slate-600">양식에 계정과목을 적어 올리면 검토완료로 반영</span>
                   </button>
                 </div>
               </>
@@ -1304,16 +1304,16 @@ function TransactionsContent() {
 
       {/* 선택 작업 줄 — 행을 체크했을 때만. 버튼의 숫자 = 체크한 행 중 실제로 처리될 건수 */}
       {selectedCount > 0 && (
-        <div className="flex flex-wrap items-center gap-2 mb-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
-          <span className="text-sm font-semibold text-gray-900">{selectedCount.toLocaleString()}건 선택</span>
-          <span className="text-xs text-gray-500">
+        <div className="flex flex-wrap items-center gap-2 mb-2 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl">
+          <span className="text-sm font-semibold text-slate-900">{selectedCount.toLocaleString()}건 선택</span>
+          <span className="text-xs text-slate-600">
             {[selInfo.pending && `미검토 ${selInfo.pending}`, selInfo.reviewed && `검토완료 ${selInfo.reviewed}`, selInfo.confirmed && `확정 ${selInfo.confirmed}`].filter(Boolean).join(' · ')}
           </span>
           {selectedCount < stats.total && (
             <button onClick={() => gridRef.current?.api.selectAll('filtered')}
-              className="text-xs text-slate-600 underline hover:text-slate-900">걸러진 {stats.total.toLocaleString()}건 모두 선택</button>
+              className="text-xs text-slate-700 underline hover:text-slate-900">걸러진 {stats.total.toLocaleString()}건 모두 선택</button>
           )}
-          <button onClick={() => gridRef.current?.api.deselectAll()} className="text-xs text-gray-400 underline hover:text-gray-600">선택 해제</button>
+          <button onClick={() => gridRef.current?.api.deselectAll()} className="text-xs text-slate-500 underline hover:text-slate-700">선택 해제</button>
           <span className="flex-1" />
           <button onClick={handleAcceptSuggestions} disabled={!!confirmProgress || acceptableCount === 0}
             title={acceptableCount > 0
@@ -1335,14 +1335,14 @@ function TransactionsContent() {
             확정 해제{selInfo.confirmed ? ` ${selInfo.confirmed}건` : ''}
           </button>
           <div className="relative">
-            <button onClick={() => setMoreOpen(v => !v)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50">더보기 ▾</button>
+            <button onClick={() => setMoreOpen(v => !v)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 bg-white hover:bg-slate-50">더보기 ▾</button>
             {moreOpen && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setMoreOpen(false)} />
-                <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-300 rounded-xl shadow-xl z-30 overflow-hidden">
+                <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-400 rounded-xl shadow-xl z-30 overflow-hidden">
                   <button onClick={() => { setMoreOpen(false); handlePreviewJournal() }} disabled={selectedCount !== 1}
                     title={selectedCount !== 1 ? '1건만 체크했을 때 볼 수 있습니다' : undefined}
-                    className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-slate-50 disabled:opacity-40 border-b border-gray-100">분개 미리보기 (1건)</button>
+                    className="block w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 border-b border-slate-200">분개 미리보기 (1건)</button>
                   <button onClick={() => { setMoreOpen(false); handleBulkDelete() }}
                     className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50">체크한 {selectedCount}건 삭제</button>
                 </div>
@@ -1353,7 +1353,7 @@ function TransactionsContent() {
       )}
 
       {/* AG Grid */}
-      <div className="ag-theme-quartz flex-1 rounded-lg overflow-hidden border border-gray-200" style={{ minHeight: 400 }}>
+      <div className="ag-theme-quartz flex-1 rounded-lg overflow-hidden border border-slate-300" style={{ minHeight: 400 }}>
         <AgGridReact<Transaction>
           ref={gridRef}
           rowData={rowData}
@@ -1389,8 +1389,8 @@ function TransactionsContent() {
           suppressMovableColumns
           overlayNoRowsTemplate={
             loading
-              ? '<span class="text-gray-400">조회 중...</span>'
-              : '<span class="text-gray-400">조회된 거래가 없습니다. 필터를 확인하거나 파일을 업로드하세요.</span>'
+              ? '<span class="text-slate-500">조회 중...</span>'
+              : '<span class="text-slate-500">조회된 거래가 없습니다. 필터를 확인하거나 파일을 업로드하세요.</span>'
           }
           // 불러온 행은 있는데 통합 필터·머리글 필터에 걸리는 행이 없을 때 — AG Grid v35는 이 경우
           // noRowsToShow가 아니라 별도 키 noMatchingRows("No Matching Rows")를 쓴다 (2026-11-11 수정)
@@ -1407,7 +1407,7 @@ function TransactionsContent() {
       </div>
 
       {/* 안내 문구 */}
-      <p className="text-xs text-gray-400 mt-2">
+      <p className="text-xs text-slate-500 mt-2">
         계정과목 셀 클릭 → 드롭다운으로 분류 &nbsp;·&nbsp; 메모 셀 클릭 → 직접 입력 &nbsp;·&nbsp; 행 체크 후 검토 확정(검토완료) → 과목 확정(분개 자동 생성)
       </p>
 
@@ -1415,13 +1415,13 @@ function TransactionsContent() {
       {journalPreview && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setJournalPreview(null)}>
           <div className="bg-white rounded-xl shadow-2xl p-5 w-[440px] max-w-full" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-gray-900">분개 미리보기</h3>
-            <p className="text-xs text-gray-400 mb-3 mt-0.5 truncate">{journalPreview.tx.tx_date} · {journalPreview.tx.description ?? ''}</p>
+            <h3 className="text-base font-bold text-slate-900">분개 미리보기</h3>
+            <p className="text-xs text-slate-500 mb-3 mt-0.5 truncate">{journalPreview.tx.tx_date} · {journalPreview.tx.description ?? ''}</p>
             {journalPreview.data.preview ? (
               <>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-xs text-gray-400 border-b border-gray-200">
+                    <tr className="text-xs text-slate-500 border-b border-slate-300">
                       <th className="text-left py-1.5 font-medium">구분</th>
                       <th className="text-left py-1.5 font-medium">계정과목</th>
                       <th className="text-right py-1.5 font-medium">금액</th>
@@ -1429,23 +1429,23 @@ function TransactionsContent() {
                   </thead>
                   <tbody>
                     {journalPreview.data.preview.lines.map((l, i) => (
-                      <tr key={i} className="border-b border-gray-50">
+                      <tr key={i} className="border-b border-slate-200">
                         <td className="py-1.5">
                           {l.side === 'debit'
                             ? <span className="text-blue-600 font-medium">차변</span>
                             : <span className="text-red-600 font-medium">대변</span>}
                         </td>
-                        <td className="py-1.5">{l.account_name}{l.vendor_name ? <span className="text-gray-400"> · {l.vendor_name}</span> : null}</td>
+                        <td className="py-1.5">{l.account_name}{l.vendor_name ? <span className="text-slate-500"> · {l.vendor_name}</span> : null}</td>
                         <td className="py-1.5 text-right font-medium">{l.amount.toLocaleString()}원</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                <p className={`text-xs mt-2 ${journalPreview.data.balanced ? 'text-gray-400' : 'text-red-600'}`}>
+                <p className={`text-xs mt-2 ${journalPreview.data.balanced ? 'text-slate-500' : 'text-red-600'}`}>
                   차변 {(journalPreview.data.debit ?? 0).toLocaleString()} / 대변 {(journalPreview.data.credit ?? 0).toLocaleString()} {journalPreview.data.balanced ? '✓ 균형' : '불균형'}
                 </p>
                 <div className="flex gap-2 mt-4">
-                  <button onClick={() => setJournalPreview(null)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
+                  <button onClick={() => setJournalPreview(null)} className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
                   <button
                     onClick={async () => {
                       const id = journalPreview.tx.id
@@ -1465,7 +1465,7 @@ function TransactionsContent() {
             ) : (
               <>
                 <p className="text-sm text-amber-600 py-2">{journalPreview.data.reason ?? '분개를 만들 수 없습니다.'}</p>
-                <button onClick={() => setJournalPreview(null)} className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
+                <button onClick={() => setJournalPreview(null)} className="w-full mt-2 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
               </>
             )}
           </div>
@@ -1478,11 +1478,11 @@ function TransactionsContent() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col">
             <div className="flex items-start justify-between px-6 py-4 border-b">
               <div>
-                <h2 className="text-lg font-semibold text-slate-800">계좌 간 이체 묶기</h2>
-                <p className="text-xs text-slate-500 mt-0.5">이미 묶인 이체입니다. 잘못 묶인 쌍만 &quot;해제&quot;로 풉니다.</p>
+                <h2 className="text-lg font-semibold text-slate-900">계좌 간 이체 묶기</h2>
+                <p className="text-xs text-slate-600 mt-0.5">이미 묶인 이체입니다. 잘못 묶인 쌍만 &quot;해제&quot;로 풉니다.</p>
               <div className="flex gap-1 mt-3 -mb-4">
-                <button onClick={() => setTransferTab('cand')} className={`px-3 py-2 text-sm border-b-2 ${false ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>묶을 후보 {previewPairs?.length ?? 0}쌍</button>
-                <button onClick={() => setTransferTab('done')} className={`px-3 py-2 text-sm border-b-2 ${true ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>묶인 이체 {matchedPairs?.length ?? 0}쌍</button>
+                <button onClick={() => setTransferTab('cand')} className={`px-3 py-2 text-sm border-b-2 ${false ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-600 hover:text-slate-900'}`}>묶을 후보 {previewPairs?.length ?? 0}쌍</button>
+                <button onClick={() => setTransferTab('done')} className={`px-3 py-2 text-sm border-b-2 ${true ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-600 hover:text-slate-900'}`}>묶인 이체 {matchedPairs?.length ?? 0}쌍</button>
               </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1499,11 +1499,11 @@ function TransactionsContent() {
 
             <div className="overflow-auto flex-1 px-6 py-4">
               {matchedPairs.length === 0 ? (
-                <p className="text-slate-400 text-sm py-8 text-center">묶인 이체가 없습니다.</p>
+                <p className="text-slate-500 text-sm py-8 text-center">묶인 이체가 없습니다.</p>
               ) : (
                 <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="text-left text-xs text-slate-500 border-b sticky top-0 bg-white">
+                    <tr className="text-left text-xs text-slate-600 border-b sticky top-0 bg-white">
                       <th className="pb-2 pr-2 font-medium w-5 text-center">#</th>
                       <th className="pb-2 pr-3 font-medium">출금 계좌</th>
                       <th className="pb-2 pr-3 font-medium">날짜</th>
@@ -1519,19 +1519,19 @@ function TransactionsContent() {
                   </thead>
                   <tbody>
                     {matchedPairs.map((pair, i) => (
-                      <tr key={pair.pair_id} className="border-b border-slate-50 hover:bg-slate-50 text-xs">
-                        <td className="py-2 pr-2 text-slate-400 text-center">{i + 1}</td>
-                        <td className="py-2 pr-3 text-slate-700 font-medium">{pair.out?.account_alias ?? '—'}</td>
-                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{dateTimeStr(pair.out)}</td>
-                        <td className="py-2 pr-3 text-slate-600 max-w-[150px] truncate" title={pair.out?.description ?? ''}>{pair.out?.description ?? '—'}</td>
+                      <tr key={pair.pair_id} className="border-b border-slate-200 hover:bg-slate-50 text-xs">
+                        <td className="py-2 pr-2 text-slate-500 text-center">{i + 1}</td>
+                        <td className="py-2 pr-3 text-slate-800 font-medium">{pair.out?.account_alias ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">{dateTimeStr(pair.out)}</td>
+                        <td className="py-2 pr-3 text-slate-700 max-w-[150px] truncate" title={pair.out?.description ?? ''}>{pair.out?.description ?? '—'}</td>
                         <td className="py-2 pr-4 text-red-600 font-medium text-right whitespace-nowrap">
                           {/* 마이너스 통장은 amount_out=0이므로 amount_in으로 폴백 */}
                           {(() => { const a = (pair.out?.amount_out as number) || (pair.out?.amount_in as number); return a ? a.toLocaleString('ko-KR') + '원' : '—' })()}
                         </td>
                         <td className="py-2 px-2 text-purple-400 text-center font-bold">↔</td>
-                        <td className="py-2 pr-3 text-slate-700 font-medium">{pair.in?.account_alias ?? '—'}</td>
-                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{dateTimeStr(pair.in)}</td>
-                        <td className="py-2 pr-3 text-slate-600 max-w-[150px] truncate" title={pair.in?.description ?? ''}>{pair.in?.description ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-800 font-medium">{pair.in?.account_alias ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">{dateTimeStr(pair.in)}</td>
+                        <td className="py-2 pr-3 text-slate-700 max-w-[150px] truncate" title={pair.in?.description ?? ''}>{pair.in?.description ?? '—'}</td>
                         <td className="py-2 pr-3 text-blue-600 font-medium text-right whitespace-nowrap">
                           {(() => { const a = (pair.in?.amount_in as number) || (pair.in?.amount_out as number); return a ? a.toLocaleString('ko-KR') + '원' : '—' })()}
                         </td>
@@ -1554,7 +1554,7 @@ function TransactionsContent() {
             <div className="px-6 py-4 border-t flex items-center justify-end">
               <button
                 onClick={() => { closeTransfers(); fetchTransactions() }}
-                className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50"
+                className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
               >
                 닫기
               </button>
@@ -1569,13 +1569,13 @@ function TransactionsContent() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col">
             <div className="flex items-start justify-between px-6 py-4 border-b">
               <div>
-                <h2 className="text-lg font-semibold text-slate-800">계좌 간 이체 묶기</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <h2 className="text-lg font-semibold text-slate-900">계좌 간 이체 묶기</h2>
+                <p className="text-xs text-slate-600 mt-0.5">
                   같은 금액 · 하루 이내 · 서로 다른 우리 계좌 · 짝이 하나뿐인 것만 후보입니다. 체크한 쌍만 묶습니다(아직 저장 전).
                 </p>
               <div className="flex gap-1 mt-3 -mb-4">
-                <button onClick={() => setTransferTab('cand')} className={`px-3 py-2 text-sm border-b-2 ${true ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>묶을 후보 {previewPairs?.length ?? 0}쌍</button>
-                <button onClick={() => setTransferTab('done')} className={`px-3 py-2 text-sm border-b-2 ${false ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>묶인 이체 {matchedPairs?.length ?? 0}쌍</button>
+                <button onClick={() => setTransferTab('cand')} className={`px-3 py-2 text-sm border-b-2 ${true ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-600 hover:text-slate-900'}`}>묶을 후보 {previewPairs?.length ?? 0}쌍</button>
+                <button onClick={() => setTransferTab('done')} className={`px-3 py-2 text-sm border-b-2 ${false ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-600 hover:text-slate-900'}`}>묶인 이체 {matchedPairs?.length ?? 0}쌍</button>
               </div>
               </div>
               <span className="text-sm font-medium text-purple-700 bg-purple-50 px-3 py-1 rounded-full">
@@ -1585,11 +1585,11 @@ function TransactionsContent() {
 
             <div className="overflow-auto flex-1 px-6 py-4">
               {previewPairs.length === 0 ? (
-                <p className="text-slate-400 text-sm py-8 text-center">묶을 후보가 없습니다.</p>
+                <p className="text-slate-500 text-sm py-8 text-center">묶을 후보가 없습니다.</p>
               ) : (
                 <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="text-left text-xs text-slate-500 border-b">
+                    <tr className="text-left text-xs text-slate-600 border-b">
                       <th className="pb-2 pr-3 font-medium w-5 text-center">#</th>
                       <th className="pb-2 pr-3 font-medium">출금 계좌</th>
                       <th className="pb-2 pr-3 font-medium">날짜</th>
@@ -1608,24 +1608,24 @@ function TransactionsContent() {
                       const outAmt  = isMinus ? (pair.out.amount_in as number) : (pair.out.amount_out as number)
                       const inAmt   = pair.in.amount_in as number
                       return (
-                      <tr key={i} className="border-b border-slate-50 hover:bg-slate-50 text-xs">
+                      <tr key={i} className="border-b border-slate-200 hover:bg-slate-50 text-xs">
                         <td className="py-2 pr-3 text-center">
                           <input type="checkbox" checked={pairSel.has(i)}
                             onChange={e => setPairSel(prev => { const n = new Set(prev); if (e.target.checked) n.add(i); else n.delete(i); return n })} />
                         </td>
-                        <td className="py-2 pr-3 text-slate-700 font-medium">
+                        <td className="py-2 pr-3 text-slate-800 font-medium">
                           {pair.out.account_alias ?? '—'}
-                          {isMinus && <span className="ml-1 text-orange-500 text-[0.625rem]">마이너스</span>}
+                          {isMinus && <span className="ml-1 text-orange-500 text-xs">마이너스</span>}
                         </td>
-                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{dateTimeStr(pair.out)}</td>
-                        <td className="py-2 pr-3 text-slate-600 max-w-[160px] truncate" title={pair.out.description ?? ''}>{pair.out.description ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">{dateTimeStr(pair.out)}</td>
+                        <td className="py-2 pr-3 text-slate-700 max-w-[160px] truncate" title={pair.out.description ?? ''}>{pair.out.description ?? '—'}</td>
                         <td className="py-2 pr-4 text-red-600 font-medium text-right whitespace-nowrap">
                           {outAmt?.toLocaleString('ko-KR')}원
                         </td>
                         <td className="py-2 px-2 text-purple-400 text-center font-bold">↔</td>
-                        <td className="py-2 pr-3 text-slate-700 font-medium">{pair.in.account_alias ?? '—'}</td>
-                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{dateTimeStr(pair.in)}</td>
-                        <td className="py-2 pr-3 text-slate-600 max-w-[160px] truncate" title={pair.in.description ?? ''}>{pair.in.description ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-800 font-medium">{pair.in.account_alias ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">{dateTimeStr(pair.in)}</td>
+                        <td className="py-2 pr-3 text-slate-700 max-w-[160px] truncate" title={pair.in.description ?? ''}>{pair.in.description ?? '—'}</td>
                         <td className="py-2 text-blue-600 font-medium text-right whitespace-nowrap">
                           {inAmt?.toLocaleString('ko-KR')}원
                         </td>
@@ -1638,12 +1638,12 @@ function TransactionsContent() {
             </div>
 
             <div className="px-6 py-4 border-t flex items-center justify-between gap-3">
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 묶으면 두 거래가 검토완료가 되고 계정과목 추천은 지워집니다(계좌 간 이동이라 분개 없음). 화면의 기간과 무관합니다.
               </p>
               <div className="flex gap-2">
                 <button onClick={closeTransfers}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">닫기</button>
+                  className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50">닫기</button>
                 {previewPairs.length > 0 && (
                   <button
                     onClick={() => {
@@ -1667,8 +1667,8 @@ function TransactionsContent() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
             <div className="px-6 py-4 border-b">
-              <h2 className="text-lg font-semibold text-slate-800">거래처 자동 연결</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <h2 className="text-lg font-semibold text-slate-900">거래처 자동 연결</h2>
+              <p className="text-xs text-slate-600 mt-0.5">
                 거래처 없는 거래 {vendorPreview.checked.toLocaleString()}건 중 적요 · 입금자명이 한 거래처에만 일치하는 {vendorPreview.total.toLocaleString()}건입니다. 체크한 것만 연결합니다(아직 저장 전).
                 {vendorPreview.total > vendorPreview.matches.length && ` 목록은 앞 ${vendorPreview.matches.length.toLocaleString()}건만 보입니다 — 연결 후 다시 누르면 나머지가 나옵니다.`}
               </p>
@@ -1676,7 +1676,7 @@ function TransactionsContent() {
             <div className="overflow-auto flex-1 px-6 py-3">
               <table className="w-full text-xs border-collapse">
                 <thead>
-                  <tr className="text-left text-slate-500 border-b">
+                  <tr className="text-left text-slate-600 border-b">
                     <th className="pb-2 pr-2 w-6">
                       <input type="checkbox" checked={vendorSel.size === vendorPreview.matches.length}
                         onChange={e => setVendorSel(e.target.checked ? new Set(vendorPreview.matches.map(m => m.tx.id)) : new Set())} />
@@ -1691,30 +1691,30 @@ function TransactionsContent() {
                 </thead>
                 <tbody>
                   {vendorPreview.matches.map(m => (
-                    <tr key={m.tx.id} className="border-b border-slate-50 hover:bg-slate-50">
+                    <tr key={m.tx.id} className="border-b border-slate-200 hover:bg-slate-50">
                       <td className="py-1.5 pr-2">
                         <input type="checkbox" checked={vendorSel.has(m.tx.id)}
                           onChange={e => setVendorSel(prev => { const n = new Set(prev); if (e.target.checked) n.add(m.tx.id); else n.delete(m.tx.id); return n })} />
                       </td>
-                      <td className="py-1.5 pr-3 text-slate-500 whitespace-nowrap tabular-nums">{m.tx.tx_date.slice(0, 10)}</td>
-                      <td className="py-1.5 pr-3 text-slate-500 whitespace-nowrap">{m.tx.account_alias ?? '—'}</td>
-                      <td className="py-1.5 pr-3 text-slate-700 max-w-[16rem] truncate" title={`${m.tx.description ?? ''} ${m.tx.counterparty_name ?? ''}`}>
-                        {m.tx.description ?? ''}{m.tx.counterparty_name ? <span className="text-slate-400"> · {m.tx.counterparty_name}</span> : null}
+                      <td className="py-1.5 pr-3 text-slate-600 whitespace-nowrap tabular-nums">{m.tx.tx_date.slice(0, 10)}</td>
+                      <td className="py-1.5 pr-3 text-slate-600 whitespace-nowrap">{m.tx.account_alias ?? '—'}</td>
+                      <td className="py-1.5 pr-3 text-slate-800 max-w-[16rem] truncate" title={`${m.tx.description ?? ''} ${m.tx.counterparty_name ?? ''}`}>
+                        {m.tx.description ?? ''}{m.tx.counterparty_name ? <span className="text-slate-500"> · {m.tx.counterparty_name}</span> : null}
                       </td>
                       <td className={`py-1.5 pr-3 text-right whitespace-nowrap tabular-nums ${(m.tx.amount_in ?? 0) > 0 ? 'text-blue-600' : 'text-red-600'}`}>
                         {(m.tx.amount_in ?? 0) > 0 ? `입금 ${(m.tx.amount_in ?? 0).toLocaleString('ko-KR')}` : `출금 ${(m.tx.amount_out ?? 0).toLocaleString('ko-KR')}`}
                       </td>
-                      <td className="py-1.5 pr-3 font-medium text-slate-800">{m.vendor.name}</td>
-                      <td className="py-1.5 text-slate-500 whitespace-nowrap">{m.reason} 일치</td>
+                      <td className="py-1.5 pr-3 font-medium text-slate-900">{m.vendor.name}</td>
+                      <td className="py-1.5 text-slate-600 whitespace-nowrap">{m.reason} 일치</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <div className="px-6 py-4 border-t flex items-center justify-between gap-3">
-              <p className="text-xs text-slate-400">화면의 기간 · 계좌와 무관하게 전체 거래가 대상입니다. 잘못된 것은 체크를 풀고 연결하세요.</p>
+              <p className="text-xs text-slate-500">화면의 기간 · 계좌와 무관하게 전체 거래가 대상입니다. 잘못된 것은 체크를 풀고 연결하세요.</p>
               <div className="flex gap-2">
-                <button onClick={() => setVendorPreview(null)} className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">닫기</button>
+                <button onClick={() => setVendorPreview(null)} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50">닫기</button>
                 <button onClick={applyVendorMatches} disabled={matchingVendors || vendorSel.size === 0}
                   className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
                   {matchingVendors ? '연결 중...' : `체크한 ${vendorSel.size}건 연결`}
@@ -1790,7 +1790,7 @@ function TransactionsContent() {
 // 통장 내역 화면의 '거래 내역' 탭 (옛 /transactions 화면 본문). useSearchParams는 Suspense 경계가 필요.
 export default function TransactionsTab() {
   return (
-    <Suspense fallback={<div className="p-6 text-gray-400 text-sm">로딩 중...</div>}>
+    <Suspense fallback={<div className="p-6 text-slate-500 text-sm">로딩 중...</div>}>
       <TransactionsContent />
     </Suspense>
   )

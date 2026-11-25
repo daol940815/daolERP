@@ -88,14 +88,14 @@ export default function InvoiceTab() {
 
   const chip = (k: Issue | 'all', label: string, n: number) => (
     <button onClick={() => setIssue(issue === k ? 'all' : k)}
-      className={`px-3 py-1 rounded-full text-xs border ${issue === k ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>{label} {n}</button>
+      className={`px-3 py-1 rounded-full text-xs border ${issue === k ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>{label} {n}</button>
   )
 
   return (
     <div className="w-full">
-      <p className="text-sm text-gray-500 mb-3">
+      <p className="text-sm text-slate-600 mb-3">
         계산서를 발행했다고 기록했는데 홈택스 계산서가 없는 주문, 금액이 다른 주문, 이체로 받았는데 증빙이 없는 주문입니다.
-        <span className="text-gray-400"> 매출 계산서 최신일 {latest ?? '없음'}</span>
+        <span className="text-slate-500"> 매출 계산서 최신일 {latest ?? '없음'}</span>
       </p>
       {error && <div className="mb-3 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
       {msg && <div className="mb-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -106,17 +106,17 @@ export default function InvoiceTab() {
         {chip('amount_diff', '금액 다름', count('amount_diff'))}
         {chip('no_evidence', '입금 받았는데 증빙 없음', count('no_evidence'))}
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처 · 청구처 · 주문번호 검색"
-          className="ml-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-64 max-w-full focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className="ml-auto border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-64 max-w-full focus:outline-none focus:ring-2 focus:ring-slate-900" />
       </div>
 
-      {loading ? <div className="text-center py-20 text-gray-400">불러오는 중...</div>
+      {loading ? <div className="text-center py-20 text-slate-500">불러오는 중...</div>
         : filtered.length === 0 ? (
-          <div className="text-center py-20 text-gray-400 text-sm">{rows.length === 0 ? '확인할 주문이 없습니다.' : '조건에 맞는 주문이 없습니다.'}</div>
+          <div className="text-center py-20 text-slate-500 text-sm">{rows.length === 0 ? '확인할 주문이 없습니다.' : '조건에 맞는 주문이 없습니다.'}</div>
         ) : (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+          <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
             <table className="w-full text-sm min-w-[56rem]">
               <thead>
-                <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
+                <tr className="text-left text-xs text-slate-600 border-b border-slate-300 bg-slate-50">
                   <th className="py-2.5 px-3 font-medium">확인할 것</th>
                   <th className="py-2.5 px-3 font-medium">주문</th>
                   <th className="py-2.5 px-3 font-medium">매출처 · 청구처</th>
@@ -127,45 +127,45 @@ export default function InvoiceTab() {
               </thead>
               <tbody>
                 {filtered.map(r => (
-                  <tr key={`${r.issue}:${r.order_id}`} className="border-b border-gray-100 align-top hover:bg-gray-50">
-                    <td className="py-2.5 px-3"><span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold ${ISSUE[r.issue].cls}`}>{ISSUE[r.issue].label}</span></td>
+                  <tr key={`${r.issue}:${r.order_id}`} className="border-b border-slate-200 align-top hover:bg-slate-50">
+                    <td className="py-2.5 px-3"><span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-semibold ${ISSUE[r.issue].cls}`}>{ISSUE[r.issue].label}</span></td>
                     <td className="py-2.5 px-3 whitespace-nowrap tabular-nums">
                       {r.order_date}
-                      <div className="text-[0.6875rem]"><OrderNoLink id={r.order_id} no={r.order_no} /></div>
+                      <div className="text-xs"><OrderNoLink id={r.order_id} no={r.order_no} /></div>
                     </td>
                     <td className="py-2.5 px-3">
-                      <div className="text-gray-900">{r.customer_name || '-'}</div>
-                      {r.billing_name && <div className="text-[0.6875rem] text-gray-500">청구처 {r.billing_name}</div>}
+                      <div className="text-slate-900">{r.customer_name || '-'}</div>
+                      {r.billing_name && <div className="text-xs text-slate-600">청구처 {r.billing_name}</div>}
                     </td>
                     <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">{won(r.net)}</td>
                     <td className="py-2.5 px-3 text-xs">
                       {r.issue === 'no_evidence' ? (<>
-                        <div className="text-gray-700">이체 {r.paid_date?.slice(5)} 통장 입금 {won(r.paid_amount ?? 0)}원 매칭됨</div>
-                        <div className="text-gray-400">계산서 · 현금영수증 연결 없음</div>
+                        <div className="text-slate-800">이체 {r.paid_date?.slice(5)} 통장 입금 {won(r.paid_amount ?? 0)}원 매칭됨</div>
+                        <div className="text-slate-500">계산서 · 현금영수증 연결 없음</div>
                       </>) : (<>
-                        <div className="text-gray-700">계산서 {r.record_date?.slice(5)} 발행 기록 {won(r.record_amount ?? 0)}원
-                          {r.record_vat && <span className="ml-1 px-1.5 py-px rounded-full border border-gray-200 text-[0.6875rem] text-gray-500">{r.record_vat === 'mixed' ? '과세 · 면세' : r.record_vat === 'exempt' ? '면세' : '과세'}</span>}
+                        <div className="text-slate-800">계산서 {r.record_date?.slice(5)} 발행 기록 {won(r.record_amount ?? 0)}원
+                          {r.record_vat && <span className="ml-1 px-1.5 py-px rounded-full border border-slate-300 text-xs text-slate-600">{r.record_vat === 'mixed' ? '과세 · 면세' : r.record_vat === 'exempt' ? '면세' : '과세'}</span>}
                         </div>
                         {r.issue === 'no_hometax'
-                          ? <div className="text-gray-400">홈택스 계산서 미연결</div>
+                          ? <div className="text-slate-500">홈택스 계산서 미연결</div>
                           : <div className="text-red-600">홈택스 계산서 {won(r.invoice_amount)}원 — {won(Math.abs(r.invoice_amount - (r.record_amount ?? 0)))}원 다름</div>}
                       </>)}
                       {/* 후보: 금액이 같고 날짜가 가까운 계산서 (다른 거래처 명의 포함). 하나뿐일 때만 바로 연결 */}
                       {r.candidate_count === 1 && (
                         <div className="mt-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5">
-                          <span className="inline-block px-1.5 py-px rounded bg-green-100 text-green-800 text-[0.625rem] font-semibold mr-1">후보</span>
-                          <b className="text-gray-800">{r.candidates[0].vendor_name}</b> 명의 계산서 {r.candidates[0].issue_date.slice(5, 10)} · {won(r.candidates[0].remaining)}원
-                          <div className="text-[0.6875rem] text-gray-500">금액 같음 · {r.candidates[0].foreign ? '다른 거래처 명의' : '이 매출처 계산서'} · 다른 주문에 연결 안 됨</div>
+                          <span className="inline-block px-1.5 py-px rounded bg-green-100 text-green-800 text-xs font-semibold mr-1">후보</span>
+                          <b className="text-slate-900">{r.candidates[0].vendor_name}</b> 명의 계산서 {r.candidates[0].issue_date.slice(5, 10)} · {won(r.candidates[0].remaining)}원
+                          <div className="text-xs text-slate-600">금액 같음 · {r.candidates[0].foreign ? '다른 거래처 명의' : '이 매출처 계산서'} · 다른 주문에 연결 안 됨</div>
                         </div>
                       )}
                       {(r.other_kind_count ?? 0) > 0 && (
-                        <div className="mt-1 text-[0.6875rem] text-amber-700">
+                        <div className="mt-1 text-xs text-amber-700">
                           금액이 같은 {r.record_vat === 'exempt' ? '과세' : '면세'} 계산서 {r.other_kind_count}건 있음(구분 다름 — 후보에서 제외)
                         </div>
                       )}
                       {r.candidate_count > 1 && (
-                        <div className="mt-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-gray-600">
-                          <span className="inline-block px-1.5 py-px rounded bg-gray-200 text-gray-700 text-[0.625rem] font-semibold mr-1">후보 {r.candidate_count}건</span>
+                        <div className="mt-1.5 rounded-lg border border-slate-300 bg-slate-50 px-2 py-1.5 text-slate-700">
+                          <span className="inline-block px-1.5 py-px rounded bg-slate-200 text-slate-800 text-xs font-semibold mr-1">후보 {r.candidate_count}건</span>
                           금액이 같은 계산서가 여러 장 있습니다 — 직접 찾기로 골라 주세요
                         </div>
                       )}
@@ -174,14 +174,14 @@ export default function InvoiceTab() {
                       {canEdit && r.candidate_count === 1 && (
                         <div className="mb-1">
                           <button onClick={() => linkCandidate(r, r.candidates[0])} disabled={busy}
-                            className="text-[0.6875rem] px-2 py-0.5 rounded bg-slate-900 text-white font-semibold hover:bg-slate-700 disabled:opacity-40">이 계산서 연결</button>
+                            className="text-xs px-2 py-0.5 rounded bg-slate-900 text-white font-semibold hover:bg-slate-700 disabled:opacity-40">이 계산서 연결</button>
                         </div>
                       )}
                       {canEdit && r.vendor_id ? (
                         <button onClick={() => setLinkFor({ id: r.vendor_id!, name: r.customer_name })}
-                          className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">직접 찾기</button>
+                          className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">직접 찾기</button>
                       ) : (
-                        <Link href={`/orders/${r.order_id}`} className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">주문 열기</Link>
+                        <Link href={`/orders/${r.order_id}`} className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">주문 열기</Link>
                       )}
                     </td>
                   </tr>
@@ -191,7 +191,7 @@ export default function InvoiceTab() {
           </div>
         )}
 
-      <p className="text-[0.6875rem] text-gray-400 mt-3 leading-relaxed">
+      <p className="text-xs text-slate-500 mt-3 leading-relaxed">
         홈택스에 없음은 계산서 파일이 아직 올라오지 않았거나 주문과 연결되지 않은 경우입니다. 증빙 없음은 발행 누락 후보이며, 카드 · 선결제로 받은 주문은 대상이 아닙니다.
       </p>
 

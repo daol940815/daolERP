@@ -19,7 +19,7 @@ export default function MonthPresets({ from, to, onChange, className = '' }: {
           <button key={p} type="button" onClick={() => onChange(r.from, r.to)}
             className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
               on ? 'bg-slate-900 text-white border-slate-900'
-                 : 'border-gray-300 text-gray-600 hover:bg-slate-100 hover:border-slate-400'}`}>
+                 : 'border-slate-400 text-slate-700 hover:bg-slate-100 hover:border-slate-400'}`}>
             {p}
           </button>
         )

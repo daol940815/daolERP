@@ -39,7 +39,8 @@ function walk(dir, out = []) {
 }
 const routeOf = file => '/' + relative(join(root, 'app'), file).replace(/\\/g, '/').split('/').slice(0, -1).filter(seg => !/^\(.*\)$/.test(seg)).join('/')
 let gitOk = true
-const lastCommit = file => { try { return execSync(`git log -1 --format=%cs -- "${file}"`, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() } catch { gitOk = false; return '' } }
+// 제목에 [ui-일괄] 이 든 커밋(전 화면 모양 일괄 변환 — 도움말 내용과 무관)은 신선도 검사에서 뺀다 (UI 디자인 트랙, 2026-11-25)
+const lastCommit = file => { try { return execSync(`git log -1 --format=%cs --invert-grep --grep="\\[ui-일괄\\]" -- "${file}"`, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() } catch { gitOk = false; return '' } }
 const pages = new Map(walk(join(root, 'app')).map(f => [routeOf(f) || '/', f]))
 for (const e of entries) {
   const file = pages.get(base(e.href))

@@ -78,40 +78,40 @@ export default function VendorDedupPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">거래처 중복 정리</h1>
-      <p className="text-gray-500 text-sm mb-1">
+      <h1 className="text-2xl font-bold text-slate-900 mb-1">거래처 중복 정리</h1>
+      <p className="text-slate-600 text-sm mb-1">
         이름이 미세하게 다른 같은 거래처 후보를 제시합니다. 대표를 선택하고 병합하면, 흡수된 이름은 별칭으로 저장되어 이후 자동 인식됩니다.
       </p>
-      <p className="text-xs text-gray-400 mb-5">자동 병합은 없습니다 — 모든 병합은 여기서 직접 승인한 것만 실행되고, 이력이 기록됩니다.</p>
+      <p className="text-xs text-slate-500 mb-5">자동 병합은 없습니다 — 모든 병합은 여기서 직접 승인한 것만 실행되고, 이력이 기록됩니다.</p>
 
-      {msg && <div className="mb-4 px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-700">{msg}</div>}
-      {loading && <p className="text-sm text-gray-400">불러오는 중…</p>}
+      {msg && <div className="mb-4 px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-800">{msg}</div>}
+      {loading && <p className="text-sm text-slate-500">불러오는 중…</p>}
 
       {dups && SECTIONS.map(sec => {
         const groups = dups[sec.key] ?? []
         return (
           <section key={sec.key} className="mb-8">
-            <h2 className="text-base font-semibold text-slate-800 mb-2">
-              {sec.label} <span className="text-slate-400 font-normal">— {groups.length}그룹</span>
+            <h2 className="text-base font-semibold text-slate-900 mb-2">
+              {sec.label} <span className="text-slate-500 font-normal">— {groups.length}그룹</span>
             </h2>
-            {groups.length === 0 && <p className="text-sm text-gray-400">중복 후보가 없습니다. </p>}
+            {groups.length === 0 && <p className="text-sm text-slate-500">중복 후보가 없습니다. </p>}
             <div className="space-y-3">
               {groups.map((g, gi) => {
                 const key = groupKey(sec.key, g)
                 const sel = primary[key] ?? g.members[0].id
                 return (
-                  <div key={gi} className="border border-gray-200 rounded-xl p-3">
+                  <div key={gi} className="border border-slate-300 rounded-xl p-3">
                     <div className="flex flex-col gap-1.5">
                       {g.members.map(m => (
                         <label key={m.id} className="flex items-center gap-2.5 cursor-pointer text-sm">
                           <input type="radio" name={key} checked={sel === m.id}
                             onChange={() => setPrimary(p => ({ ...p, [key]: m.id }))}
                             className="accent-slate-700" />
-                          <span className={sel === m.id ? 'font-semibold text-slate-900' : 'text-gray-700'}>
+                          <span className={sel === m.id ? 'font-semibold text-slate-900' : 'text-slate-800'}>
                             {m.name}
                           </span>
-                          {sel === m.id && <span className="px-1.5 py-0.5 text-[0.625rem] bg-slate-900 text-white rounded">대표</span>}
-                          <span className="text-xs text-gray-400 ml-auto">
+                          {sel === m.id && <span className="px-1.5 py-0.5 text-xs bg-slate-900 text-white rounded">대표</span>}
+                          <span className="text-xs text-slate-500 ml-auto">
                             {m.count !== undefined && `${sec.statLabel} ${m.count}건`}
                             {m.amount !== undefined && m.amount > 0 && ` · ${m.amount.toLocaleString()}원`}
                             {m.biz_number && ` · ${m.biz_number}`}

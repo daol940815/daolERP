@@ -27,24 +27,24 @@ export default function SourceDetailPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <button onClick={() => router.back()} className="text-sm text-gray-400 hover:text-gray-600 mb-3">← 돌아가기</button>
+      <button onClick={() => router.back()} className="text-sm text-slate-500 hover:text-slate-700 mb-3">← 돌아가기</button>
       {error ? (
         <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>
       ) : !data ? (
-        <p className="text-gray-400 text-sm py-10 text-center">불러오는 중...</p>
+        <p className="text-slate-500 text-sm py-10 text-center">불러오는 중...</p>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl p-6">
-          <h1 className="text-xl font-bold text-gray-900 mb-4">{data.title} <span className="text-xs font-normal text-gray-400">원본 레코드</span></h1>
-          <dl className="divide-y divide-gray-100">
+        <div className="bg-white border border-slate-300 rounded-xl p-6">
+          <h1 className="text-xl font-bold text-slate-900 mb-4">{data.title} <span className="text-xs font-normal text-slate-500">원본 레코드</span></h1>
+          <dl className="divide-y divide-slate-200">
             {data.fields.map((f, i) => (
               <div key={i} className="py-2.5 flex gap-4">
-                <dt className="w-32 shrink-0 text-sm text-gray-400">{f.label}</dt>
-                <dd className="text-sm text-gray-900 break-all">{f.value}</dd>
+                <dt className="w-32 shrink-0 text-sm text-slate-500">{f.label}</dt>
+                <dd className="text-sm text-slate-900 break-all">{f.value}</dd>
               </div>
             ))}
           </dl>
           {data.link && (
-            <Link href={data.link.href} className="inline-block mt-5 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+            <Link href={data.link.href} className="inline-block mt-5 px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">
               {data.link.label} →
             </Link>
           )}

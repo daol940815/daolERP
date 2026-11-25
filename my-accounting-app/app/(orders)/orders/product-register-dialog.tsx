@@ -62,10 +62,10 @@ export const isUnregisteredRow = (it: Pick<ItemDraft, 'product_id' | 'item_name'
 export function UnregisteredTag({ canRegister, onRegister }: { canRegister: boolean; onRegister: () => void }) {
   return (
     <div className="mt-0.5 flex items-center gap-1.5 flex-wrap">
-      <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] border border-orange-200 bg-orange-50 text-orange-700">미등록 품목</span>
+      <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs border border-orange-200 bg-orange-50 text-orange-700">미등록 품목</span>
       {canRegister
-        ? <button type="button" onClick={onRegister} className="text-[0.6875rem] text-blue-700 underline whitespace-nowrap">품목 등록</button>
-        : <span className="text-[0.625rem] text-gray-400 whitespace-nowrap">등록은 품목 관리 담당에게 요청</span>}
+        ? <button type="button" onClick={onRegister} className="text-xs text-blue-700 underline whitespace-nowrap">품목 등록</button>
+        : <span className="text-xs text-slate-500 whitespace-nowrap">등록은 품목 관리 담당에게 요청</span>}
     </div>
   )
 }
@@ -108,17 +108,17 @@ export default function ProductRegisterDialog({ seed, products, onClose, onDone 
     onDone(json.product as Product, true)
   }
 
-  const pre = (on: boolean) => on ? 'border-sky-300 bg-sky-50' : 'border-gray-300 bg-white'
+  const pre = (on: boolean) => on ? 'border-sky-300 bg-sky-50' : 'border-slate-400 bg-white'
   const cls = 'border rounded-lg px-2.5 py-1.5 text-sm w-full'
   const num = 'text-right tabular-nums'
-  const label = 'block text-[0.6875rem] text-gray-500 mb-0.5'
+  const label = 'block text-xs text-slate-600 mb-0.5'
   const req = <span className="text-red-600">*</span>
 
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full p-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="text-sm font-bold text-gray-900">품목 관리에 등록</div>
-        <div className="text-xs text-gray-500 mt-0.5">
+        <div className="text-sm font-bold text-slate-900">품목 관리에 등록</div>
+        <div className="text-xs text-slate-600 mt-0.5">
           하늘색 칸은 품목 행에서 가져온 값입니다. 저장하면 품목 관리에 등록되고 이 행이 새 품목에 연결됩니다(행의 가격 · 수량은 그대로).
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3">
@@ -128,7 +128,7 @@ export default function ProductRegisterDialog({ seed, products, onClose, onDone 
             <input value={f.item_name} onChange={e => set({ item_name: e.target.value })} className={`${cls} ${pre(!!seed.item_name.trim())}`} /></div>
           <div><label className={label}>매입처 {req}</label>
             <input value={f.purchase_vendor_name} onChange={e => set({ purchase_vendor_name: e.target.value })} className={`${cls} ${pre(!!seed.purchase_vendor_name.trim())}`} /></div>
-          <div><label className={label}>지점판매가 {req}<span className="text-gray-400"> (개별과 둘 중 하나)</span></label>
+          <div><label className={label}>지점판매가 {req}<span className="text-slate-500"> (개별과 둘 중 하나)</span></label>
             <NumInput value={f.sale_price ? f.sale_price.toLocaleString('ko-KR') : ''} onChange={e => set({ sale_price: toInt(e.target.value) })}
               placeholder="0" className={`${cls} ${num} ${pre(!indiv && !sample && seed.sale_price > 0)}`} /></div>
           <div><label className={label}>개별판매가</label>
@@ -166,7 +166,7 @@ export default function ProductRegisterDialog({ seed, products, onClose, onDone 
         )}
         {error && <div className="mt-3 px-3 py-2 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
         <div className="flex justify-end gap-2 mt-4">
-          <button type="button" onClick={onClose} className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
+          <button type="button" onClick={onClose} className="px-3.5 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
           <button type="button" onClick={save} disabled={saving}
             className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">
             {saving ? '등록 중...' : '등록하고 연결'}

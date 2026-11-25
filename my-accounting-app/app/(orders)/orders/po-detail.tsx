@@ -38,7 +38,7 @@ export default function PoDetail({ poId }: { poId: string }) {
   }, [poId])
 
   if (error) return <div className="px-3 py-2 text-xs text-red-600">{error}</div>
-  if (!data?.form) return <div className="px-3 py-2 text-xs text-gray-400">발주서 내용을 불러오는 중...</div>
+  if (!data?.form) return <div className="px-3 py-2 text-xs text-slate-500">발주서 내용을 불러오는 중...</div>
 
   const form = data.form
   const info = poFormInfo(form)
@@ -57,14 +57,14 @@ export default function PoDetail({ poId }: { poId: string }) {
     <div>
       {/* 시트1: 발주서 (명세) */}
       <div className="overflow-x-auto">
-        <div className="min-w-[640px] max-w-3xl bg-white border border-gray-300 rounded-lg p-3 shadow-sm">
+        <div className="min-w-[640px] max-w-3xl bg-white border border-slate-400 rounded-lg p-3 shadow-sm">
           <div className="text-center text-lg font-extrabold py-1.5 tracking-tight"
             style={{ color: hex(PO_COLORS.title) }}>
             {COMPANY_NAME} 발주서
           </div>
 
           {/* 헤더 정보 3행 — 발주번호 맨 위, 출고요청일 라벨 강조 */}
-          <table className="w-full border-collapse text-[0.6875rem]">
+          <table className="w-full border-collapse text-xs">
             <tbody>
               {infoRows.map((cells, ri) => (
                 <tr key={ri}>
@@ -91,7 +91,7 @@ export default function PoDetail({ poId }: { poId: string }) {
           </table>
 
           {/* 품목 표 6열 (배송구분 열 없음 — 비고 통일), 택배비는 별도 행 */}
-          <table className="w-full border-collapse text-[0.6875rem] mt-1.5">
+          <table className="w-full border-collapse text-xs mt-1.5">
             <thead>
               <tr>
                 {PO_HEADERS.map(label => (
@@ -135,12 +135,12 @@ export default function PoDetail({ poId }: { poId: string }) {
 
       {/* 시트2: 배송명단 */}
       <div className="overflow-x-auto mt-2">
-        <div className="min-w-[860px] bg-white border border-gray-300 rounded-lg p-3 shadow-sm">
-          <div className="text-xs font-bold text-gray-700 mb-1.5">
+        <div className="min-w-[860px] bg-white border border-slate-400 rounded-lg p-3 shadow-sm">
+          <div className="text-xs font-bold text-slate-800 mb-1.5">
             배송명단 (시트 2)
-            <span className="font-normal text-gray-400 ml-1.5">{rosterAll.length}행{rosterLinked ? ` · 개별 배송 명단 ${rosterLinked}행 연결` : ''}</span>
+            <span className="font-normal text-slate-500 ml-1.5">{rosterAll.length}행{rosterLinked ? ` · 개별 배송 명단 ${rosterLinked}행 연결` : ''}</span>
           </div>
-          <table className="w-full border-collapse text-[0.6875rem]">
+          <table className="w-full border-collapse text-xs">
             <thead>
               <tr>
                 {ROSTER_HEADERS.map(label => (
@@ -165,7 +165,7 @@ export default function PoDetail({ poId }: { poId: string }) {
               ))}
               {rosterAll.length > roster.length && (
                 <tr>
-                  <td colSpan={ROSTER_HEADERS.length} className="px-2 py-1.5 text-center text-gray-400" style={cellBorder}>
+                  <td colSpan={ROSTER_HEADERS.length} className="px-2 py-1.5 text-center text-slate-500" style={cellBorder}>
                     … 외 {rosterAll.length - roster.length}행 — 엑셀 시트에는 전부 들어갑니다
                   </td>
                 </tr>
@@ -175,7 +175,7 @@ export default function PoDetail({ poId }: { poId: string }) {
         </div>
       </div>
 
-      <div className="mt-1.5 space-y-0.5 text-[0.6875rem] text-gray-400">
+      <div className="mt-1.5 space-y-0.5 text-xs text-slate-500">
         <div>
           엑셀 다운로드·메일 첨부와 동일한 내용입니다. 지점·샘플 품목은 주문 배송지가 자동으로 들어가고,
           개별 배송 품목은 주문의 배송명단(수령인별 행)이 연결되어 있으면 그 행으로 펼쳐집니다 — 없으면 다운로드 후 수기로 보완합니다.
@@ -201,7 +201,7 @@ export default function PoDetail({ poId }: { poId: string }) {
             개별 배송 품목이 있는데 연결된 배송명단이 없습니다 — 주문 상세의 배송명단에 표준 양식 엑셀을 올리면 수령인별 행이 자동으로 들어갑니다. 지금은 수령인 · 주소를 수기로 채워야 합니다.
           </div>
         )}
-        {data.po?.email_to && <div>받는 이메일: <span className="text-gray-600">{data.po.email_to}</span></div>}
+        {data.po?.email_to && <div>받는 이메일: <span className="text-slate-700">{data.po.email_to}</span></div>}
         {broken > 0 && (
           <div className="text-red-500">
             발주 뒤 주문에서 바뀌거나 빠진 품목 {broken}건 — 이 발주서는 발주 시점 내용 그대로이고, 바뀐 품목은 주문에서 미발주로 표시됩니다. 이 발주서를 취소하고 바뀐 내용으로 다시 발주하세요(수정본 파일을 올려 보내도 주문의 발주 상태는 바뀌지 않습니다).

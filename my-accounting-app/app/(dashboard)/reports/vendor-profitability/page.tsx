@@ -47,10 +47,10 @@ export default function VendorProfitabilityPage() {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-1">
-        <h1 className="text-2xl font-bold text-gray-900">거래처별 수익성 분석</h1>
-        <p className="text-sm mt-1 text-gray-500">매출처(은행·지점)별 기간 내 매출·매입원가 대비 매출이익/이익률을 확인합니다. (취소/VIP/선결제 제외)</p>
+        <h1 className="text-2xl font-bold text-slate-900">거래처별 수익성 분석</h1>
+        <p className="text-sm mt-1 text-slate-600">매출처(은행·지점)별 기간 내 매출·매입원가 대비 매출이익/이익률을 확인합니다. (취소/VIP/선결제 제외)</p>
         <button onClick={() => { const a = document.createElement('a'); a.href = `/api/reports/vendor-profitability/export?from=${dateFrom}&to=${dateTo}`; a.click() }}
-          className="mt-2 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap inline-block">↓ 엑셀</button>
+          className="mt-2 px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap inline-block">↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -61,47 +61,47 @@ export default function VendorProfitabilityPage() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-        <span className="text-gray-400 text-sm">~</span>
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="매출처명 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
       </div>
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">순매출 합계</p>
-          <p className="text-lg font-bold text-gray-900">{won(totalSales)}</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">순매출 합계</p>
+          <p className="text-lg font-bold text-slate-900">{won(totalSales)}</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">매입원가 합계</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">매입원가 합계</p>
           <p className="text-lg font-bold text-rose-600">{won(totalPurchase)}</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">매출이익 합계</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">매출이익 합계</p>
           <p className={`text-lg font-bold ${totalProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{won(totalProfit)}</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">전체 이익률</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">전체 이익률</p>
           <p className={`text-lg font-bold ${totalRate >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{pct(totalRate)}</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">표시할 데이터가 없습니다.</div>
+        <div className="text-center py-20 text-slate-500 text-sm">표시할 데이터가 없습니다.</div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 font-medium">매출처 (ERP)</th>
                 <th className="py-2.5 px-3 font-medium">연결 거래처</th>
                 <th className="py-2.5 px-3 font-medium text-right">매출</th>
@@ -112,11 +112,11 @@ export default function VendorProfitabilityPage() {
             </thead>
             <tbody>
               {filtered.map(r => (
-                <tr key={r.alias_id ?? 'none'} className="border-b border-gray-100 hover:bg-gray-50">
+                <tr key={r.alias_id ?? 'none'} className="border-b border-slate-200 hover:bg-slate-50">
                   <td className="py-2 px-3 min-w-0">
-                    <p className="truncate max-w-[220px] text-gray-900">{r.erp_name}</p>
+                    <p className="truncate max-w-[220px] text-slate-900">{r.erp_name}</p>
                   </td>
-                  <td className="py-2 px-3 text-gray-600">{r.vendor_name ?? '-'}</td>
+                  <td className="py-2 px-3 text-slate-700">{r.vendor_name ?? '-'}</td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">{won(r.sales_amount)}</td>
                   <td className="py-2 px-3 text-right whitespace-nowrap text-rose-600">{won(r.purchase_amount)}</td>
                   <td className={`py-2 px-3 text-right whitespace-nowrap font-medium ${r.profit_amount >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
@@ -129,7 +129,7 @@ export default function VendorProfitabilityPage() {
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-t border-gray-200 font-medium text-gray-900">
+              <tr className="border-t border-slate-300 font-medium text-slate-900">
                 <td className="py-2.5 px-3" colSpan={2}>합계</td>
                 <td className="py-2.5 px-3 text-right whitespace-nowrap">{won(totalSales)}</td>
                 <td className="py-2.5 px-3 text-right whitespace-nowrap text-rose-700">{won(totalPurchase)}</td>

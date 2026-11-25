@@ -8,7 +8,7 @@ export default function MyProfilePage({ searchParams }: { searchParams: { tab?: 
   const tab: ProfileTab = t === 'account' ? 'account' : t === 'work' ? 'work' : t === 'notify' ? 'notify' : t === 'display' ? 'display' : 'basic'
   return (
     <div className="max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900">내 정보</h1>
+      <h1 className="text-2xl font-bold text-slate-900">내 정보</h1>
       <PageTabs className="mt-3 mb-4" active={tab} tabs={[
         { key: 'basic', label: '기본 정보', href: '/me/profile' },
         { key: 'account', label: '계정', href: '/me/profile?tab=account' },

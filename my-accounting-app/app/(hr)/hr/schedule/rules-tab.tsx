@@ -119,7 +119,7 @@ export default function RulesTab() {
     return r.repeat_kind === 'yearly' ? `매년 ${r.repeat_month}월 ${d}` : `매월 ${d}`
   }
 
-  const inp = 'w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm'
+  const inp = 'w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm'
   const once = form.repeat_kind === 'once'
 
   return (
@@ -128,7 +128,7 @@ export default function RulesTab() {
       {error && <div className="my-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 
       <div className="flex items-center gap-3 flex-wrap mb-3">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-slate-600">
           휴가 · 공휴일 · 아르바이트 · 대출은 여기 등록하지 않습니다 — 각자 원래 화면의 값이 캘린더에 자동으로 뜹니다.
           {!showMoney && ' 회계 전용 일정(세무·지급)은 권한이 없어 표시되지 않습니다.'}
         </p>
@@ -141,21 +141,21 @@ export default function RulesTab() {
       </div>
 
       {open && canEdit && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+        <div className="bg-white border border-slate-300 rounded-xl p-4 mb-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="col-span-2">
-              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">제목 *</label>
+              <label className="block text-xs text-slate-600 font-semibold mb-1">제목 *</label>
               <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                 placeholder="예: 법인카드 대금 출금" className={inp} />
             </div>
             <div>
-              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">구분</label>
+              <label className="block text-xs text-slate-600 font-semibold mb-1">구분</label>
               <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as RuleCategory }))} className={inp}>
                 {RULE_CATEGORIES.map(c => <option key={c} value={c}>{KIND_LABEL[c]}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">반복</label>
+              <label className="block text-xs text-slate-600 font-semibold mb-1">반복</label>
               <select value={form.repeat_kind} onChange={e => setForm(f => ({ ...f, repeat_kind: e.target.value }))} className={inp}>
                 <option value="monthly">매월</option>
                 <option value="yearly">매년</option>
@@ -165,15 +165,15 @@ export default function RulesTab() {
 
             {once ? (<>
               <div>
-                <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">날짜 *</label>
+                <label className="block text-xs text-slate-600 font-semibold mb-1">날짜 *</label>
                 <input type="date" value={form.on_date} onChange={e => setForm(f => ({ ...f, on_date: e.target.value }))} className={inp} />
               </div>
               <div>
-                <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">종료일 (여러 날)</label>
+                <label className="block text-xs text-slate-600 font-semibold mb-1">종료일 (여러 날)</label>
                 <input type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} className={inp} />
               </div>
               <div className="col-span-2">
-                <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">대상 직원 (선택)</label>
+                <label className="block text-xs text-slate-600 font-semibold mb-1">대상 직원 (선택)</label>
                 <select value={form.employee_id} onChange={e => setForm(f => ({ ...f, employee_id: e.target.value }))} className={inp}>
                   <option value="">지정 안 함</option>
                   {emps.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
@@ -182,18 +182,18 @@ export default function RulesTab() {
             </>) : (<>
               {form.repeat_kind === 'yearly' && (
                 <div>
-                  <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">월 *</label>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">월 *</label>
                   <input type="number" min={1} max={12} value={form.repeat_month}
                     onChange={e => setForm(f => ({ ...f, repeat_month: e.target.value }))} className={inp} />
                 </div>
               )}
               <div>
-                <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">일자 * <span className="text-gray-400 font-normal">31 = 말일</span></label>
+                <label className="block text-xs text-slate-600 font-semibold mb-1">일자 * <span className="text-slate-500 font-normal">31 = 말일</span></label>
                 <input type="number" min={1} max={31} value={form.repeat_day}
                   onChange={e => setForm(f => ({ ...f, repeat_day: e.target.value }))} className={inp} />
               </div>
               <div>
-                <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">휴일이면</label>
+                <label className="block text-xs text-slate-600 font-semibold mb-1">휴일이면</label>
                 <select value={form.holiday_shift} onChange={e => setForm(f => ({ ...f, holiday_shift: e.target.value }))} className={inp}>
                   <option value="next">순연 (다음 영업일) — 세무·자동이체</option>
                   <option value="prev">앞당김 (직전 영업일) — 급여</option>
@@ -203,23 +203,23 @@ export default function RulesTab() {
             </>)}
 
             <div>
-              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">예상 금액 (선택)</label>
+              <label className="block text-xs text-slate-600 font-semibold mb-1">예상 금액 (선택)</label>
               <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} className={inp} />
             </div>
             <div className="col-span-2">
-              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">메모 (선택)</label>
+              <label className="block text-xs text-slate-600 font-semibold mb-1">메모 (선택)</label>
               <input value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} className={inp} />
             </div>
           </div>
           <div className="flex items-center gap-4 mt-3 flex-wrap">
             {showMoney && (
-              <label className="flex items-center gap-2 text-xs text-gray-600">
+              <label className="flex items-center gap-2 text-xs text-slate-700">
                 <input type="checkbox" checked={form.finance_only}
                   onChange={e => setForm(f => ({ ...f, finance_only: e.target.checked }))} />
                 회계 권한자에게만 보이기 (세무·지급 금액)
               </label>
             )}
-            <label className="flex items-center gap-2 text-xs text-gray-600">
+            <label className="flex items-center gap-2 text-xs text-slate-700">
               <input type="checkbox" checked={form.active}
                 onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} />
               캘린더에 표시
@@ -230,17 +230,17 @@ export default function RulesTab() {
             </button>
             {form.id && (
               <button onClick={() => { setForm({ ...EMPTY }); setOpen(false) }}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm">취소</button>
+                className="px-3 py-2 border border-slate-400 rounded-lg text-sm">취소</button>
             )}
           </div>
         </div>
       )}
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-        {loading ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : (
+      <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
+        {loading ? <div className="text-center py-16 text-slate-500">로딩 중...</div> : (
           <table className="w-full text-sm min-w-[760px]">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 px-3 text-left font-medium">제목</th>
                 <th className="py-2 px-3 text-left font-medium">구분</th>
                 <th className="py-2 px-3 text-left font-medium">주기</th>
@@ -252,25 +252,25 @@ export default function RulesTab() {
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.id} className={`border-b border-gray-50 ${r.active ? '' : 'opacity-45'}`}>
+                <tr key={r.id} className={`border-b border-slate-200 ${r.active ? '' : 'opacity-45'}`}>
                   <td className="py-2 px-3 font-semibold">
                     {r.title}
-                    {r.finance_only && <span className="ml-1.5 text-[0.625rem] px-1 py-0.5 rounded bg-slate-100 text-slate-500">회계 전용</span>}
+                    {r.finance_only && <span className="ml-1.5 text-xs px-1 py-0.5 rounded bg-slate-100 text-slate-600">회계 전용</span>}
                   </td>
-                  <td className="py-2 px-3 text-gray-600">{KIND_LABEL[r.category]}</td>
-                  <td className="py-2 px-3 text-gray-600">
-                    <span className="text-[0.6875rem] text-gray-400 mr-1">{KIND_TEXT[r.repeat_kind]}</span>{when(r)}
+                  <td className="py-2 px-3 text-slate-700">{KIND_LABEL[r.category]}</td>
+                  <td className="py-2 px-3 text-slate-700">
+                    <span className="text-xs text-slate-500 mr-1">{KIND_TEXT[r.repeat_kind]}</span>{when(r)}
                   </td>
-                  <td className="py-2 px-3 text-xs text-gray-500">
+                  <td className="py-2 px-3 text-xs text-slate-600">
                     {r.repeat_kind === 'once' ? '-' : SHIFT_LABEL[r.holiday_shift]}
                   </td>
-                  <td className="py-2 px-3 text-right tabular-nums">{r.amount ? won(r.amount) : <span className="text-gray-300">-</span>}</td>
-                  <td className="py-2 px-3 text-xs text-gray-400">{r.memo ?? ''}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{r.amount ? won(r.amount) : <span className="text-slate-400">-</span>}</td>
+                  <td className="py-2 px-3 text-xs text-slate-500">{r.memo ?? ''}</td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">
                     {canEdit && (<>
-                      <button onClick={() => edit(r)} className="text-xs px-2 py-1 border border-gray-300 rounded mr-1 hover:bg-gray-50">수정</button>
+                      <button onClick={() => edit(r)} className="text-xs px-2 py-1 border border-slate-400 rounded mr-1 hover:bg-slate-50">수정</button>
                       <button onClick={() => toggleActive(r)} disabled={busy}
-                        className="text-xs px-2 py-1 border border-gray-300 rounded mr-1 hover:bg-gray-50">
+                        className="text-xs px-2 py-1 border border-slate-400 rounded mr-1 hover:bg-slate-50">
                         {r.active ? '끄기' : '켜기'}
                       </button>
                       <button onClick={() => remove(r)} disabled={busy}
@@ -280,7 +280,7 @@ export default function RulesTab() {
                 </tr>
               ))}
               {!rows.length && (
-                <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">
+                <tr><td colSpan={7} className="text-center py-12 text-slate-500 text-sm">
                   등록된 일정이 없습니다. 202 마이그레이션을 실행하면 세무 마감과 급여일이 들어옵니다.
                 </td></tr>
               )}

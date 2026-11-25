@@ -7,7 +7,7 @@ export const ITEM_DELIVERY_STATUS_LABEL: Record<string, { text: string; cls: str
 }
 
 export const ORDER_DELIVERY_STATUS_LABEL: Record<ErpOrderDeliveryStatus, { text: string; cls: string }> = {
-  invoice_needed: { text: '송장기입', cls: 'bg-gray-100 text-gray-500' },
+  invoice_needed: { text: '송장기입', cls: 'bg-slate-100 text-slate-600' },
   in_progress:    { text: '진행중',   cls: 'bg-amber-50 text-amber-700' },
   issue:          { text: '확인필요', cls: 'bg-red-50 text-red-600' },
   delivered:      { text: '배송완료', cls: 'bg-green-50 text-green-700' },

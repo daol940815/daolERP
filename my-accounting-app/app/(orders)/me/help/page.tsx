@@ -10,8 +10,8 @@ export default async function HelpPage({ searchParams }: { searchParams: { tab?:
   const tab = searchParams.tab === 'audit' && master ? 'audit' : 'list'
   return (
     <div className="max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900">도움말</h1>
-      <p className="text-sm text-gray-500 mt-1">화면마다 오른쪽 위 &quot;도움말&quot; 버튼으로도 같은 내용을 볼 수 있습니다. 해결이 안 되면 질문하기 — 업무 요청으로 담당자에게 갑니다.</p>
+      <h1 className="text-2xl font-bold text-slate-900">도움말</h1>
+      <p className="text-sm text-slate-600 mt-1">화면마다 오른쪽 위 &quot;도움말&quot; 버튼으로도 같은 내용을 볼 수 있습니다. 해결이 안 되면 질문하기 — 업무 요청으로 담당자에게 갑니다.</p>
       {master && (
         <PageTabs className="mt-3 mb-4" active={tab} tabs={[
           { key: 'list', label: '전체 목록', href: '/me/help' },

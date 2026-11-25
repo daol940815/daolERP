@@ -9,10 +9,10 @@ function CountCard({
 }: { label: string; value: string; sub?: string; href?: string; alert?: boolean }) {
   const inner = (
     <div className={`rounded-xl border p-5 h-full ${alert
-      ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'}`}>
-      <p className={`text-xs mb-1.5 ${alert ? 'text-amber-700' : 'text-gray-400'}`}>{label}</p>
-      <p className={`text-xl font-bold ${alert ? 'text-amber-800' : 'text-gray-900'}`}>{value}</p>
-      {sub && <p className={`text-xs mt-1 ${alert ? 'text-amber-700' : 'text-gray-400'}`}>{sub}</p>}
+      ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-300'}`}>
+      <p className={`text-xs mb-1.5 ${alert ? 'text-amber-700' : 'text-slate-500'}`}>{label}</p>
+      <p className={`text-xl font-bold ${alert ? 'text-amber-800' : 'text-slate-900'}`}>{value}</p>
+      {sub && <p className={`text-xs mt-1 ${alert ? 'text-amber-700' : 'text-slate-500'}`}>{sub}</p>}
     </div>
   )
   return href ? <Link href={href} className="block hover:shadow-md transition-shadow rounded-xl">{inner}</Link> : inner
@@ -74,21 +74,21 @@ export default async function WorkTab({
   }
   if (salesAliasUnlinked > 0) {
     issues.push({
-      kind: '매출', tone: 'bg-slate-100 text-gray-700',
+      kind: '매출', tone: 'bg-slate-100 text-slate-800',
       text: `매출처 별칭 ${salesAliasUnlinked}건이 거래처에 연결되지 않아 허브 집계에서 빠져 있습니다`,
       amount: '-', href: '/erp-aliases', label: '별칭 관리',
     })
   }
   if (pay && pay.unlinked_aliases > 0) {
     issues.push({
-      kind: '매입', tone: 'bg-slate-100 text-gray-700',
+      kind: '매입', tone: 'bg-slate-100 text-slate-800',
       text: `매입처 별칭 ${pay.unlinked_aliases}건이 거래처 미연결 (ERP 품목 ${pay.unlinked_items.toLocaleString('ko-KR')}건)`,
       amount: '-', href: '/purchase-hub', label: '매입처 허브',
     })
   }
   if (reviewed > 0) {
     issues.push({
-      kind: '통장', tone: 'bg-slate-100 text-gray-700',
+      kind: '통장', tone: 'bg-slate-100 text-slate-800',
       text: `검토됨 상태 ${reviewed.toLocaleString('ko-KR')}건이 확정 전이라 손익에 반영되지 않았습니다`,
       amount: '-', href: '/transactions?tab=classify', label: '통장 분류',
     })
@@ -96,7 +96,7 @@ export default async function WorkTab({
 
   return (
     <div>
-      <h2 className="text-sm font-semibold text-gray-700 mt-6 mb-3">처리해야 할 일</h2>
+      <h2 className="text-sm font-semibold text-slate-800 mt-6 mb-3">처리해야 할 일</h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <CountCard label="미확정 거래 (검토됨)" value={`${reviewed.toLocaleString('ko-KR')}건`}
           sub="확정하면 분개가 생성되어 손익에 반영됩니다" href="/transactions?tab=classify" alert={reviewed > 0} />
@@ -108,30 +108,30 @@ export default async function WorkTab({
           sub="허브 집계에서 제외됨" href="/erp-aliases" alert={salesAliasUnlinked > 0} />
       </div>
 
-      <h2 className="text-sm font-semibold text-gray-700 mt-8 mb-3">확인 필요</h2>
+      <h2 className="text-sm font-semibold text-slate-800 mt-8 mb-3">확인 필요</h2>
       {issues.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
+        <div className="bg-white border border-slate-300 rounded-xl p-8 text-center text-slate-500 text-sm">
           확인이 필요한 항목이 없습니다.
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 font-medium whitespace-nowrap">구분</th>
                 <th className="py-2.5 px-3 font-medium">내용</th>
                 <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">규모</th>
                 <th className="py-2.5 px-3 font-medium whitespace-nowrap">바로가기</th>
               </tr>
             </thead>
-            <tbody className="text-gray-700">
+            <tbody className="text-slate-800">
               {issues.map((it, i) => (
-                <tr key={i} className="border-b border-gray-100 last:border-0">
+                <tr key={i} className="border-b border-slate-200 last:border-0">
                   <td className="py-2 px-3 whitespace-nowrap">
-                    <span className={`inline-block whitespace-nowrap text-[0.6875rem] px-1.5 py-0.5 rounded ${it.tone}`}>{it.kind}</span>
+                    <span className={`inline-block whitespace-nowrap text-xs px-1.5 py-0.5 rounded ${it.tone}`}>{it.kind}</span>
                   </td>
                   <td className="py-2 px-3">{it.text}</td>
-                  <td className={`py-2 px-3 text-right whitespace-nowrap ${it.amount === '-' ? 'text-gray-400' : 'font-medium'}`}>{it.amount}</td>
+                  <td className={`py-2 px-3 text-right whitespace-nowrap ${it.amount === '-' ? 'text-slate-500' : 'font-medium'}`}>{it.amount}</td>
                   <td className="py-2 px-3 whitespace-nowrap">
                     <Link href={it.href} className="text-xs text-blue-600 hover:underline">{it.label}</Link>
                   </td>

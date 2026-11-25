@@ -45,11 +45,11 @@ export default function OrphanedAccountsSection({ groups }: { groups: OrphanedGr
     <div className="mt-8">
       <div className="flex items-center gap-2 mb-1">
         <h2 className="text-sm font-semibold text-amber-700">계좌 미연결 거래</h2>
-        <span className="text-xs text-slate-400">{groups.length}개 계좌명 감지됨</span>
+        <span className="text-xs text-slate-500">{groups.length}개 계좌명 감지됨</span>
       </div>
-      <p className="text-xs text-slate-500 mb-3">
+      <p className="text-xs text-slate-600 mb-3">
         아래 이름으로 거래가 업로드됐지만 계좌 레코드가 없어 대시보드에 표시되지 않습니다.
-        <strong className="text-slate-600"> 계좌 등록</strong>을 클릭하면 기존 거래가 자동 연결되고 계좌별 현황에 추가됩니다.
+        <strong className="text-slate-700"> 계좌 등록</strong>을 클릭하면 기존 거래가 자동 연결되고 계좌별 현황에 추가됩니다.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -60,8 +60,8 @@ export default function OrphanedAccountsSection({ groups }: { groups: OrphanedGr
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="font-semibold text-slate-800 text-sm truncate">{alias}</p>
-                <p className="text-xs text-slate-500">{count.toLocaleString()}건 미연결</p>
+                <p className="font-semibold text-slate-900 text-sm truncate">{alias}</p>
+                <p className="text-xs text-slate-600">{count.toLocaleString()}건 미연결</p>
               </div>
               <button
                 onClick={() => handleRegister(alias)}

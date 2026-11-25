@@ -69,15 +69,15 @@ const RECEIVABLE_STATUS = {
   outstanding: { label: '미수',           cls: 'bg-amber-100 text-amber-700' },
   late:        { label: '수금지연',       cls: 'bg-orange-100 text-orange-700' },
   over90:      { label: '미수 90일 초과', cls: 'bg-red-100 text-red-700' },
-  dormant:     { label: '휴면 전환',      cls: 'bg-gray-100 text-gray-500' },
-  no_orders:   { label: '주문 없음',      cls: 'bg-slate-100 text-slate-500' },
+  dormant:     { label: '휴면 전환',      cls: 'bg-slate-100 text-slate-600' },
+  no_orders:   { label: '주문 없음',      cls: 'bg-slate-100 text-slate-600' },
 }
 const PAYABLE_STATUS = {
   normal:   { label: '정상',             cls: 'bg-green-100 text-green-700' },
   unpaid:   { label: '미지급',           cls: 'bg-amber-100 text-amber-700' },
   over90:   { label: '미지급 90일 초과', cls: 'bg-red-100 text-red-700' },
   overpaid: { label: '과다지급',         cls: 'bg-violet-100 text-violet-700' },
-  dormant:  { label: '휴면 전환',        cls: 'bg-gray-100 text-gray-500' },
+  dormant:  { label: '휴면 전환',        cls: 'bg-slate-100 text-slate-600' },
   retail:   { label: '별도 구매처',      cls: 'bg-sky-100 text-sky-700' },
 }
 
@@ -134,7 +134,7 @@ export const PAYABLE_CONFIG: AgingManageConfig = {
 }
 
 const BUCKETS: { key: BucketKey; label: string; cls: string; strong: string }[] = [
-  { key: 'bucket_30',   label: '30일 이내', cls: 'text-gray-700',   strong: 'text-gray-900' },
+  { key: 'bucket_30',   label: '30일 이내', cls: 'text-slate-800',   strong: 'text-slate-900' },
   { key: 'bucket_60',   label: '31~60일',   cls: 'text-amber-600',  strong: 'text-amber-600' },
   { key: 'bucket_90',   label: '61~90일',   cls: 'text-orange-600', strong: 'text-orange-600' },
   { key: 'bucket_over', label: '90일 초과', cls: 'text-red-600',    strong: 'text-red-600' },
@@ -258,17 +258,17 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
   }), [rows, bucketFilter, staffFilter, statusFilter, search])
 
   const sum = (k: keyof AgingBuckets) => visible.reduce((s, r) => s + r[k], 0)
-  const cardCls = (on: boolean) => `text-left border rounded-lg px-4 py-3 flex-1 min-w-[140px] transition-colors ${on ? 'border-slate-900 ring-1 ring-slate-900' : 'border-gray-200 hover:bg-gray-50'}`
+  const cardCls = (on: boolean) => `text-left border rounded-lg px-4 py-3 flex-1 min-w-[140px] transition-colors ${on ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:bg-slate-50'}`
 
   return (
     <div className="w-full">
       <div className="mb-1 flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{cfg.title}</h1>
-          <p className="text-sm mt-1 text-gray-500">{cfg.description}</p>
+          <h1 className="text-2xl font-bold text-slate-900">{cfg.title}</h1>
+          <p className="text-sm mt-1 text-slate-600">{cfg.description}</p>
         </div>
         <button onClick={() => { const a = document.createElement('a'); a.href = `${cfg.agingApi}/export?asOf=${asOf}`; a.click() }}
-          className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">↓ 엑셀</button>
+          className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -280,66 +280,66 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
 
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 mt-3 flex-wrap">
-        <span className="text-sm text-gray-500">기준일</span>
+        <span className="text-sm text-slate-600">기준일</span>
         <input type="date" value={asOf} onChange={e => setAsOf(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-        <span className="w-px h-5 bg-gray-200 mx-1" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <span className="w-px h-5 bg-slate-200 mx-1" />
         {hasBilling && (
           <>
-            <div className="inline-flex border border-gray-300 rounded-lg overflow-hidden text-sm">
+            <div className="inline-flex border border-slate-400 rounded-lg overflow-hidden text-sm">
               {([['vendor', '부서 기준'], ['billing', '청구처 기준']] as const).map(([k, l]) => (
                 <button key={k} onClick={() => setGroupBy(k)}
-                  className={`px-3 py-1.5 ${groupBy === k ? 'bg-slate-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
+                  className={`px-3 py-1.5 ${groupBy === k ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`}>{l}</button>
               ))}
             </div>
-            <span className="w-px h-5 bg-gray-200 mx-1" />
+            <span className="w-px h-5 bg-slate-200 mx-1" />
           </>
         )}
-        <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+        <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm bg-white">
           <option value="">담당직원: 전체</option>
           {staffNames.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm bg-white">
           <option value="">상태: 전체</option>
           {Object.entries(cfg.statusMeta).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`${cfg.counterpartyLabel} · ERP 표기 검색`}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-slate-900" />
         {(bucketFilter || staffFilter || statusFilter || search) && (
-          <button onClick={() => { setBucketFilter(null); setStaffFilter(''); setStatusFilter(''); setSearch('') }} className="text-xs text-gray-500 underline">필터 해제</button>
+          <button onClick={() => { setBucketFilter(null); setStaffFilter(''); setStatusFilter(''); setSearch('') }} className="text-xs text-slate-600 underline">필터 해제</button>
         )}
       </div>
 
       {/* 요약 카드 — 클릭하면 그 구간에 잔액이 있는 거래처만 */}
       <div className="flex gap-3 flex-wrap mb-5">
         <button onClick={() => setBucketFilter(null)} className={cardCls(bucketFilter === null)}>
-          <p className="text-xs text-gray-400 mb-1">{cfg.totalLabel}</p>
+          <p className="text-xs text-slate-500 mb-1">{cfg.totalLabel}</p>
           <p className="text-lg font-bold text-red-600">{won(total.total)}</p>
-          <p className="text-xs text-gray-400">{rows.length.toLocaleString()}곳</p>
+          <p className="text-xs text-slate-500">{rows.length.toLocaleString()}곳</p>
         </button>
         {BUCKETS.map(b => (
           <button key={b.key} onClick={() => setBucketFilter(f => f === b.key ? null : b.key)} className={cardCls(bucketFilter === b.key)}>
-            <p className="text-xs text-gray-400 mb-1">{b.label}</p>
+            <p className="text-xs text-slate-500 mb-1">{b.label}</p>
             <p className={`text-lg font-bold ${b.strong}`}>{won(total[b.key])}</p>
-            <p className="text-xs text-gray-400">{rows.filter(r => r[b.key] > 0).length.toLocaleString()}곳</p>
+            <p className="text-xs text-slate-500">{rows.filter(r => r[b.key] > 0).length.toLocaleString()}곳</p>
           </button>
         ))}
         <button onClick={() => setBucketFilter(f => f === 'opening' ? null : 'opening')} className={cardCls(bucketFilter === 'opening')}>
-          <p className="text-xs text-gray-400 mb-1">기초이월 잔여</p>
-          <p className="text-lg font-bold text-gray-900">{won(openingTotal)}</p>
-          <p className="text-xs text-gray-400">기초잔액(거래처) 미회수분 · 구간에 포함</p>
+          <p className="text-xs text-slate-500 mb-1">기초이월 잔여</p>
+          <p className="text-lg font-bold text-slate-900">{won(openingTotal)}</p>
+          <p className="text-xs text-slate-500">기초잔액(거래처) 미회수분 · 구간에 포함</p>
         </button>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : visible.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">{rows.length === 0 ? `${cfg.balanceLabel.replace(' 잔액', '')}이 없습니다.` : '조건에 맞는 거래처가 없습니다.'}</div>
+        <div className="text-center py-20 text-slate-500 text-sm">{rows.length === 0 ? `${cfg.balanceLabel.replace(' 잔액', '')}이 없습니다.` : '조건에 맞는 거래처가 없습니다.'}</div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 font-medium">{cfg.counterpartyLabel} (ERP 표기)</th>
                 <th className="py-2.5 px-3 font-medium">담당직원</th>
                 <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">{cfg.amountLabel} (당년)</th>
@@ -357,45 +357,45 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
                 const h = r.hub
                 const ratio = h && h.period_amount > 0 ? Math.min(1, h.settled / h.period_amount) : null
                 const st = statusOf(r)
-                const meta = cfg.statusMeta[st] ?? { label: st, cls: 'bg-gray-100 text-gray-600' }
+                const meta = cfg.statusMeta[st] ?? { label: st, cls: 'bg-slate-100 text-slate-700' }
                 return (
-                  <tr key={r.key} className="border-b border-gray-100 hover:bg-gray-50">
+                  <tr key={r.key} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="py-2 px-3 min-w-0">
                       <div className="flex items-center gap-1.5">
                         {r.vendor_id
-                          ? <Link href={`${cfg.hubDetailBase}/${r.vendor_id}`} className="font-semibold text-gray-900 hover:underline truncate max-w-[240px]">{r.name}</Link>
-                          : <span className="font-semibold text-gray-900 truncate max-w-[240px]">{r.name}</span>}
-                        {!r.vendor_id && <span className="shrink-0 text-[0.625rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">미연결</span>}
-                        {r.members && <span className="shrink-0 text-[0.625rem] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">청구처 · 부서 {r.members.length}곳</span>}
+                          ? <Link href={`${cfg.hubDetailBase}/${r.vendor_id}`} className="font-semibold text-slate-900 hover:underline truncate max-w-[240px]">{r.name}</Link>
+                          : <span className="font-semibold text-slate-900 truncate max-w-[240px]">{r.name}</span>}
+                        {!r.vendor_id && <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">미연결</span>}
+                        {r.members && <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">청구처 · 부서 {r.members.length}곳</span>}
                         {!r.members && groupBy === 'vendor' && r.hub?.billing_name && (
-                          <span className="shrink-0 text-[0.625rem] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700" title="계산서 발행처">→ {r.hub.billing_name}</span>
+                          <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700" title="계산서 발행처">→ {r.hub.billing_name}</span>
                         )}
                       </div>
                       {r.members && r.members.length > 0 && (
-                        <p className="text-[0.6875rem] text-blue-700/80 truncate max-w-[260px]" title={r.members.join(', ')}>{r.members.join(', ')}</p>
+                        <p className="text-xs text-blue-700/80 truncate max-w-[260px]" title={r.members.join(', ')}>{r.members.join(', ')}</p>
                       )}
                       {r.erp_names.length > 0 && r.erp_names.join(', ') !== r.name && (
-                        <p className="text-[0.6875rem] text-gray-400 truncate max-w-[260px]" title={r.erp_names.join(', ')}>{r.erp_names.join(', ')}</p>
+                        <p className="text-xs text-slate-500 truncate max-w-[260px]" title={r.erp_names.join(', ')}>{r.erp_names.join(', ')}</p>
                       )}
-                      {r.opening > 0 && <p className="text-[0.6875rem] text-gray-400">기초이월 {eok(r.opening)} 포함</p>}
+                      {r.opening > 0 && <p className="text-xs text-slate-500">기초이월 {eok(r.opening)} 포함</p>}
                     </td>
-                    <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{h?.staff ?? <span className="text-gray-300">-</span>}</td>
-                    <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">{h ? won(h.period_amount) : <span className="text-gray-300">-</span>}</td>
-                    <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">{h ? won(h.settled) : <span className="text-gray-300">-</span>}</td>
+                    <td className="py-2 px-3 text-slate-700 whitespace-nowrap">{h?.staff ?? <span className="text-slate-400">-</span>}</td>
+                    <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">{h ? won(h.period_amount) : <span className="text-slate-400">-</span>}</td>
+                    <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">{h ? won(h.settled) : <span className="text-slate-400">-</span>}</td>
                     <td className="py-2 px-3">
-                      {ratio === null ? <span className="text-gray-300 text-xs">-</span> : (
+                      {ratio === null ? <span className="text-slate-400 text-xs">-</span> : (
                         <div className="flex items-center gap-1.5">
-                          <div className="h-1.5 w-14 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-slate-800 rounded-full" style={{ width: `${ratio * 100}%` }} /></div>
+                          <div className="h-1.5 w-14 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-slate-800 rounded-full" style={{ width: `${ratio * 100}%` }} /></div>
                           <span className="tabular-nums text-xs">{(ratio * 100).toFixed(0)}%</span>
                         </div>
                       )}
                     </td>
                     <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap font-semibold text-red-600">{won(r.total)}</td>
                     {BUCKETS.map(b => (
-                      <td key={b.key} className={`py-2 px-3 text-right tabular-nums whitespace-nowrap ${r[b.key] > 0 ? b.cls : 'text-gray-300'}`}>{r[b.key] > 0 ? won(r[b.key]) : '-'}</td>
+                      <td key={b.key} className={`py-2 px-3 text-right tabular-nums whitespace-nowrap ${r[b.key] > 0 ? b.cls : 'text-slate-400'}`}>{r[b.key] > 0 ? won(r[b.key]) : '-'}</td>
                     ))}
-                    <td className="py-2 px-3 text-xs text-gray-500 tabular-nums whitespace-nowrap">{h?.last_date ?? '-'}</td>
-                    <td className="py-2 px-3"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold whitespace-nowrap ${meta.cls}`}>{meta.label}</span></td>
+                    <td className="py-2 px-3 text-xs text-slate-600 tabular-nums whitespace-nowrap">{h?.last_date ?? '-'}</td>
+                    <td className="py-2 px-3"><span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold whitespace-nowrap ${meta.cls}`}>{meta.label}</span></td>
                     <td className="py-2 px-3 whitespace-nowrap text-xs">
                       {r.vendor_id ? (
                         <>
@@ -411,7 +411,7 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
               })}
             </tbody>
             <tfoot>
-              <tr className="border-t border-gray-200 font-medium text-gray-900">
+              <tr className="border-t border-slate-300 font-medium text-slate-900">
                 <td className="py-2.5 px-3" colSpan={5}>합계 ({visible.length.toLocaleString()}곳{visible.length > 300 ? ', 상위 300곳 표시' : ''})</td>
                 <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap text-red-700">{won(sum('total'))}</td>
                 {BUCKETS.map(b => <td key={b.key} className={`py-2.5 px-3 text-right tabular-nums whitespace-nowrap ${b.strong}`}>{won(sum(b.key))}</td>)}
@@ -422,7 +422,7 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
         </div>
       )}
 
-      <p className="text-xs text-gray-400 mt-3">
+      <p className="text-xs text-slate-500 mt-3">
         · 요약 카드를 누르면 그 구간에 잔액이 있는 거래처만 남습니다. · {cfg.balanceLabel}과 경과 구간은 기준일 기준 경과기간 분석 값이고,
         {cfg.amountLabel}·{cfg.settledLabel}·{cfg.ratioLabel}·상태는 {cfg.hubLabel}(당년 1월 1일 ~ 기준일)과 같은 값입니다.
         · 기초이월 잔여는 기초잔액(거래처) 탭의 잔여(기초잔액 - 회수 누계)로, 경과 구간에도 들어 있습니다.

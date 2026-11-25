@@ -67,13 +67,13 @@ export default function DailyTab() {
   return (
     <div>
       <div className="mb-1">
-        <p className="text-sm text-gray-500">일별 전일잔액·입금·출금·당일잔액 흐름을 확인합니다. (조회 기간 최대 1년)</p>
+        <p className="text-sm text-slate-600">일별 전일잔액·입금·출금·당일잔액 흐름을 확인합니다. (조회 기간 최대 1년)</p>
         <button onClick={() => {
           const p = new URLSearchParams({ from: dateFrom, to: dateTo })
           if (bankAccountId) p.set('bankAccountId', bankAccountId)
           const a = document.createElement('a'); a.href = `/api/reports/daily-cash/export?${p}`; a.click()
         }}
-          className="mt-2 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap inline-block">↓ 엑셀</button>
+          className="mt-2 px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap inline-block">↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -84,14 +84,14 @@ export default function DailyTab() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-        <span className="text-gray-400 text-sm">~</span>
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
         <select
           value={bankAccountId}
           onChange={e => setBankAccountId(e.target.value)}
-          className={`border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 ${bankAccountId ? 'border-blue-400 text-blue-700 bg-blue-50' : 'border-gray-300 text-gray-700'}`}
+          className={`border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 ${bankAccountId ? 'border-blue-400 text-blue-700 bg-blue-50' : 'border-slate-400 text-slate-800'}`}
         >
           <option value="">전체 계좌 합산</option>
           {accounts.map(a => <option key={a.id} value={a.id}>{a.bank_name}{a.alias ? ` (${a.alias})` : ''}</option>)}
@@ -100,37 +100,37 @@ export default function DailyTab() {
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">기간 입금 합계</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">기간 입금 합계</p>
           <p className="text-lg font-bold text-blue-600">{won(totalIn)}</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">기간 출금 합계</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">기간 출금 합계</p>
           <p className="text-lg font-bold text-rose-600">{won(totalOut)}</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">기말 보유현금</p>
-          <p className="text-lg font-bold text-gray-900">{won(lastHeldCash)}</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">기말 보유현금</p>
+          <p className="text-lg font-bold text-slate-900">{won(lastHeldCash)}</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">기말 마이너스통장 사용액</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">기말 마이너스통장 사용액</p>
           <p className="text-lg font-bold text-rose-600">{won(lastOverdraftUsed)}</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">기말 순현금 ({dateTo})</p>
-          <p className={`text-lg font-bold ${lastNetCash < 0 ? 'text-rose-600' : 'text-gray-900'}`}>{won(lastNetCash)}</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">기말 순현금 ({dateTo})</p>
+          <p className={`text-lg font-bold ${lastNetCash < 0 ? 'text-rose-600' : 'text-slate-900'}`}>{won(lastNetCash)}</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : rows.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">표시할 데이터가 없습니다.</div>
+        <div className="text-center py-20 text-slate-500 text-sm">표시할 데이터가 없습니다.</div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto max-h-[70vh] overflow-y-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto max-h-[70vh] overflow-y-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-white">
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 font-medium">일자</th>
                 <th className="py-2.5 px-3 font-medium text-right">전일잔액</th>
                 <th className="py-2.5 px-3 font-medium text-right">입금</th>
@@ -142,13 +142,13 @@ export default function DailyTab() {
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.date} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-2 px-3 whitespace-nowrap text-gray-600">{r.date}</td>
-                  <td className="py-2 px-3 text-right whitespace-nowrap text-gray-500">{won(r.opening_balance)}</td>
-                  <td className={`py-2 px-3 text-right whitespace-nowrap ${r.deposit > 0 ? 'text-blue-600' : 'text-gray-300'}`}>{won(r.deposit)}</td>
-                  <td className={`py-2 px-3 text-right whitespace-nowrap ${r.withdrawal > 0 ? 'text-rose-600' : 'text-gray-300'}`}>{won(r.withdrawal)}</td>
+                <tr key={r.date} className="border-b border-slate-200 hover:bg-slate-50">
+                  <td className="py-2 px-3 whitespace-nowrap text-slate-700">{r.date}</td>
+                  <td className="py-2 px-3 text-right whitespace-nowrap text-slate-600">{won(r.opening_balance)}</td>
+                  <td className={`py-2 px-3 text-right whitespace-nowrap ${r.deposit > 0 ? 'text-blue-600' : 'text-slate-400'}`}>{won(r.deposit)}</td>
+                  <td className={`py-2 px-3 text-right whitespace-nowrap ${r.withdrawal > 0 ? 'text-rose-600' : 'text-slate-400'}`}>{won(r.withdrawal)}</td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">{won(r.held_cash)}</td>
-                  <td className={`py-2 px-3 text-right whitespace-nowrap ${r.overdraft_used > 0 ? 'text-rose-600' : 'text-gray-300'}`}>{won(r.overdraft_used)}</td>
+                  <td className={`py-2 px-3 text-right whitespace-nowrap ${r.overdraft_used > 0 ? 'text-rose-600' : 'text-slate-400'}`}>{won(r.overdraft_used)}</td>
                   <td className={`py-2 px-3 text-right whitespace-nowrap font-medium ${r.net_cash < 0 ? 'text-rose-600' : ''}`}>{won(r.net_cash)}</td>
                 </tr>
               ))}

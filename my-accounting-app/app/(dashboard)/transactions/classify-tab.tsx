@@ -26,7 +26,7 @@ const KIND_BADGE: Record<Group['kind'], { label: string; cls: string }> = {
   settlement:   { label: '카드 정산', cls: 'bg-blue-100 text-blue-700' },
   card_payment: { label: '카드대금', cls: 'bg-purple-100 text-purple-700' },
   invoice:      { label: '계산서 매칭', cls: 'bg-teal-100 text-teal-700' },   // 계산서(세금계산서·계산서)와 이미 연결된 입금·출금
-  general:      { label: '일반', cls: 'bg-gray-100 text-gray-600' },
+  general:      { label: '일반', cls: 'bg-slate-100 text-slate-700' },
 }
 
 // 통장 거래 분류 — 유형(이체·정산·카드대금·계산서매칭)을 갈라낸 뒤 나머지를 유사거래
@@ -127,7 +127,7 @@ export default function ClassifyTab({ bankAccountId }: { bankAccountId?: string 
     <div>
       <div className="flex items-start justify-between mb-1">
         <div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-slate-600">
             이체·정산·카드대금·계산서매칭을 갈라낸 뒤, 나머지를 유사거래 묶음으로 일괄 확정합니다. 기간과 무관하게 미분류 전체가 대상입니다.
           </p>
         </div>
@@ -143,22 +143,22 @@ export default function ClassifyTab({ bankAccountId }: { bankAccountId?: string 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
       {bankAccountId && (
-        <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-full text-sm font-medium w-fit">
+        <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-800 rounded-full text-sm font-medium w-fit">
           <span>{bankName ?? '선택한 계좌'}</span>
-          <a href="/transactions?tab=classify" className="ml-1 text-slate-400 hover:text-slate-600 leading-none" title="계좌 필터 해제">✕</a>
+          <a href="/transactions?tab=classify" className="ml-1 text-slate-500 hover:text-slate-700 leading-none" title="계좌 필터 해제">✕</a>
         </div>
       )}
 
       {types && (
         <div className="flex flex-wrap gap-2 my-3 text-xs">
-          <span className="px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">전체 {total.toLocaleString()}건</span>
+          <span className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg">전체 {total.toLocaleString()}건</span>
           <span className="px-2.5 py-1.5 bg-green-50 border border-green-200 rounded-lg text-green-700">분류완료 {types.classified.toLocaleString()}</span>
-          <span className="px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">이체 연결됨 {types.transfer.toLocaleString()}</span>
+          <span className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg">이체 연결됨 {types.transfer.toLocaleString()}</span>
           <span className="px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-700">이체 후보 {types.internal.toLocaleString()}</span>
           <span className="px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">카드 정산 {types.settlement.toLocaleString()}</span>
           <span className="px-2.5 py-1.5 bg-purple-50 border border-purple-200 rounded-lg text-purple-700">카드대금 {types.card_payment.toLocaleString()}</span>
           <span className="px-2.5 py-1.5 bg-teal-50 border border-teal-200 rounded-lg text-teal-700" title="계산서와 이미 연결된 입금·출금 — 매출채권·미지급금 상계">계산서 매칭 {types.invoice.toLocaleString()}</span>
-          <span className="px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">일반 {types.general.toLocaleString()}</span>
+          <span className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg">일반 {types.general.toLocaleString()}</span>
         </div>
       )}
 
@@ -167,18 +167,18 @@ export default function ClassifyTab({ bankAccountId }: { bankAccountId?: string 
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="묶음 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-56"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-56"
         />
       </div>
 
       {loading ? (
-        <p className="text-gray-400 text-sm py-10 text-center">불러오는 중...</p>
+        <p className="text-slate-500 text-sm py-10 text-center">불러오는 중...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-gray-400 text-sm py-10 text-center">분류할 거래가 없습니다. </p>
+        <p className="text-slate-500 text-sm py-10 text-center">분류할 거래가 없습니다. </p>
       ) : (
-        <div className="overflow-x-auto border border-gray-200 rounded-lg">
+        <div className="overflow-x-auto border border-slate-300 rounded-lg">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-xs">
+            <thead className="bg-slate-50 text-slate-600 text-xs">
               <tr>
                 <th className="px-3 py-2 text-left whitespace-nowrap">유형</th>
                 <th className="px-3 py-2 text-left">묶음</th>
@@ -191,23 +191,23 @@ export default function ClassifyTab({ bankAccountId }: { bankAccountId?: string 
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-200">
               {filtered.map(g => (
-                <tr key={g.key} className="hover:bg-gray-50">
+                <tr key={g.key} className="hover:bg-slate-50">
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${KIND_BADGE[g.kind].cls}`}>
+                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${KIND_BADGE[g.kind].cls}`}>
                       {KIND_BADGE[g.kind].label}
                     </span>
                   </td>
-                  <td className="px-3 py-2 font-medium text-gray-900">
+                  <td className="px-3 py-2 font-medium text-slate-900">
                     {g.label}
                     {g.kind === 'internal' && (
-                      <span className="block text-[0.6875rem] font-normal text-amber-600">
+                      <span className="block text-xs font-normal text-amber-600">
                         이체쌍 후보 {g.pairable ?? 0}건 — 위의 &lsquo;이체쌍 자동 연결&rsquo;로 처리, 나머지는 상대계좌 미업로드분(급여통장 등)
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap tabular-nums">
+                  <td className="px-3 py-2 text-xs text-slate-600 whitespace-nowrap tabular-nums">
                     {g.first_date ? (g.first_date === g.last_date ? g.first_date : `${g.first_date} ~ ${g.last_date}`) : '-'}
                   </td>
                   <td className="px-3 py-2 text-right">{g.count.toLocaleString()}</td>
@@ -215,17 +215,17 @@ export default function ClassifyTab({ bankAccountId }: { bankAccountId?: string 
                   <td className="px-3 py-2 text-right tabular-nums">{g.out_total ? won(g.out_total) : '—'}</td>
                   <td className="px-3 py-2 text-xs">
                     {g.suggestion
-                      ? <span className="text-blue-700">{g.suggestion.name} <span className="text-gray-400">({g.suggestion.reason})</span></span>
-                      : <span className="text-gray-300">—</span>}
+                      ? <span className="text-blue-700">{g.suggestion.name} <span className="text-slate-500">({g.suggestion.reason})</span></span>
+                      : <span className="text-slate-400">—</span>}
                   </td>
                   <td className="px-3 py-2">
                     {g.kind === 'internal' ? (
-                      <span className="text-xs text-gray-400">확정 대상 아님</span>
+                      <span className="text-xs text-slate-500">확정 대상 아님</span>
                     ) : (
                       <select
                         value={pick[g.key] ?? ''}
                         onChange={e => setPick(p => ({ ...p, [g.key]: e.target.value }))}
-                        className="border border-gray-300 rounded px-2 py-1 text-xs w-44"
+                        className="border border-slate-400 rounded px-2 py-1 text-xs w-44"
                       >
                         <option value="">선택...</option>
                         {sortedAccounts.map(a => (

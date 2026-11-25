@@ -30,13 +30,13 @@ type TabKey = typeof TABS[number]['key']
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
 
 function Metric({
-  label, value, sub, valueClass = 'text-gray-900', href,
+  label, value, sub, valueClass = 'text-slate-900', href,
 }: { label: string; value: string; sub?: string; valueClass?: string; href?: string }) {
   const inner = (
     <>
-      <div className="text-xs text-gray-400">{label}</div>
+      <div className="text-xs text-slate-500">{label}</div>
       <div className={`text-lg font-bold mt-0.5 ${valueClass}`}>{value}</div>
-      {sub && <div className="text-[0.6875rem] text-gray-400 mt-0.5">{sub}</div>}
+      {sub && <div className="text-xs text-slate-500 mt-0.5">{sub}</div>}
     </>
   )
   return href
@@ -109,13 +109,13 @@ export default async function DashboardPage({
       <h1 className="text-2xl font-bold text-slate-900">대시보드</h1>
 
       {/* 공통 요약 줄 — 탭과 무관하게 항상 표시 */}
-      <div className="mt-4 bg-white border border-gray-200 rounded-xl p-4">
+      <div className="mt-4 bg-white border border-slate-300 rounded-xl p-4">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Metric label="가용 자금" value={won(fund?.available_funds ?? 0)}
             sub="보유현금 + 미사용 한도" valueClass="text-blue-600" href="/reports/cash" />
           <Metric label="미수금" value={won(recv?.outstanding_total ?? 0)}
             sub={recv ? `90일 초과 ${won(recv.over90_total)}` : undefined}
-            valueClass={(recv?.outstanding_total ?? 0) > 0 ? 'text-red-600' : 'text-gray-900'}
+            valueClass={(recv?.outstanding_total ?? 0) > 0 ? 'text-red-600' : 'text-slate-900'}
             href="/sales-hub" />
           {/* 미지급금만 기준일 적용 (2026-11-12 사용자 결정) — 기간 종료일이 오늘보다 앞이면 그 날짜 기준 잔액(424) */}
           <Metric label={payAsOf?.applied ? `미지급금 (${pTo} 기준)` : '미지급금'}
@@ -125,14 +125,14 @@ export default async function DashboardPage({
               : pTo && pTo < todayStr
                 ? '기준일 집계는 424 실행 후 가능 — 지금은 현재 기준'
                 : payOverpaid < 0 ? `과다지급 ${won(Math.abs(payOverpaid))} — 계산서 대기` : undefined}
-            valueClass={(payAsOf?.applied ? payAsOf.total : (pay?.outstanding_total ?? 0)) > 0 ? 'text-rose-600' : 'text-gray-900'}
+            valueClass={(payAsOf?.applied ? payAsOf.total : (pay?.outstanding_total ?? 0)) > 0 ? 'text-rose-600' : 'text-slate-900'}
             href="/purchase-hub" />
           <Metric label="미확정 거래" value={`${reviewed.toLocaleString('ko-KR')}건`}
-            sub="확정하면 손익 반영" valueClass={reviewed > 0 ? 'text-amber-700' : 'text-gray-900'}
+            sub="확정하면 손익 반영" valueClass={reviewed > 0 ? 'text-amber-700' : 'text-slate-900'}
             href={qs('work')} />
           <Metric label="확인 필요" value={`${checkCount}건`}
             sub={checkParts.length ? checkParts.join(' · ') : '없음'}
-            valueClass={checkCount > 0 ? 'text-amber-800' : 'text-gray-900'}
+            valueClass={checkCount > 0 ? 'text-amber-800' : 'text-slate-900'}
             href={qs('work')} />
         </div>
       </div>
@@ -141,12 +141,12 @@ export default async function DashboardPage({
       {tab !== 'work' && <DashboardPeriodBar tab={tab} from={pFrom} to={pTo} />}
 
       {/* 탭 */}
-      <div className="flex items-center gap-1 mt-3 border-b border-gray-200">
+      <div className="flex items-center gap-1 mt-3 border-b border-slate-300">
         {TABS.map(t => (
           <Link key={t.key} href={qs(t.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap ${tab === t.key
               ? 'border-slate-900 text-slate-900'
-              : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              : 'border-transparent text-slate-600 hover:text-slate-800'}`}>
             {t.label}
           </Link>
         ))}

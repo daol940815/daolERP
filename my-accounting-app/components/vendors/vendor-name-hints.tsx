@@ -74,7 +74,7 @@ export function BranchStdHint({ c }: { c: NameCheck }) {
   if (!b.stripped) return null
   return (
     <div className={`${box} bg-blue-50 border border-blue-200 text-blue-800`}>
-      지점명 앞의 &lsquo;<span className="line-through text-gray-400">{b.stripped}</span>&rsquo;은(는) 업체명과 같아서 뺍니다
+      지점명 앞의 &lsquo;<span className="line-through text-slate-500">{b.stripped}</span>&rsquo;은(는) 업체명과 같아서 뺍니다
       {b.name ? <> → &lsquo;<b>{b.name}</b>&rsquo;</> : <> — 지점 없는 업체로 등록됩니다</>}
     </div>
   )
@@ -84,10 +84,10 @@ export function BranchStdHint({ c }: { c: NameCheck }) {
 export function NamePreview({ c, label = '등록될 매출처 이름' }: { c: NameCheck; label?: string }) {
   if (!c.input.fullName) return null
   return (
-    <div className="text-xs text-gray-500 bg-gray-50 border border-dashed border-gray-300 rounded-lg px-3 py-2">
-      {label} <b className="text-gray-900">{c.input.fullName}</b>
+    <div className="text-xs text-slate-600 bg-slate-50 border border-dashed border-slate-400 rounded-lg px-3 py-2">
+      {label} <b className="text-slate-900">{c.input.fullName}</b>
       {c.checked && (
-        <span className="ml-1.5 inline-block rounded px-1.5 py-0.5 text-[0.6875rem] bg-gray-100 text-gray-600">
+        <span className="ml-1.5 inline-block rounded px-1.5 py-0.5 text-xs bg-slate-100 text-slate-700">
           {c.group ? `업체: ${c.group.name} (지점 ${c.group.branch_count.toLocaleString()}곳)` : `새 업체: ${c.input.group.name}`}
         </span>
       )}
@@ -103,7 +103,7 @@ export function ExistingVendorNote({ c, children, reuseInactive }: { c: NameChec
   return (
     <div className={`${box} bg-amber-50 border border-amber-200 text-amber-800`}>
       이미 등록된 매출처가 있습니다 — <b>{e.name}</b>
-      {e.via_alias && <span className="ml-1 inline-block rounded px-1.5 py-0.5 text-[0.6875rem] bg-gray-100 text-gray-600">옛 이름: {e.via_alias}</span>}
+      {e.via_alias && <span className="ml-1 inline-block rounded px-1.5 py-0.5 text-xs bg-slate-100 text-slate-700">옛 이름: {e.via_alias}</span>}
       {!e.is_active && <span className="ml-1 text-red-600">{reuseInactive ? '(비활성 — 사용하면 다시 활성화됩니다)' : '(비활성 — 상세에서 재활성하세요)'}</span>}
       <br />새로 만들지 않고 이 매출처를 씁니다. {children}
     </div>

@@ -42,17 +42,17 @@ export function InactiveVendorHits({ hits, parttime, busy, onPick }: {
 }) {
   if (!hits.length) return null
   return (
-    <div className="border-t border-gray-100 bg-gray-50/60">
-      <div className="px-3 pt-1.5 pb-0.5 text-[0.6875rem] text-gray-500">
+    <div className="border-t border-slate-200 bg-slate-50/60">
+      <div className="px-3 pt-1.5 pb-0.5 text-xs text-slate-600">
         비활성 매출처 — {parttime ? '다시 사용하려면 담당 직원에게 요청하세요' : '고르면 다시 사용(활성화)합니다'}
       </div>
       {hits.map(v => (
         <button type="button" key={v.id} disabled={parttime || busy}
           onMouseDown={e => e.preventDefault()}
           onClick={() => onPick(v)}
-          className="w-full text-left px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:hover:bg-transparent disabled:cursor-default">
+          className="w-full text-left px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:hover:bg-transparent disabled:cursor-default">
           {v.name}
-          <span className="ml-1.5 inline-block rounded px-1 py-0.5 text-[0.625rem] bg-gray-200 text-gray-600 align-middle">비활성</span>
+          <span className="ml-1.5 inline-block rounded px-1 py-0.5 text-xs bg-slate-200 text-slate-700 align-middle">비활성</span>
         </button>
       ))}
     </div>

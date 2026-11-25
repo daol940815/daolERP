@@ -13,7 +13,7 @@ export const PAY_STAGE_LABEL: Record<PayStage, string> = {
 }
 export const PAY_STAGE_CLS: Record<PayStage, string> = {
   unpaid: 'bg-red-100 text-red-700', partial_pay: 'bg-orange-100 text-orange-700', match_wait: 'bg-amber-100 text-amber-800',
-  partial_match: 'bg-blue-100 text-blue-700', done: 'bg-emerald-100 text-emerald-700', canceled: 'bg-gray-100 text-gray-500',
+  partial_match: 'bg-blue-100 text-blue-700', done: 'bg-emerald-100 text-emerald-700', canceled: 'bg-slate-100 text-slate-600',
 }
 // 누구 차례인지 (배지 설명)
 export const PAY_STAGE_HINT: Record<PayStage, string> = {
@@ -27,7 +27,7 @@ export const PAY_STAGE_HINT: Record<PayStage, string> = {
 export const PAY_METHOD_TAG_LABEL: Record<PayMethodTag, string> = { card: '카드', transfer: '이체', invoice: '계산서', prepay: '선결제', mixed: '혼합' }
 export const PAY_METHOD_TAG_CLS: Record<PayMethodTag, string> = {
   card: 'text-violet-700 border-violet-200', transfer: 'text-blue-700 border-blue-200', invoice: 'text-indigo-700 border-indigo-200',
-  prepay: 'text-fuchsia-700 border-fuchsia-200', mixed: 'text-slate-600 border-slate-300',
+  prepay: 'text-fuchsia-700 border-fuchsia-200', mixed: 'text-slate-700 border-slate-400',
 }
 // 목록 칩 순서
 export const PAY_STAGE_CHIPS: PayStage[] = ['unpaid', 'partial_pay', 'match_wait', 'partial_match', 'done']

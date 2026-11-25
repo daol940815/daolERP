@@ -17,7 +17,7 @@ export default function WorkRequestsPage({ searchParams }: { searchParams: { tab
   return (
     <div className="w-full">
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-gray-900">업무 요청</h1>
+        <h1 className="text-2xl font-bold text-slate-900">업무 요청</h1>
         <Link href="/me/requests/new" className="ml-auto px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">+ 새 요청</Link>
       </div>
       <PageTabs className="mt-3 mb-4" active={scope} tabs={[

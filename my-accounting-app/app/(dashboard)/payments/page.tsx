@@ -31,7 +31,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: { t
   const pending = await countPending()
   return (
     <div className="w-full">
-      <h1 className="text-2xl font-bold text-gray-900">결제 확인</h1>
+      <h1 className="text-2xl font-bold text-slate-900">결제 확인</h1>
       <PageTabs className="mt-3 mb-4" active={tab} tabs={[
         { key: 'overview', label: '전체 현황', href: '/payments' },
         { key: 'match', label: pending ? `매칭 대기 ${pending.toLocaleString('ko-KR')}` : '매칭 대기', href: '/payments?tab=match' },

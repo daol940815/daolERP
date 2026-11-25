@@ -96,9 +96,9 @@ export default function CardCustomerLinksPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      {canViewAccounting && <Link href="/cards" className="text-sm text-gray-500 hover:text-gray-900">← 카드 내역</Link>}
-      <h1 className="text-2xl font-bold text-gray-900 mt-2">카드번호 → 매출처 연결</h1>
-      <p className="text-sm mt-1 text-gray-500 mb-4">
+      {canViewAccounting && <Link href="/cards" className="text-sm text-slate-600 hover:text-slate-900">← 카드 내역</Link>}
+      <h1 className="text-2xl font-bold text-slate-900 mt-2">카드번호 → 매출처 연결</h1>
+      <p className="text-sm mt-1 text-slate-600 mb-4">
         카드로 결제한 매출처를 확인하기 위한 화면입니다. ERP 주문과 금액·일자가 대응하는 매출처를
         추천으로 보여주며, 확정하면 해당 카드번호 전체가 태깅되고 이후 업로드부터 자동 적용됩니다.
       </p>
@@ -108,15 +108,15 @@ export default function CardCustomerLinksPage() {
 
       {summary && (
         <div className="flex gap-3 flex-wrap mb-4">
-          <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-            <p className="text-xs text-gray-400 mb-1">미연결 카드번호</p>
-            <p className="text-lg font-bold text-gray-900">{summary.card_numbers.toLocaleString()}개</p>
-            <p className="text-xs text-gray-400">순승인액 {won(summary.total_net)}</p>
+          <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
+            <p className="text-xs text-slate-500 mb-1">미연결 카드번호</p>
+            <p className="text-lg font-bold text-slate-900">{summary.card_numbers.toLocaleString()}개</p>
+            <p className="text-xs text-slate-500">순승인액 {won(summary.total_net)}</p>
           </div>
-          <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-            <p className="text-xs text-gray-400 mb-1">ERP 주문 대응 추천</p>
+          <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
+            <p className="text-xs text-slate-500 mb-1">ERP 주문 대응 추천</p>
             <p className="text-lg font-bold text-blue-700">{summary.with_suggestion.toLocaleString()}개</p>
-            <p className="text-xs text-gray-400">그중 거래처 연결까지 준비된 것 {summary.linkable_now.toLocaleString()}개</p>
+            <p className="text-xs text-slate-500">그중 거래처 연결까지 준비된 것 {summary.linkable_now.toLocaleString()}개</p>
           </div>
         </div>
       )}
@@ -128,24 +128,24 @@ export default function CardCustomerLinksPage() {
             value={q}
             onChange={e => setQ(e.target.value)}
             placeholder="검색: 카드번호 · 추천 매출처 · 매입사 · 금액"
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white"
+            className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm bg-white"
           />
         </div>
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={onlySuggested} onChange={e => setOnlySuggested(e.target.checked)} />
           추천 있는 카드만 보기
         </label>
         {(q.trim() || onlySuggested) && !loading && (
-          <span className="text-xs text-gray-400">{visible.length.toLocaleString()} / {groups.length.toLocaleString()}개 표시</span>
+          <span className="text-xs text-slate-500">{visible.length.toLocaleString()} / {groups.length.toLocaleString()}개 표시</span>
         )}
       </div>
 
       {loading ? (
-        <p className="text-gray-400 text-sm py-10 text-center">카드번호 그룹·추천 계산 중...</p>
+        <p className="text-slate-500 text-sm py-10 text-center">카드번호 그룹·추천 계산 중...</p>
       ) : visible.length === 0 ? (
         q.trim() ? (
-          <div className="text-center py-16 border border-gray-200 bg-gray-50 rounded-xl">
-            <p className="text-gray-500 font-medium">검색 결과가 없습니다</p>
+          <div className="text-center py-16 border border-slate-300 bg-slate-50 rounded-xl">
+            <p className="text-slate-600 font-medium">검색 결과가 없습니다</p>
           </div>
         ) : (
           <div className="text-center py-16 border border-green-200 bg-green-50 rounded-xl">
@@ -153,9 +153,9 @@ export default function CardCustomerLinksPage() {
           </div>
         )
       ) : (
-        <div className="overflow-x-auto border border-gray-200 rounded-lg">
+        <div className="overflow-x-auto border border-slate-300 rounded-lg">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-xs">
+            <thead className="bg-slate-50 text-slate-600 text-xs">
               <tr>
                 <th className="px-3 py-2 text-left">카드번호</th>
                 <th className="px-3 py-2 text-right">건수</th>
@@ -166,26 +166,26 @@ export default function CardCustomerLinksPage() {
                 {canEdit && <th className="px-3 py-2 w-20"></th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-200">
               {visible.map(g => {
                 const s = g.suggestion
                 const picked = pick[g.card_number] ?? s?.vendor_id ?? ''
                 const pickedName = vendors.find(v => v.id === picked)?.name ?? s?.vendor_name ?? ''
                 return (
-                  <tr key={g.card_number} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-mono text-xs text-gray-900 whitespace-nowrap">{g.card_number}</td>
+                  <tr key={g.card_number} className="hover:bg-slate-50">
+                    <td className="px-3 py-2 font-mono text-xs text-slate-900 whitespace-nowrap">{g.card_number}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{g.count}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{won(g.net_amount)}</td>
-                    <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{g.first_date.slice(2, 10)} ~ {g.last_date.slice(2, 10)}</td>
+                    <td className="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">{g.first_date.slice(2, 10)} ~ {g.last_date.slice(2, 10)}</td>
                     <td className="px-3 py-2 text-xs">
                       {s ? (
                         <span>
-                          <span className="text-gray-900 font-medium">{s.alias_name}</span>
-                          <span className="text-gray-400"> · 대응 {s.hits}건{s.total_hits > s.hits ? ` / 전체 ${s.total_hits}` : ''}</span>
+                          <span className="text-slate-900 font-medium">{s.alias_name}</span>
+                          <span className="text-slate-500"> · 대응 {s.hits}건{s.total_hits > s.hits ? ` / 전체 ${s.total_hits}` : ''}</span>
                           {!s.vendor_id && <span className="block text-amber-600 mt-0.5">이 별칭은 아직 거래처 미연결 — 별칭 관리에서 먼저 연결하거나 아래에서 직접 선택</span>}
                         </span>
                       ) : (
-                        <span className="text-gray-300">대응 없음</span>
+                        <span className="text-slate-400">대응 없음</span>
                       )}
                     </td>
                     {canEdit && <td className="px-3 py-2">
@@ -194,7 +194,7 @@ export default function CardCustomerLinksPage() {
                         onChange={id => setPick(prev => ({ ...prev, [g.card_number]: id }))}
                         options={vendors.map(v => ({ id: v.id, label: v.name }))}
                         emptyLabel="(거래처 선택)"
-                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-left bg-white"
+                        className="w-full border border-slate-400 rounded-lg px-2 py-1.5 text-xs text-left bg-white"
                       />
                     </td>}
                     {canEdit && <td className="px-3 py-2 text-right">
@@ -213,7 +213,7 @@ export default function CardCustomerLinksPage() {
         </div>
       )}
 
-      <p className="text-xs text-gray-400 mt-3">
+      <p className="text-xs text-slate-500 mt-3">
         추천 기준: 카드 승인액이 ERP 주문 합계(또는 실결제액)와 일치하고 승인일이 주문일 ±7일 이내이며,
         그 대응이 한 매출처로만 좁혀지는 경우. 대응 건수가 많을수록 신뢰가 높습니다.
         {!canEdit && ' 연결은 회계 · 재무 또는 수금 · 정산 작업 수정 권한이 있어야 할 수 있습니다.'}

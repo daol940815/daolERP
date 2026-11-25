@@ -32,7 +32,7 @@ const SOURCE: Record<string, { label: string; cls: string }> = {
   card:        { label: '법인카드',   cls: 'bg-purple-100 text-purple-700' },
   card_sale:   { label: '카드매출',   cls: 'bg-pink-100 text-pink-700' },
   tax_invoice: { label: '세금계산서', cls: 'bg-green-100 text-green-700' },
-  manual:      { label: '수동',       cls: 'bg-gray-100 text-gray-600' },
+  manual:      { label: '수동',       cls: 'bg-slate-100 text-slate-700' },
 }
 
 export default function JournalPage() {
@@ -85,8 +85,8 @@ export default function JournalPage() {
     <div className="max-w-5xl mx-auto">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">분개장</h1>
-          <p className="text-sm mt-1 text-gray-500">거래 확정 시 자동 생성된 분개(복식부기) + 수동 분개를 일자순으로 확인합니다.</p>
+          <h1 className="text-2xl font-bold text-slate-900">분개장</h1>
+          <p className="text-sm mt-1 text-slate-600">거래 확정 시 자동 생성된 분개(복식부기) + 수동 분개를 일자순으로 확인합니다.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => {
@@ -95,7 +95,7 @@ export default function JournalPage() {
             if (sourceType !== 'all') p.set('sourceType', sourceType); if (search.trim()) p.set('q', search.trim())
             const a = document.createElement('a'); a.href = `/api/journal/export?${p}`; a.click()
           }}
-            className="px-3.5 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+            className="px-3.5 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">
             ↓ 엑셀
           </button>
           <button onClick={() => setShowManual(true)}
@@ -113,12 +113,12 @@ export default function JournalPage() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-        <span className="text-gray-400 text-sm">~</span>
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+        <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
         <select value={sourceType} onChange={e => setSourceType(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm">
           <option value="all">전체 출처</option>
           <option value="bank">은행</option>
           <option value="card">법인카드</option>
@@ -127,38 +127,38 @@ export default function JournalPage() {
           <option value="manual">수동</option>
         </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="전표번호·적요 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52" />
       </div>
 
       {/* 요약 */}
       <div className="flex gap-3 flex-wrap mb-4">
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">전표 수</p>
-          <p className="text-lg font-bold text-gray-900">{summary.count.toLocaleString()}건</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">전표 수</p>
+          <p className="text-lg font-bold text-slate-900">{summary.count.toLocaleString()}건</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">분개 금액 합계(차변)</p>
-          <p className="text-lg font-bold text-gray-900">{won(summary.total_amount)}</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">분개 금액 합계(차변)</p>
+          <p className="text-lg font-bold text-slate-900">{won(summary.total_amount)}</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : entries.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">표시할 분개가 없습니다. (거래를 확정하면 자동 생성됩니다)</div>
+        <div className="text-center py-20 text-slate-500 text-sm">표시할 분개가 없습니다. (거래를 확정하면 자동 생성됩니다)</div>
       ) : (
         <div className="space-y-2">
           {entries.map(e => {
-            const src = SOURCE[e.source_type] ?? { label: e.source_type, cls: 'bg-gray-100 text-gray-500' }
+            const src = SOURCE[e.source_type] ?? { label: e.source_type, cls: 'bg-slate-100 text-slate-600' }
             return (
-              <div key={e.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-100 text-sm">
-                  <span className="text-gray-500 whitespace-nowrap">{e.entry_date}</span>
-                  <span className="font-mono text-xs text-gray-400">{e.entry_no}</span>
+              <div key={e.id} className="border border-slate-300 rounded-lg overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200 text-sm">
+                  <span className="text-slate-600 whitespace-nowrap">{e.entry_date}</span>
+                  <span className="font-mono text-xs text-slate-500">{e.entry_no}</span>
                   <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${src.cls}`}>{src.label}</span>
-                  <span className="text-gray-900 truncate flex-1">{e.description ?? ''}</span>
+                  <span className="text-slate-900 truncate flex-1">{e.description ?? ''}</span>
                   {e.source_type === 'manual' && (
-                    <button onClick={() => deleteManual(e)} className="text-xs text-gray-400 hover:text-red-600 shrink-0">삭제</button>
+                    <button onClick={() => deleteManual(e)} className="text-xs text-slate-500 hover:text-red-600 shrink-0">삭제</button>
                   )}
                 </div>
                 <TAccount lines={e.journal_lines} />
@@ -189,10 +189,10 @@ function TAccount({ lines }: { lines: Line[] }) {
 
   const cell = (l: Line | undefined, color: string) => l ? (
     <div className="flex justify-between gap-2">
-      <span className="text-gray-800">
-        <span className="text-gray-400 text-xs mr-1">{l.accounts?.code ?? ''}</span>
+      <span className="text-slate-900">
+        <span className="text-slate-500 text-xs mr-1">{l.accounts?.code ?? ''}</span>
         {l.accounts?.name ?? '(계정)'}
-        {l.vendors?.name ? <span className="text-gray-400"> · {l.vendors.name}</span> : null}
+        {l.vendors?.name ? <span className="text-slate-500"> · {l.vendors.name}</span> : null}
       </span>
       <span className={`text-right whitespace-nowrap tabular-nums ${color}`}>{won(l.amount)}</span>
     </div>
@@ -201,21 +201,21 @@ function TAccount({ lines }: { lines: Line[] }) {
   return (
     <table className="w-full text-sm table-fixed">
       <thead>
-        <tr className="text-[0.6875rem] text-gray-400 border-b border-gray-100">
+        <tr className="text-xs text-slate-500 border-b border-slate-200">
           <th className="py-1 px-3 text-left font-medium w-1/2">차변</th>
-          <th className="py-1 px-3 text-left font-medium w-1/2 border-l border-gray-100">대변</th>
+          <th className="py-1 px-3 text-left font-medium w-1/2 border-l border-slate-200">대변</th>
         </tr>
       </thead>
       <tbody>
         {Array.from({ length: n }).map((_, i) => (
-          <tr key={i} className="border-b border-gray-50 last:border-0 align-top">
+          <tr key={i} className="border-b border-slate-200 last:border-0 align-top">
             <td className="py-1.5 px-3">{cell(debits[i], 'text-blue-700')}</td>
-            <td className="py-1.5 px-3 border-l border-gray-100">{cell(credits[i], 'text-red-700')}</td>
+            <td className="py-1.5 px-3 border-l border-slate-200">{cell(credits[i], 'text-red-700')}</td>
           </tr>
         ))}
-        <tr className="bg-gray-50/70 text-xs border-t border-gray-100">
+        <tr className="bg-slate-50/70 text-xs border-t border-slate-200">
           <td className="py-1 px-3 text-right text-blue-700 tabular-nums">합계 {won(dtot)}</td>
-          <td className="py-1 px-3 text-right text-red-700 tabular-nums border-l border-gray-100">합계 {won(ctot)}</td>
+          <td className="py-1 px-3 text-right text-red-700 tabular-nums border-l border-slate-200">합계 {won(ctot)}</td>
         </tr>
       </tbody>
     </table>
@@ -273,19 +273,19 @@ function ManualJournalModal({
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl p-5 w-full max-w-2xl" onClick={e => e.stopPropagation()}>
-        <h3 className="text-base font-bold text-gray-900 mb-3">수동 분개 입력</h3>
+        <h3 className="text-base font-bold text-slate-900 mb-3">수동 분개 입력</h3>
         {error && <p className="text-red-500 text-xs mb-2">{error}</p>}
 
         <div className="flex items-center gap-2 mb-3">
           <input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
           <input value={description} onChange={e => setDescription(e.target.value)} placeholder="적요"
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm flex-1" />
+            className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm flex-1" />
         </div>
 
         <table className="w-full text-sm mb-2">
           <thead>
-            <tr className="text-gray-400 text-xs">
+            <tr className="text-slate-500 text-xs">
               <th className="text-left font-medium pb-1">계정과목</th>
               <th className="text-left font-medium pb-1 w-24">구분</th>
               <th className="text-right font-medium pb-1 w-36">금액</th>
@@ -297,40 +297,40 @@ function ManualJournalModal({
               <tr key={i}>
                 <td className="py-1 pr-2">
                   <select value={l.account_id} onChange={e => setLine(i, { account_id: e.target.value })}
-                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+                    className="w-full border border-slate-400 rounded px-2 py-1 text-sm">
                     <option value="">계정 선택…</option>
                     {accounts.map(a => <option key={a.id} value={a.id}>{a.code ? `${a.code} ` : ''}{a.name}</option>)}
                   </select>
                 </td>
                 <td className="py-1 pr-2">
                   <select value={l.side} onChange={e => setLine(i, { side: e.target.value as 'debit' | 'credit' })}
-                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+                    className="w-full border border-slate-400 rounded px-2 py-1 text-sm">
                     <option value="debit">차변</option>
                     <option value="credit">대변</option>
                   </select>
                 </td>
                 <td className="py-1">
                   <input value={l.amount} onChange={e => setLine(i, { amount: e.target.value })} placeholder="0"
-                    className="w-full text-right border border-gray-300 rounded px-2 py-1 text-sm" />
+                    className="w-full text-right border border-slate-400 rounded px-2 py-1 text-sm" />
                 </td>
                 <td className="py-1 text-center">
-                  <button onClick={() => removeLine(i)} className="text-gray-300 hover:text-red-500 text-sm">✕</button>
+                  <button onClick={() => removeLine(i)} className="text-slate-400 hover:text-red-500 text-sm">✕</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <button onClick={addLine} className="text-xs text-slate-600 hover:text-slate-900 mb-3">+ 라인 추가</button>
+        <button onClick={addLine} className="text-xs text-slate-700 hover:text-slate-900 mb-3">+ 라인 추가</button>
 
-        <div className="flex items-center justify-between border-t border-gray-100 pt-3 text-sm">
+        <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-sm">
           <div className="flex gap-4">
-            <span className="text-gray-500">차변 <b className="text-blue-700">{debit.toLocaleString()}</b></span>
-            <span className="text-gray-500">대변 <b className="text-red-700">{credit.toLocaleString()}</b></span>
+            <span className="text-slate-600">차변 <b className="text-blue-700">{debit.toLocaleString()}</b></span>
+            <span className="text-slate-600">대변 <b className="text-red-700">{credit.toLocaleString()}</b></span>
             <span className={balanced ? 'text-green-600' : 'text-amber-600'}>{balanced ? '✓ 균형' : '불균형'}</span>
           </div>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</button>
+            <button onClick={onClose} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</button>
             <button onClick={save} disabled={saving || !balanced}
               className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
               {saving ? '저장 중…' : '저장'}

@@ -67,8 +67,8 @@ export default function WorkRequestDetailPage() {
     return emps.filter(e => !present.has(e.id))
   }, [emps, r])
 
-  if (err) return <div className="max-w-5xl mx-auto"><Link href="/me/requests" className="text-sm text-gray-500 hover:text-gray-900">← 업무 요청</Link><div className="mt-3 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{err}</div></div>
-  if (!d || !r) return <div className="text-center py-20 text-gray-400">로딩 중...</div>
+  if (err) return <div className="max-w-5xl mx-auto"><Link href="/me/requests" className="text-sm text-slate-600 hover:text-slate-900">← 업무 요청</Link><div className="mt-3 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{err}</div></div>
+  if (!d || !r) return <div className="text-center py-20 text-slate-500">로딩 중...</div>
   const a = d.actions
   const ds = dueState(r)
   const flowIdx = FLOW.indexOf(r.status)
@@ -83,7 +83,7 @@ export default function WorkRequestDetailPage() {
   const headLine = !multi
     ? (r.assignees[0]?.employee?.name ?? r.assignee?.name ?? '-')
     : r.assign_mode === 'first'
-      ? (acceptor ? <>{r.assignees.length}명 중 <b className="text-gray-800">{acceptor.employee?.name} 수락</b></> : <>{active.length}명 중 수락 대기</>)
+      ? (acceptor ? <>{r.assignees.length}명 중 <b className="text-slate-900">{acceptor.employee?.name} 수락</b></> : <>{active.length}명 중 수락 대기</>)
       : <>{r.assignees.length}명 공동{OPEN_STATUSES.includes(r.status) ? ` · 보고 ${reported}/${active.length}` : ''}</>
   // 담당자별 상태 표시 — 요청이 끝났을 때 미보고자는 "요청자가 완료 처리"
   const asgLabel = (x: WrAssignee) => r.status === 'completed' && (x.status === 'invited' || x.status === 'accepted' || x.status === 'in_progress') ? '요청자가 완료 처리' : r.status === 'canceled' && ASG_ACTIVE.includes(x.status) ? '요청 취소' : WR_ASG_LABEL[x.status]
@@ -96,35 +96,35 @@ export default function WorkRequestDetailPage() {
   return (
     <div className="max-w-5xl mx-auto">
       {prompt.element}
-      <Link href="/me/requests" className="text-sm text-gray-500 hover:text-gray-900">← 업무 요청</Link>
+      <Link href="/me/requests" className="text-sm text-slate-600 hover:text-slate-900">← 업무 요청</Link>
       {msg && <div className="mt-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       <div className="flex items-center gap-2 mt-1 flex-wrap">
-        {r.is_urgent && <span className="text-[0.6875rem] px-2 py-0.5 rounded bg-red-600 text-white font-semibold">긴급</span>}
-        {multi && <span className={`text-[0.6875rem] px-2 py-0.5 rounded font-semibold ${r.assign_mode === 'first' ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'}`} title={WR_MODE_DESC[r.assign_mode]}>{WR_MODE_LABEL[r.assign_mode]}</span>}
-        {r.is_private && <span className="text-[0.6875rem] px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold" title="요청자 · 담당자 · 승인권자만 볼 수 있음">비공개</span>}
-        <h1 className="text-2xl font-bold text-gray-900">{r.title}</h1>
+        {r.is_urgent && <span className="text-xs px-2 py-0.5 rounded bg-red-600 text-white font-semibold">긴급</span>}
+        {multi && <span className={`text-xs px-2 py-0.5 rounded font-semibold ${r.assign_mode === 'first' ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'}`} title={WR_MODE_DESC[r.assign_mode]}>{WR_MODE_LABEL[r.assign_mode]}</span>}
+        {r.is_private && <span className="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-semibold" title="요청자 · 담당자 · 승인권자만 볼 수 있음">비공개</span>}
+        <h1 className="text-2xl font-bold text-slate-900">{r.title}</h1>
         <span title={WR_STATUS_HINT[r.status]} className={`ml-auto inline-block px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}{multi && r.assign_mode === 'all' && r.status === 'in_progress' ? ` (${reported}/${active.length} 보고)` : ''}</span>
       </div>
       {tagList.length > 0 ? (
         <div className="mt-2">
           {tagEdit === null ? (
             <div className="flex items-center gap-1.5 flex-wrap">
-              {myTags.length ? myTags.map(t => <TagChip key={t.id} tag={t} title={t.active ? undefined : '숨긴 태그 — 새 요청에서는 고를 수 없습니다'} />) : <span className="text-xs text-gray-400">업무 계열 미분류</span>}
-              {d.actions.setTags && <button onClick={() => setTagEdit(r.tag_ids ?? [])} className="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-50">태그 수정</button>}
+              {myTags.length ? myTags.map(t => <TagChip key={t.id} tag={t} title={t.active ? undefined : '숨긴 태그 — 새 요청에서는 고를 수 없습니다'} />) : <span className="text-xs text-slate-500">업무 계열 미분류</span>}
+              {d.actions.setTags && <button onClick={() => setTagEdit(r.tag_ids ?? [])} className="px-2 py-0.5 text-xs border border-slate-400 rounded text-slate-700 hover:bg-slate-50">태그 수정</button>}
             </div>
           ) : (
-            <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-              <p className="text-xs font-medium text-gray-600 mb-1.5">업무 계열 <span className="text-[0.6875rem] text-gray-400 font-normal">1개 이상, 최대 {WR_TAG_MAX}개 · 바꾸면 이력에 남고 알림은 가지 않습니다</span></p>
+            <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-slate-700 mb-1.5">업무 계열 <span className="text-xs text-slate-500 font-normal">1개 이상, 최대 {WR_TAG_MAX}개 · 바꾸면 이력에 남고 알림은 가지 않습니다</span></p>
               <TagPicker tags={tagList} value={tagEdit} onChange={setTagEdit} max={WR_TAG_MAX} onLimit={() => flash(`최대 ${WR_TAG_MAX}개까지 고를 수 있습니다.`)} />
               <div className="flex gap-1.5 mt-2.5">
                 <button disabled={busy || !tagEdit.length} onClick={async () => { if (await act('set_tags', { tag_ids: tagEdit })) setTagEdit(null) }} className="px-3 py-1 bg-slate-900 text-white rounded text-xs font-medium disabled:opacity-50">저장</button>
-                <button onClick={() => setTagEdit(null)} className="px-3 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50">취소</button>
+                <button onClick={() => setTagEdit(null)} className="px-3 py-1 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">취소</button>
               </div>
             </div>
           )}
         </div>
       ) : null}
-      <p className="text-sm text-gray-500 mt-1">
+      <p className="text-sm text-slate-600 mt-1">
         {r.requester?.name ?? '-'} → {headLine} · 요청 {fmtDTFull(r.created_at)} · 마감{' '}
         <span className={ds === 'overdue' ? 'text-red-600 font-medium' : ds === 'today' ? 'text-amber-600 font-medium' : ''}>{fmtDTFull(r.due_at)}{ds === 'overdue' ? ' (지남)' : ds === 'today' ? ' (오늘)' : ''}</span>
       </p>
@@ -133,10 +133,10 @@ export default function WorkRequestDetailPage() {
       <div className="flex items-center gap-1.5 flex-wrap mt-3 text-xs">
         {FLOW.map((st, i) => (
           <span key={st} className="flex items-center gap-1.5">
-            <span className={`px-2.5 py-1 rounded-full border ${!side && i === flowIdx ? 'bg-slate-900 text-white border-slate-900' : !side && i < flowIdx ? 'bg-gray-200 text-gray-600 border-gray-200' : 'bg-white text-gray-400 border-gray-200'}`}>
+            <span className={`px-2.5 py-1 rounded-full border ${!side && i === flowIdx ? 'bg-slate-900 text-white border-slate-900' : !side && i < flowIdx ? 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-white text-slate-500 border-slate-300'}`}>
               {FLOW_LABEL[st]}{multi && r.assign_mode === 'all' && st === 'done_reported' ? ' (전원)' : ''}
             </span>
-            {i < FLOW.length - 1 && <span className="text-gray-300">→</span>}
+            {i < FLOW.length - 1 && <span className="text-slate-400">→</span>}
           </span>
         ))}
         {side && <span className={`ml-2 px-2.5 py-1 rounded-full ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}{r.status === 'rejected' && r.reject_reason ? ` — ${r.reject_reason}` : ''}</span>}
@@ -144,18 +144,18 @@ export default function WorkRequestDetailPage() {
 
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr] mt-4">
         <div className="space-y-4">
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <div className="bg-white border border-slate-300 rounded-xl p-5">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-bold text-gray-900">내용</h2>
-              {a.edit && <button onClick={() => setEditing(e => !e)} className="text-xs text-slate-600 hover:underline">{editing ? '닫기' : '수정'}</button>}
+              <h2 className="text-sm font-bold text-slate-900">내용</h2>
+              {a.edit && <button onClick={() => setEditing(e => !e)} className="text-xs text-slate-700 hover:underline">{editing ? '닫기' : '수정'}</button>}
             </div>
             {editing ? (
               <div className="space-y-3">
-                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-                <textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={5} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-                <input value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} placeholder="관련 링크 · 서버 경로" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm" />
+                <textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={5} className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm" />
+                <input value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} placeholder="관련 링크 · 서버 경로" className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm" />
                 <div className="flex items-center gap-4 flex-wrap">
-                  <input type="datetime-local" value={form.due} onChange={e => setForm(f => ({ ...f, due: e.target.value }))} className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  <input type="datetime-local" value={form.due} onChange={e => setForm(f => ({ ...f, due: e.target.value }))} className="border border-slate-400 rounded-lg px-3 py-2 text-sm" />
                   <label className="text-sm flex items-center gap-1.5"><input type="checkbox" checked={form.urgent} onChange={e => setForm(f => ({ ...f, urgent: e.target.checked }))} /> 긴급</label>
                 </div>
                 <button disabled={busy} onClick={async () => { if (await act('edit', { title: form.title, content: form.content, link: form.link, due_at: localToIso(form.due), is_urgent: form.urgent })) { setEditing(false); flash('수정되었습니다.') } }}
@@ -163,76 +163,76 @@ export default function WorkRequestDetailPage() {
               </div>
             ) : (
               <>
-                <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{r.content || <span className="text-gray-400">내용 없음</span>}</p>
+                <p className="text-sm text-slate-900 whitespace-pre-wrap leading-relaxed">{r.content || <span className="text-slate-500">내용 없음</span>}</p>
                 {r.link && (
                   <p className="text-xs mt-3 flex items-center gap-2">
-                    <span className="text-gray-400">관련:</span>
-                    {/^https?:\/\//.test(r.link) ? <a href={r.link} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline break-all">{r.link}</a> : <span className="text-gray-700 break-all">{r.link}</span>}
-                    <button onClick={() => navigator.clipboard?.writeText(r.link!).then(() => flash('복사했습니다.'))} className="px-1.5 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">복사</button>
+                    <span className="text-slate-500">관련:</span>
+                    {/^https?:\/\//.test(r.link) ? <a href={r.link} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline break-all">{r.link}</a> : <span className="text-slate-800 break-all">{r.link}</span>}
+                    <button onClick={() => navigator.clipboard?.writeText(r.link!).then(() => flash('복사했습니다.'))} className="px-1.5 py-0.5 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">복사</button>
                   </p>
                 )}
               </>
             )}
             {/* 첨부 파일 (1200) — 열린 요청의 요청자 · 담당자가 붙인다. 보기는 이 요청을 볼 수 있는 사람 전원 */}
-            <AttachmentBox key={`${r.id}:${r.status}`} ownerType="work_request" ownerId={r.id} pasteAnywhere={!editing} className="mt-4 pt-3 border-t border-gray-100" />
+            <AttachmentBox key={`${r.id}:${r.status}`} ownerType="work_request" ownerId={r.id} pasteAnywhere={!editing} className="mt-4 pt-3 border-t border-slate-200" />
           </div>
 
           {/* 담당자별 진행 */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <div className="bg-white border border-slate-300 rounded-xl p-5">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-bold text-gray-900">담당자{multi ? ` ${r.assignees.length}명 · ${WR_MODE_LABEL[r.assign_mode]}` : ''}</h2>
-              {a.addAssignee && <button onClick={() => { setAdding(x => !x); setAddIds([]) }} className="text-xs text-slate-600 hover:underline">{adding ? '닫기' : '담당자 추가'}</button>}
+              <h2 className="text-sm font-bold text-slate-900">담당자{multi ? ` ${r.assignees.length}명 · ${WR_MODE_LABEL[r.assign_mode]}` : ''}</h2>
+              {a.addAssignee && <button onClick={() => { setAdding(x => !x); setAddIds([]) }} className="text-xs text-slate-700 hover:underline">{adding ? '닫기' : '담당자 추가'}</button>}
             </div>
-            {multi && <p className="text-xs text-gray-500 mb-2">{WR_MODE_DESC[r.assign_mode]}</p>}
+            {multi && <p className="text-xs text-slate-600 mb-2">{WR_MODE_DESC[r.assign_mode]}</p>}
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs text-gray-400 border-b border-gray-100"><th className="py-1.5 font-medium">이름</th><th className="py-1.5 font-medium">상태</th><th className="py-1.5 font-medium">수락</th><th className="py-1.5 font-medium">보고</th><th className="py-1.5 font-medium">최근 메모 · 사유</th></tr></thead>
+              <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-200"><th className="py-1.5 font-medium">이름</th><th className="py-1.5 font-medium">상태</th><th className="py-1.5 font-medium">수락</th><th className="py-1.5 font-medium">보고</th><th className="py-1.5 font-medium">최근 메모 · 사유</th></tr></thead>
               <tbody>
                 {r.assignees.map(x => {
                   const dim = x.status === 'released' || x.status === 'rejected'
                   return (
-                    <tr key={x.id} className={`border-b border-gray-50 ${dim ? 'text-gray-400' : ''}`}>
-                      <td className="py-1.5 whitespace-nowrap"><b className={dim ? '' : 'text-gray-900'}>{x.employee?.name ?? '-'}</b>{x.employee?.id === d.me.id && <span className="text-[0.625rem] text-slate-500 ml-1">(나)</span>}{x.employee?.id === r.requester?.id && <span className="text-[0.625rem] text-gray-400 ml-1">(요청자 겸)</span>}{x.employee?.team && <span className="text-xs text-gray-400 ml-1">{x.employee.team}</span>}</td>
-                      <td className="py-1.5"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold whitespace-nowrap ${WR_ASG_CLS[x.status]}`}>{asgLabel(x)}</span></td>
+                    <tr key={x.id} className={`border-b border-slate-200 ${dim ? 'text-slate-500' : ''}`}>
+                      <td className="py-1.5 whitespace-nowrap"><b className={dim ? '' : 'text-slate-900'}>{x.employee?.name ?? '-'}</b>{x.employee?.id === d.me.id && <span className="text-xs text-slate-600 ml-1">(나)</span>}{x.employee?.id === r.requester?.id && <span className="text-xs text-slate-500 ml-1">(요청자 겸)</span>}{x.employee?.team && <span className="text-xs text-slate-500 ml-1">{x.employee.team}</span>}</td>
+                      <td className="py-1.5"><span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold whitespace-nowrap ${WR_ASG_CLS[x.status]}`}>{asgLabel(x)}</span></td>
                       <td className="py-1.5 text-xs tabular-nums whitespace-nowrap">{x.accepted_at ? fmtDT(x.accepted_at) : '-'}</td>
                       <td className="py-1.5 text-xs tabular-nums whitespace-nowrap">{x.reported_at ? fmtDT(x.reported_at) : '-'}</td>
-                      <td className="py-1.5 text-xs max-w-[260px] truncate">{x.status === 'rejected' && x.reject_reason ? `사유: ${x.reject_reason}` : x.status === 'released' ? '참고 표시만, 할 일 아님' : x.last_memo ?? <span className="text-gray-300">-</span>}</td>
+                      <td className="py-1.5 text-xs max-w-[260px] truncate">{x.status === 'rejected' && x.reject_reason ? `사유: ${x.reject_reason}` : x.status === 'released' ? '참고 표시만, 할 일 아님' : x.last_memo ?? <span className="text-slate-400">-</span>}</td>
                     </tr>
                   )
                 })}
-                {r.assignees.length === 0 && <tr><td colSpan={5} className="py-2 text-xs text-gray-400">담당자 정보가 없습니다 (902 마이그레이션 적용 전 요청).</td></tr>}
+                {r.assignees.length === 0 && <tr><td colSpan={5} className="py-2 text-xs text-slate-500">담당자 정보가 없습니다 (902 마이그레이션 적용 전 요청).</td></tr>}
               </tbody>
             </table>
             {adding && (
-              <div className="mt-3 border-t border-gray-100 pt-3">
-                <p className="text-xs text-gray-600 mb-1.5">추가할 직원을 고르세요. {r.assign_mode === 'single' ? '추가하면 공동 방식(전원이 각자 진행)으로 바뀝니다.' : '추가된 사람은 미확인 상태로 시작합니다.'}</p>
+              <div className="mt-3 border-t border-slate-200 pt-3">
+                <p className="text-xs text-slate-700 mb-1.5">추가할 직원을 고르세요. {r.assign_mode === 'single' ? '추가하면 공동 방식(전원이 각자 진행)으로 바뀝니다.' : '추가된 사람은 미확인 상태로 시작합니다.'}</p>
                 <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto">
                   {addCandidates.map(e => (
                     <button key={e.id} type="button" onClick={() => setAddIds(ids => ids.includes(e.id) ? ids.filter(i => i !== e.id) : [...ids, e.id])}
-                      className={`px-2.5 py-1 rounded-full text-xs border ${addIds.includes(e.id) ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-300 text-slate-700 hover:bg-slate-100'}`}>
+                      className={`px-2.5 py-1 rounded-full text-xs border ${addIds.includes(e.id) ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-800 hover:bg-slate-100'}`}>
                       {e.name}{e.team ? <span className="opacity-70"> · {e.team}</span> : ''}
                     </button>
                   ))}
-                  {emps.length > 0 && addCandidates.length === 0 && <span className="text-xs text-gray-400">추가할 수 있는 직원이 없습니다.</span>}
+                  {emps.length > 0 && addCandidates.length === 0 && <span className="text-xs text-slate-500">추가할 수 있는 직원이 없습니다.</span>}
                 </div>
                 <div className="flex gap-2 mt-2">
                   <button disabled={busy || !addIds.length} onClick={async () => { if (await act('add_assignee', { employee_ids: addIds })) { setAdding(false); setAddIds([]); flash('담당자를 추가했습니다.') } }}
                     className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs hover:bg-slate-700 disabled:opacity-40">{addIds.length ? `${addIds.length}명 추가` : '추가'}</button>
-                  <button onClick={() => { setAdding(false); setAddIds([]) }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700">취소</button>
+                  <button onClick={() => { setAdding(false); setAddIds([]) }} className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-800">취소</button>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <h2 className="text-sm font-bold text-gray-900 mb-2">진행 메모 · 이력{multi ? <span className="text-xs text-gray-400 font-normal"> (담당자별 메모가 한 줄로 쌓임)</span> : null}</h2>
-            <ul className="text-sm divide-y divide-gray-50">
+          <div className="bg-white border border-slate-300 rounded-xl p-5">
+            <h2 className="text-sm font-bold text-slate-900 mb-2">진행 메모 · 이력{multi ? <span className="text-xs text-slate-500 font-normal"> (담당자별 메모가 한 줄로 쌓임)</span> : null}</h2>
+            <ul className="text-sm divide-y divide-slate-200">
               {d.events.map(e => (
                 <li key={e.id} className="py-2 grid grid-cols-[110px_1fr] gap-3">
-                  <span className="text-xs text-gray-400 tabular-nums pt-0.5">{fmtDT(e.created_at)}</span>
+                  <span className="text-xs text-slate-500 tabular-nums pt-0.5">{fmtDT(e.created_at)}</span>
                   <span>
-                    <span className="font-semibold text-gray-800">{e.actor?.name ?? '시스템'}</span>
-                    <span className="text-gray-500"> {WR_EVENT_LABEL[e.event] ?? e.event}</span>
-                    {e.memo && <span className="block text-gray-700 mt-0.5 whitespace-pre-wrap">{e.event === 'memo' || e.event === 'reported' ? e.memo : `— ${e.memo}`}</span>}
+                    <span className="font-semibold text-slate-900">{e.actor?.name ?? '시스템'}</span>
+                    <span className="text-slate-600"> {WR_EVENT_LABEL[e.event] ?? e.event}</span>
+                    {e.memo && <span className="block text-slate-800 mt-0.5 whitespace-pre-wrap">{e.event === 'memo' || e.event === 'reported' ? e.memo : `— ${e.memo}`}</span>}
                   </span>
                 </li>
               ))}
@@ -243,9 +243,9 @@ export default function WorkRequestDetailPage() {
                   <MemoTextarea value={memo} onChange={setMemo} disabled={busy} placeholder={multi && a.isAsg ? '내 진행 메모 입력' : '진행 메모 입력'}
                     onSubmit={async () => { if (await act('memo', { memo: memo.trim() })) setMemo('') }} className="flex-1" />
                   <button disabled={busy || !memo.trim()} onClick={async () => { if (await act('memo', { memo: memo.trim() })) setMemo('') }}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 whitespace-nowrap">메모 추가</button>
+                    className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 whitespace-nowrap">메모 추가</button>
                 </div>
-                <p className="text-[0.6875rem] text-gray-400 mt-1">{MEMO_KEY_HINT}</p>
+                <p className="text-xs text-slate-500 mt-1">{MEMO_KEY_HINT}</p>
               </div>
             )}
           </div>
@@ -253,46 +253,46 @@ export default function WorkRequestDetailPage() {
 
         <div className="space-y-4">
           {(a.accept || a.reject || a.report) && (
-            <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <h2 className="text-sm font-bold text-gray-900 mb-3">{multi ? '내 조작' : '담당자 조작'}</h2>
+            <div className="bg-white border border-slate-300 rounded-xl p-5">
+              <h2 className="text-sm font-bold text-slate-900 mb-3">{multi ? '내 조작' : '담당자 조작'}</h2>
               <div className="flex flex-col gap-2">
                 {a.accept && <button disabled={busy} onClick={() => act('accept')} className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">수락{r.assign_mode === 'first' ? ' (먼저 수락하면 내가 담당)' : ''}</button>}
                 {a.report && <button disabled={busy} onClick={async () => { const m = await prompt.ask({ title: '처리 완료 보고 — 결과 메모', detail: r.title, confirmLabel: '보고하기', placeholder: '무엇을 했는지 · 결과는 어디에 있는지' }); if (m !== null) act('report', { memo: m || undefined }) }}
                   className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">처리 완료 보고</button>}
                 {a.reject && <button disabled={busy} onClick={async () => { const m = await prompt.ask({ title: '반려 사유', detail: r.title, required: true, danger: true, confirmLabel: '반려하기' }); if (m) act('reject', { memo: m }) }}
                   className="px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 disabled:opacity-50">반려 (사유 필수)</button>}
-                {a.report && <p className="text-xs text-gray-400">{r.assign_mode === 'all' ? '내 몫만 보고합니다. 다른 사람 진행은 담당자 표에서 확인. 전원이 보고하면 요청자가 완료를 확정합니다.' : '보고하면 요청자가 확인 후 완료를 확정합니다.'}</p>}
+                {a.report && <p className="text-xs text-slate-500">{r.assign_mode === 'all' ? '내 몫만 보고합니다. 다른 사람 진행은 담당자 표에서 확인. 전원이 보고하면 요청자가 완료를 확정합니다.' : '보고하면 요청자가 확인 후 완료를 확정합니다.'}</p>}
               </div>
             </div>
           )}
           {my && !a.accept && !a.reject && !a.report && OPEN_STATUSES.includes(r.status) && (
-            <div className="bg-white border border-gray-200 rounded-xl p-5 text-sm text-gray-600">
+            <div className="bg-white border border-slate-300 rounded-xl p-5 text-sm text-slate-700">
               {my.status === 'released' ? '다른 사람이 수락한 요청입니다. 참고로만 보이며 할 일에서는 빠집니다.' : my.status === 'done_reported' ? (r.status === 'done_reported' ? '내 보고가 끝났습니다. 요청자의 완료 확정을 기다립니다.' : '내 보고가 끝났습니다. 다른 담당자의 보고를 기다립니다.') : my.status === 'rejected' ? '내가 반려한 요청입니다.' : null}
             </div>
           )}
           {(a.complete || a.cancel) && (
-            <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <h2 className="text-sm font-bold text-gray-900 mb-3">요청자 조작</h2>
+            <div className="bg-white border border-slate-300 rounded-xl p-5">
+              <h2 className="text-sm font-bold text-slate-900 mb-3">요청자 조작</h2>
               <div className="flex flex-col gap-2">
                 {a.complete && <button disabled={busy} onClick={completeConfirm}
                   className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">완료 확정</button>}
                 {a.cancel && <button disabled={busy} onClick={() => { if (window.confirm('이 요청을 취소할까요?')) act('cancel') }}
-                  className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50">요청 취소</button>}
-                {r.assign_mode === 'all' && a.complete && r.status !== 'done_reported' && <p className="text-xs text-gray-400">전원 보고 전에도 완료 확정은 가능합니다(요청자 판단). 미보고자에게는 &quot;요청자가 완료 처리함&quot;으로 닫힙니다.</p>}
+                  className="px-3 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-50">요청 취소</button>}
+                {r.assign_mode === 'all' && a.complete && r.status !== 'done_reported' && <p className="text-xs text-slate-500">전원 보고 전에도 완료 확정은 가능합니다(요청자 판단). 미보고자에게는 &quot;요청자가 완료 처리함&quot;으로 닫힙니다.</p>}
               </div>
             </div>
           )}
           {r.status === 'rejected' && a.isReq && (
-            <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <h2 className="text-sm font-bold text-gray-900 mb-2">반려됨</h2>
-              <p className="text-sm text-gray-700">{r.reject_reason}</p>
+            <div className="bg-white border border-slate-300 rounded-xl p-5">
+              <h2 className="text-sm font-bold text-slate-900 mb-2">반려됨</h2>
+              <p className="text-sm text-slate-800">{r.reject_reason}</p>
               <button onClick={() => router.push(`/me/requests/new?from=${r.id}`)} className="mt-3 px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700">수정해서 다시 요청</button>
             </div>
           )}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 text-xs text-gray-500 space-y-1">
-            <p>요청자 <b className="text-gray-800">{r.requester?.name}</b>{r.requester?.team ? ` · ${r.requester.team}` : ''}</p>
-            {!multi && <p>담당자 <b className="text-gray-800">{r.assignees[0]?.employee?.name ?? r.assignee?.name}</b>{(r.assignees[0]?.employee?.team ?? r.assignee?.team) ? ` · ${r.assignees[0]?.employee?.team ?? r.assignee?.team}` : ''}</p>}
-            {multi && <p>담당자 <b className="text-gray-800">{r.assignees.length}명</b> · {WR_MODE_LABEL[r.assign_mode]}{acceptor ? ` · 수락 ${acceptor.employee?.name}` : ''}</p>}
+          <div className="bg-white border border-slate-300 rounded-xl p-5 text-xs text-slate-600 space-y-1">
+            <p>요청자 <b className="text-slate-900">{r.requester?.name}</b>{r.requester?.team ? ` · ${r.requester.team}` : ''}</p>
+            {!multi && <p>담당자 <b className="text-slate-900">{r.assignees[0]?.employee?.name ?? r.assignee?.name}</b>{(r.assignees[0]?.employee?.team ?? r.assignee?.team) ? ` · ${r.assignees[0]?.employee?.team ?? r.assignee?.team}` : ''}</p>}
+            {multi && <p>담당자 <b className="text-slate-900">{r.assignees.length}명</b> · {WR_MODE_LABEL[r.assign_mode]}{acceptor ? ` · 수락 ${acceptor.employee?.name}` : ''}</p>}
             {r.accepted_at && <p>{multi && r.assign_mode === 'all' ? '첫 수락' : '수락'} {fmtDTFull(r.accepted_at)}</p>}
             {r.reported_at && <p>처리 보고{multi && r.assign_mode === 'all' ? ' (전원)' : ''} {fmtDTFull(r.reported_at)}</p>}
             {r.completed_at && <p>완료 확정 {fmtDTFull(r.completed_at)}</p>}

@@ -142,7 +142,7 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
           ref={panelRef}
           style={{ position: 'fixed', top: coords.top, left: coords.left, width: coords.width, zIndex: 50 }}
           // whitespace-normal: 부모 셀이 whitespace-nowrap이면 inline-block 버튼들이 한 줄로 늘어선다(법인카드 표에서 발견)
-          className="bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden whitespace-normal text-left"
+          className="bg-white border border-slate-300 rounded-lg shadow-lg overflow-hidden whitespace-normal text-left"
         >
           <input
             ref={inputRef}
@@ -150,14 +150,14 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
             onChange={e => { setQuery(e.target.value); setHighlight(0) }}
             onKeyDown={handleKeyDown}
             placeholder="검색..."
-            className="w-full px-2.5 py-1.5 text-xs border-b border-gray-200 focus:outline-none"
+            className="w-full px-2.5 py-1.5 text-xs border-b border-slate-300 focus:outline-none"
           />
           <div ref={listRef} className="max-h-60 overflow-y-auto py-1">
             <button
               type="button"
               data-hl={highlight === 0 ? '1' : undefined}
               onClick={() => handleSelect('')}
-              className={`block w-full text-left px-2.5 py-1.5 text-xs ${highlight === 0 ? 'bg-slate-100' : 'hover:bg-gray-50'} ${!value ? 'text-gray-400' : 'text-gray-700'}`}
+              className={`block w-full text-left px-2.5 py-1.5 text-xs ${highlight === 0 ? 'bg-slate-100' : 'hover:bg-slate-50'} ${!value ? 'text-slate-500' : 'text-slate-800'}`}
             >
               {emptyLabel}
             </button>
@@ -172,7 +172,7 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
                   {createNewLabel ? createNewLabel(query.trim()) : `+ '${query.trim()}' 새로 추가`}
                 </button>
               ) : (
-                <p className="px-2.5 py-2 text-xs text-gray-400">검색 결과 없음</p>
+                <p className="px-2.5 py-2 text-xs text-slate-500">검색 결과 없음</p>
               )
             ) : filtered.map((o, i) => (
               <button
@@ -180,7 +180,7 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
                 type="button"
                 data-hl={highlight === i + 1 ? '1' : undefined}
                 onClick={() => handleSelect(o.id)}
-                className={`block w-full text-left px-2.5 py-1.5 text-xs truncate ${highlight === i + 1 ? 'bg-slate-100' : 'hover:bg-gray-50'} ${o.id === value ? 'font-medium text-slate-900' : 'text-gray-700'}`}
+                className={`block w-full text-left px-2.5 py-1.5 text-xs truncate ${highlight === i + 1 ? 'bg-slate-100' : 'hover:bg-slate-50'} ${o.id === value ? 'font-medium text-slate-900' : 'text-slate-800'}`}
               >
                 {o.label}
               </button>

@@ -15,7 +15,7 @@ export default function PurchaseHubShell({ basePath, perms, tab, vendorId }: {
   const active = tab === 'exceptions' && perms.collections ? 'exceptions' : 'list'
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900">매입처 관리</h1>
+      <h1 className="text-2xl font-bold text-slate-900">매입처 관리</h1>
       {perms.collections && (
         <PageTabs className="mt-3 mb-3" active={active} tabs={[
           { key: 'list', label: '매입처 목록', href: basePath },

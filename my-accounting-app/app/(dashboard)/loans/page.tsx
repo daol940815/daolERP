@@ -245,11 +245,11 @@ export default function LoansPage() {
     load()
   }
 
-  const input = 'mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const input = 'mt-1 w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
   const chip = (key: string, label: string, count?: number) => (
     <button key={key} onClick={() => setFilter(key)}
       className={`px-3 py-1 rounded-full text-sm whitespace-nowrap ${filter === key
-        ? 'bg-slate-900 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+        ? 'bg-slate-900 text-white' : 'bg-white border border-slate-400 text-slate-700 hover:bg-slate-50'}`}>
       {label}{count !== undefined ? ` ${count}` : ''}
     </button>
   )
@@ -260,9 +260,9 @@ export default function LoansPage() {
     <div className="w-full">
       <div className="flex items-start justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">대출 관리</h1>
+          <h1 className="text-2xl font-bold text-slate-900">대출 관리</h1>
           {tab === 'list' && (
-            <p className="text-sm mt-1 text-gray-500">
+            <p className="text-sm mt-1 text-slate-600">
               일반 대출은 약정 원금과 상환 스케줄로, 한도대출(마이너스 통장)은 약정한도와 사용액으로 관리합니다.
               한도대출의 사용액은 통장 잔액에서 자동으로 계산되며 별도 입력이 필요 없습니다.
             </p>
@@ -277,12 +277,12 @@ export default function LoansPage() {
       </div>
 
       {/* 탭 */}
-      <div className="flex items-center gap-1 mt-4 border-b border-gray-200">
+      <div className="flex items-center gap-1 mt-4 border-b border-slate-300">
         {([['list', '대출 현황'], ['report', '연간 리포트']] as const).map(([k, label]) => (
           <button key={k} onClick={() => goTab(k)}
             className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap ${tab === k
               ? 'border-slate-900 text-slate-900'
-              : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              : 'border-transparent text-slate-600 hover:text-slate-800'}`}>
             {label}
           </button>
         ))}
@@ -304,42 +304,42 @@ export default function LoansPage() {
       {tab === 'list' && (<>
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-        <button onClick={() => setFilter('all')} className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-slate-400">
-          <div className="text-xs text-gray-400">대출 잔액 (일반)</div>
+        <button onClick={() => setFilter('all')} className="bg-white border border-slate-300 rounded-xl p-4 text-left hover:border-slate-400">
+          <div className="text-xs text-slate-500">대출 잔액 (일반)</div>
           <div className="text-xl font-bold mt-1">{eok(kpi.balance)}</div>
-          <div className="text-[0.6875rem] text-gray-400 mt-0.5">원 대출 {eok(kpi.original)}</div>
+          <div className="text-xs text-slate-500 mt-0.5">원 대출 {eok(kpi.original)}</div>
         </button>
         {/* 원금·이자를 같은 크기로 나란히 — 이자도 중요 지표로 본다(한도대출 예상 이자 포함) */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="text-xs text-gray-400">월 원리금 (참고)</div>
+        <div className="bg-white border border-slate-300 rounded-xl p-4">
+          <div className="text-xs text-slate-500">월 원리금 (참고)</div>
           <div className="flex items-start gap-4 mt-1">
             <div>
-              <div className="text-[0.6875rem] text-gray-400">원금</div>
+              <div className="text-xs text-slate-500">원금</div>
               <div className="text-xl font-bold leading-tight">{manwon(kpi.principal)}</div>
             </div>
             <div>
-              <div className="text-[0.6875rem] text-gray-400">이자</div>
+              <div className="text-xs text-slate-500">이자</div>
               <div className="text-xl font-bold leading-tight">{manwon(kpi.interest + kpi.lineInterest)}</div>
             </div>
           </div>
-          <div className="text-[0.6875rem] text-gray-400 mt-0.5">
+          <div className="text-xs text-slate-500 mt-0.5">
             합계 {manwon(kpi.principal + kpi.interest + kpi.lineInterest)}
             {kpi.lineInterest > 0 && ` · 이자에 한도대출 ${manwon(kpi.lineInterest)} 포함`}
           </div>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="text-xs text-gray-400">한도 사용액</div>
+        <div className="bg-white border border-slate-300 rounded-xl p-4">
+          <div className="text-xs text-slate-500">한도 사용액</div>
           <div className={`text-xl font-bold mt-1 ${kpi.used > 0 ? 'text-rose-600' : ''}`}>{eok(kpi.used)}</div>
-          <div className="text-[0.6875rem] text-gray-400 mt-0.5">
+          <div className="text-xs text-slate-500 mt-0.5">
             한도 {eok(kpi.limit)} · 미사용 {eok(Math.max(kpi.limit - kpi.used, 0))}
           </div>
         </div>
         <button onClick={() => setFilter('check')}
           className={`border rounded-xl p-4 text-left ${kpi.check > 0
-            ? 'bg-amber-50 border-amber-300 hover:border-amber-400' : 'bg-white border-gray-200'}`}>
-          <div className={`text-xs ${kpi.check > 0 ? 'text-amber-700' : 'text-gray-400'}`}>확인 필요</div>
+            ? 'bg-amber-50 border-amber-300 hover:border-amber-400' : 'bg-white border-slate-300'}`}>
+          <div className={`text-xs ${kpi.check > 0 ? 'text-amber-700' : 'text-slate-500'}`}>확인 필요</div>
           <div className={`text-xl font-bold mt-1 ${kpi.check > 0 ? 'text-amber-800' : ''}`}>{kpi.check}건</div>
-          <div className={`text-[0.6875rem] mt-0.5 ${kpi.check > 0 ? 'text-amber-700' : 'text-gray-400'}`}>만기 경과·메모 확인</div>
+          <div className={`text-xs mt-0.5 ${kpi.check > 0 ? 'text-amber-700' : 'text-slate-500'}`}>만기 경과·메모 확인</div>
         </button>
       </div>
 
@@ -353,21 +353,21 @@ export default function LoansPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : (
         <>
           {/* ── 일반 대출 ── */}
           <div className="flex items-baseline gap-2 mt-6 mb-2">
-            <h2 className="text-sm font-semibold text-gray-700">일반 대출</h2>
-            <span className="text-xs text-gray-400">약정 원금과 상환 스케줄로 관리</span>
+            <h2 className="text-sm font-semibold text-slate-800">일반 대출</h2>
+            <span className="text-xs text-slate-500">약정 원금과 상환 스케줄로 관리</span>
           </div>
           {visibleTerms.length === 0 ? (
-            <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">표시할 대출이 없습니다.</div>
+            <div className="bg-white border border-slate-300 rounded-xl p-8 text-center text-slate-500 text-sm">표시할 대출이 없습니다.</div>
           ) : (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+          <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                   <th className={th}>NO</th>
                   <th className={th}>대출명</th>
                   <th className={th}>은행</th>
@@ -383,46 +383,46 @@ export default function LoansPage() {
                   <th className={th}></th>
                 </tr>
               </thead>
-              <tbody className="text-gray-700">
+              <tbody className="text-slate-800">
                 {visibleTerms.map(l => (
-                  <tr key={l.id} className={`border-b border-gray-100 ${l.status !== 'active' ? 'text-gray-400' : ''}`}>
+                  <tr key={l.id} className={`border-b border-slate-200 ${l.status !== 'active' ? 'text-slate-500' : ''}`}>
                     <td className="py-2 px-3">{l.seq ?? '-'}</td>
                     <td className="py-2 px-3">
                       {l.title}
                       {(needsCheck(l) || isOverdue(l)) && (
-                        <span className="ml-1 inline-block whitespace-nowrap text-[0.625rem] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">확인 필요</span>
+                        <span className="ml-1 inline-block whitespace-nowrap text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">확인 필요</span>
                       )}
-                      {l.memo && <div className="text-[0.6875rem] text-amber-700 mt-0.5">{l.memo}</div>}
+                      {l.memo && <div className="text-xs text-amber-700 mt-0.5">{l.memo}</div>}
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">{l.bank_name}</td>
-                    <td className="py-2 px-3 text-gray-500 whitespace-nowrap">{acctLabel(l.bank_accounts)}</td>
+                    <td className="py-2 px-3 text-slate-600 whitespace-nowrap">{acctLabel(l.bank_accounts)}</td>
                     <td className="py-2 px-3 text-right font-medium whitespace-nowrap">{won(l.current_balance)}</td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">{l.interest_rate != null ? `${l.interest_rate}%` : '-'}</td>
-                    <td className={`py-2 px-3 text-right whitespace-nowrap ${l.monthly_principal ? '' : 'text-gray-400'}`}>
+                    <td className={`py-2 px-3 text-right whitespace-nowrap ${l.monthly_principal ? '' : 'text-slate-500'}`}>
                       {l.monthly_principal ? won(l.monthly_principal) : '-'}
                     </td>
-                    <td className={`py-2 px-3 text-right whitespace-nowrap ${termInterest(l) ? '' : 'text-gray-400'}`}
+                    <td className={`py-2 px-3 text-right whitespace-nowrap ${termInterest(l) ? '' : 'text-slate-500'}`}
                       title={l.interest_rate != null ? `현 잔액 ${won(l.current_balance)}원 × ${l.interest_rate}% ÷ 12` : '이율이 없어 직접 입력한 값'}>
                       {termInterest(l) ? won(termInterest(l)) : '-'}
                     </td>
                     <td className="py-2 px-3 text-center whitespace-nowrap">{l.payment_day ? `${l.payment_day}일` : '-'}</td>
                     <td className={`py-2 px-3 whitespace-nowrap ${isOverdue(l) ? 'text-red-600' : ''}`}>{l.maturity_date ?? '-'}</td>
                     <td className="py-2 px-3 text-center whitespace-nowrap">
-                      <span className="inline-block whitespace-nowrap text-[0.6875rem] px-1.5 py-0.5 rounded bg-slate-100">{TERM_LABEL[l.term_type]}</span>
+                      <span className="inline-block whitespace-nowrap text-xs px-1.5 py-0.5 rounded bg-slate-100">{TERM_LABEL[l.term_type]}</span>
                     </td>
                     <td className="py-2 px-3 text-center whitespace-nowrap">
-                      <span className={`inline-block whitespace-nowrap text-[0.6875rem] px-1.5 py-0.5 rounded ${l.status === 'active'
-                        ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100'}`}>{STATUS_LABEL[l.status]}</span>
+                      <span className={`inline-block whitespace-nowrap text-xs px-1.5 py-0.5 rounded ${l.status === 'active'
+                        ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100'}`}>{STATUS_LABEL[l.status]}</span>
                     </td>
                     <td className="py-2 px-3">
                       <button onClick={() => openEdit(l)}
-                        className="text-xs px-2 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 whitespace-nowrap">수정</button>
+                        className="text-xs px-2 py-1 border border-slate-400 rounded-lg hover:bg-slate-50 whitespace-nowrap">수정</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t border-gray-200 bg-slate-50 font-medium">
+                <tr className="border-t border-slate-300 bg-slate-50 font-medium">
                   <td className="py-2 px-3" colSpan={4}>합계 ({visibleTerms.length}건)</td>
                   <td className="py-2 px-3 text-right">{won(visibleTerms.reduce((s, l) => s + l.current_balance, 0))}</td>
                   <td className="py-2 px-3" />
@@ -437,18 +437,18 @@ export default function LoansPage() {
 
           {/* ── 한도대출 (마이너스 통장) ── */}
           <div className="flex items-baseline gap-2 mt-8 mb-2">
-            <h2 className="text-sm font-semibold text-gray-700">한도대출 (마이너스 통장)</h2>
-            <span className="text-xs text-gray-400">사용액·미사용 한도는 통장 잔액에서 자동 산출</span>
+            <h2 className="text-sm font-semibold text-slate-800">한도대출 (마이너스 통장)</h2>
+            <span className="text-xs text-slate-500">사용액·미사용 한도는 통장 잔액에서 자동 산출</span>
           </div>
           {visibleLines.length === 0 ? (
-            <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
+            <div className="bg-white border border-slate-300 rounded-xl p-8 text-center text-slate-500 text-sm">
               표시할 한도대출이 없습니다.
             </div>
           ) : (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+          <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                   <th className={th}>NO</th>
                   <th className={th}>대출명</th>
                   <th className={th}>은행</th>
@@ -464,36 +464,36 @@ export default function LoansPage() {
                   <th className={th}></th>
                 </tr>
               </thead>
-              <tbody className="text-gray-700">
+              <tbody className="text-slate-800">
                 {visibleLines.map(l => {
                   const u = usage(l)
                   const rate = u.limit > 0 ? Math.min((u.used / u.limit) * 100, 100) : 0
                   return (
-                    <tr key={l.id} className={`border-b border-gray-100 ${l.status === 'closed' ? 'text-gray-400' : ''}`}>
+                    <tr key={l.id} className={`border-b border-slate-200 ${l.status === 'closed' ? 'text-slate-500' : ''}`}>
                       <td className="py-2 px-3">{l.seq ?? '-'}</td>
                       <td className="py-2 px-3">
                         {l.title}
                         {(needsCheck(l) || isOverdue(l)) && (
-                          <span className="ml-1 inline-block whitespace-nowrap text-[0.625rem] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">확인 필요</span>
+                          <span className="ml-1 inline-block whitespace-nowrap text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">확인 필요</span>
                         )}
                         {!u.linked && (
-                          <span className="ml-1 inline-block whitespace-nowrap text-[0.625rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-300">계좌 미연결</span>
+                          <span className="ml-1 inline-block whitespace-nowrap text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-400">계좌 미연결</span>
                         )}
-                        {l.memo && <div className="text-[0.6875rem] text-amber-700 mt-0.5">{l.memo}</div>}
+                        {l.memo && <div className="text-xs text-amber-700 mt-0.5">{l.memo}</div>}
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap">{l.bank_name}</td>
-                      <td className="py-2 px-3 text-gray-500 whitespace-nowrap">{acctLabel(l.bank_accounts)}</td>
+                      <td className="py-2 px-3 text-slate-600 whitespace-nowrap">{acctLabel(l.bank_accounts)}</td>
                       <td className="py-2 px-3 text-right font-medium whitespace-nowrap">{won(u.limit)}</td>
-                      <td className={`py-2 px-3 text-right whitespace-nowrap ${u.used > 0 ? 'text-rose-600 font-medium' : 'text-gray-400'}`}>
+                      <td className={`py-2 px-3 text-right whitespace-nowrap ${u.used > 0 ? 'text-rose-600 font-medium' : 'text-slate-500'}`}>
                         {u.used > 0 ? won(u.used) : '-'}
                       </td>
                       <td className="py-2 px-3 min-w-[90px]">
                         <div className="flex items-center gap-1.5">
-                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-[40px]">
+                          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden min-w-[40px]">
                             <div className={`h-full ${rate >= 80 ? 'bg-rose-500' : rate > 0 ? 'bg-slate-700' : ''}`}
                               style={{ width: `${rate}%` }} />
                           </div>
-                          <span className="text-[0.6875rem] text-gray-500 whitespace-nowrap">{rate.toFixed(0)}%</span>
+                          <span className="text-xs text-slate-600 whitespace-nowrap">{rate.toFixed(0)}%</span>
                         </div>
                       </td>
                       <td className="py-2 px-3 text-right whitespace-nowrap">{won(u.available)}</td>
@@ -509,10 +509,10 @@ export default function LoansPage() {
                             ? `현재 사용액 기준 단순 추정 — 일 이자 ${won(estDailyInterest(u.used, l.interest_rate))}원 x ${daysInThisMonth()}일`
                             : undefined
                         return (
-                          <td className={`py-2 px-3 text-right whitespace-nowrap ${amount ? '' : 'text-gray-400'}`} title={tip}>
+                          <td className={`py-2 px-3 text-right whitespace-nowrap ${amount ? '' : 'text-slate-500'}`} title={tip}>
                             {amount ? won(amount) : '-'}
                             {ci && amount > 0 && (
-                              <div className="text-[0.625rem] text-gray-400 font-normal">
+                              <div className="text-xs text-slate-500 font-normal">
                                 1~{ci.days_elapsed}일 실적 {won(ci.mtd_interest)}
                               </div>
                             )}
@@ -521,21 +521,21 @@ export default function LoansPage() {
                       })()}
                       <td className="py-2 px-3 text-center whitespace-nowrap">{l.payment_day ? `${l.payment_day}일` : '-'}</td>
                       <td className="py-2 px-3 text-center whitespace-nowrap">
-                        <span className={`inline-block whitespace-nowrap text-[0.6875rem] px-1.5 py-0.5 rounded ${
-                          u.used > 0 ? 'bg-rose-50 text-rose-700' : 'bg-gray-100'}`}>
+                        <span className={`inline-block whitespace-nowrap text-xs px-1.5 py-0.5 rounded ${
+                          u.used > 0 ? 'bg-rose-50 text-rose-700' : 'bg-slate-100'}`}>
                           {u.used > 0 ? '사용 중' : '미사용'}
                         </span>
                       </td>
                       <td className="py-2 px-3">
                         <button onClick={() => openEdit(l)}
-                          className="text-xs px-2 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 whitespace-nowrap">수정</button>
+                          className="text-xs px-2 py-1 border border-slate-400 rounded-lg hover:bg-slate-50 whitespace-nowrap">수정</button>
                       </td>
                     </tr>
                   )
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t border-gray-200 bg-slate-50 font-medium">
+                <tr className="border-t border-slate-300 bg-slate-50 font-medium">
                   <td className="py-2 px-3" colSpan={4}>합계 ({visibleLines.length}건)</td>
                   <td className="py-2 px-3 text-right">{won(visibleLines.reduce((s, l) => s + usage(l).limit, 0))}</td>
                   <td className="py-2 px-3 text-right">{won(visibleLines.reduce((s, l) => s + usage(l).used, 0))}</td>
@@ -551,7 +551,7 @@ export default function LoansPage() {
             </table>
           </div>
           )}
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-slate-500 mt-2">
             한도대출 사용액은 마이너스 통장의 최신 잔액에서 계산합니다(자금현황과 같은 기준).
             사용액이 0으로만 보이면 해당 계좌가 통장 관리에서 마이너스통장으로 설정되어 있는지 확인해 주세요.
             <br />
@@ -567,26 +567,26 @@ export default function LoansPage() {
       {/* 편집 모달 */}
       {editing && (
         <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setEditing(null)}>
-          <div className="bg-white border border-gray-300 rounded-2xl shadow-xl p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+          <div className="bg-white border border-slate-400 rounded-2xl shadow-xl p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-bold">
                 {editing === 'new' ? '대출 등록' : `대출 수정 — ${(editing as Loan).title} (${(editing as Loan).bank_name})`}
               </h2>
-              <button onClick={() => setEditing(null)} className="text-gray-400 text-sm hover:text-gray-600">닫기</button>
+              <button onClick={() => setEditing(null)} className="text-slate-500 text-sm hover:text-slate-700">닫기</button>
             </div>
             <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
-              <label className="block col-span-2"><span className="text-xs text-gray-500">대출 종류</span>
+              <label className="block col-span-2"><span className="text-xs text-slate-600">대출 종류</span>
                 <select value={form.product_type} onChange={e => setForm(f => ({ ...f, product_type: e.target.value }))} className={input}>
                   <option value="term">일반 대출 (약정 원금·상환 스케줄)</option>
                   <option value="credit_line">한도대출 / 마이너스 통장 (한도·사용액)</option>
                 </select></label>
-              <label className="block"><span className="text-xs text-gray-500">대출명</span>
+              <label className="block"><span className="text-xs text-slate-600">대출명</span>
                 <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className={input} /></label>
-              <label className="block"><span className="text-xs text-gray-500">은행</span>
+              <label className="block"><span className="text-xs text-slate-600">은행</span>
                 <input value={form.bank_name} onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))} className={input} /></label>
               <label className="block col-span-2">
-                <span className="text-xs text-gray-500">{creditLineForm ? '연결 계좌 (사용액 산출 기준)' : '출금 계좌'}</span>
+                <span className="text-xs text-slate-600">{creditLineForm ? '연결 계좌 (사용액 산출 기준)' : '출금 계좌'}</span>
                 <select value={form.bank_account_id} onChange={e => setForm(f => ({ ...f, bank_account_id: e.target.value }))} className={input}>
                   <option value="">(미연결)</option>
                   {bankAccounts.map(b => (
@@ -596,76 +596,76 @@ export default function LoansPage() {
 
               {creditLineForm ? (
                 <>
-                  <label className="block"><span className="text-xs text-gray-500">약정한도 (원)</span>
+                  <label className="block"><span className="text-xs text-slate-600">약정한도 (원)</span>
                     <input value={form.credit_limit} onChange={e => setForm(f => ({ ...f, credit_limit: e.target.value }))}
                       className={`${input} text-right`} inputMode="numeric" /></label>
-                  <label className="block"><span className="text-xs text-gray-500">이율 (%)</span>
+                  <label className="block"><span className="text-xs text-slate-600">이율 (%)</span>
                     <input value={form.interest_rate} onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))}
                       className={`${input} text-right`} inputMode="decimal" /></label>
-                  <label className="block"><span className="text-xs text-gray-500">이자 납부일 (1~31, 말일=31)</span>
+                  <label className="block"><span className="text-xs text-slate-600">이자 납부일 (1~31, 말일=31)</span>
                     <input value={form.payment_day} onChange={e => setForm(f => ({ ...f, payment_day: e.target.value }))}
                       className={`${input} text-right`} inputMode="numeric" /></label>
-                  <p className="col-span-2 text-[0.6875rem] text-gray-500 bg-slate-50 border border-gray-200 rounded-lg px-2.5 py-2">
+                  <p className="col-span-2 text-xs text-slate-600 bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2">
                     한도대출은 잔액·월 원금·월 이자를 입력하지 않습니다. 사용액과 미사용 한도는 연결 계좌의 통장 잔액에서
                     자동 산출되고, 월 이자는 사용액 × 연이율 ÷ 365 × 당월 일수로 계산해 표시합니다(일할 후취).
                   </p>
                 </>
               ) : (
                 <>
-                  <label className="block"><span className="text-xs text-gray-500">현 잔액 (원)</span>
+                  <label className="block"><span className="text-xs text-slate-600">현 잔액 (원)</span>
                     <input value={form.current_balance} onChange={e => setForm(f => ({ ...f, current_balance: e.target.value }))}
                       className={`${input} text-right`} inputMode="numeric" /></label>
-                  <label className="block"><span className="text-xs text-gray-500">잔액 기준일</span>
+                  <label className="block"><span className="text-xs text-slate-600">잔액 기준일</span>
                     <input type="date" value={form.balance_date} onChange={e => setForm(f => ({ ...f, balance_date: e.target.value }))} className={input} /></label>
-                  <label className="block"><span className="text-xs text-gray-500">이율 (%)</span>
+                  <label className="block"><span className="text-xs text-slate-600">이율 (%)</span>
                     <input value={form.interest_rate} onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))}
                       className={`${input} text-right`} inputMode="decimal" /></label>
-                  <label className="block"><span className="text-xs text-gray-500">상환일 (1~31, 말일=31)</span>
+                  <label className="block"><span className="text-xs text-slate-600">상환일 (1~31, 말일=31)</span>
                     <input value={form.payment_day} onChange={e => setForm(f => ({ ...f, payment_day: e.target.value }))}
                       className={`${input} text-right`} inputMode="numeric" /></label>
-                  <label className="block"><span className="text-xs text-gray-500">월 원금 상환액 (원, 0=이자만)</span>
+                  <label className="block"><span className="text-xs text-slate-600">월 원금 상환액 (원, 0=이자만)</span>
                     <input value={form.monthly_principal} onChange={e => setForm(f => ({ ...f, monthly_principal: e.target.value }))}
                       className={`${input} text-right`} inputMode="numeric" /></label>
                   {form.interest_rate === '' ? (
-                    <label className="block"><span className="text-xs text-gray-500">월 이자 · 참고 (원) — 이율이 없어 직접 입력</span>
+                    <label className="block"><span className="text-xs text-slate-600">월 이자 · 참고 (원) — 이율이 없어 직접 입력</span>
                       <input value={form.monthly_interest} onChange={e => setForm(f => ({ ...f, monthly_interest: e.target.value }))}
                         className={`${input} text-right`} inputMode="numeric" /></label>
                   ) : (
-                    <div className="block"><span className="text-xs text-gray-500">월 이자 · 참고 (자동)</span>
-                      <div className={`${input} text-right bg-slate-50 text-gray-700 tabular-nums`}>
+                    <div className="block"><span className="text-xs text-slate-600">월 이자 · 참고 (자동)</span>
+                      <div className={`${input} text-right bg-slate-50 text-slate-800 tabular-nums`}>
                         {won(termMonthlyInterest({ current_balance: Math.round(Number(String(form.current_balance).replace(/,/g, '')) || 0), interest_rate: Number(form.interest_rate) || 0 }))}
                       </div>
-                      <div className="text-[0.6875rem] text-gray-400 mt-0.5">현 잔액 × 이율 ÷ 12. 은행 실제 청구(일할)와 달마다 조금 다를 수 있습니다.</div>
+                      <div className="text-xs text-slate-500 mt-0.5">현 잔액 × 이율 ÷ 12. 은행 실제 청구(일할)와 달마다 조금 다를 수 있습니다.</div>
                     </div>
                   )}
                 </>
               )}
 
-              <label className="block"><span className="text-xs text-gray-500">신규일</span>
+              <label className="block"><span className="text-xs text-slate-600">신규일</span>
                 <input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} className={input} /></label>
-              <label className="block"><span className="text-xs text-gray-500">만기일</span>
+              <label className="block"><span className="text-xs text-slate-600">만기일</span>
                 <input type="date" value={form.maturity_date} onChange={e => setForm(f => ({ ...f, maturity_date: e.target.value }))} className={input} /></label>
               {!creditLineForm && (
-                <label className="block"><span className="text-xs text-gray-500">구분</span>
+                <label className="block"><span className="text-xs text-slate-600">구분</span>
                   <select value={form.term_type} onChange={e => setForm(f => ({ ...f, term_type: e.target.value }))} className={input}>
                     <option value="long">장기차입금</option>
                     <option value="short">단기차입금</option>
                   </select></label>
               )}
-              <label className="block"><span className="text-xs text-gray-500">상태</span>
+              <label className="block"><span className="text-xs text-slate-600">상태</span>
                 <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={input}>
                   <option value="active">상환 중</option>
                   <option value="unused">미사용</option>
                   <option value="closed">종결</option>
                 </select></label>
-              <label className="block col-span-2"><span className="text-xs text-gray-500">대출번호 <span className="text-gray-400">(통장 적요에 찍히는 번호 — 이자·원금 자동 연결 키)</span></span>
+              <label className="block col-span-2"><span className="text-xs text-slate-600">대출번호 <span className="text-slate-500">(통장 적요에 찍히는 번호 — 이자·원금 자동 연결 키)</span></span>
                 <input type="text" value={form.loan_account_no} placeholder="예: 47598009367842"
                   onChange={e => setForm(f => ({ ...f, loan_account_no: e.target.value }))} className={input} /></label>
-              <label className="block col-span-2"><span className="text-xs text-gray-500">메모</span>
+              <label className="block col-span-2"><span className="text-xs text-slate-600">메모</span>
                 <textarea rows={2} value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} className={input} /></label>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setEditing(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">취소</button>
+              <button onClick={() => setEditing(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm hover:bg-slate-50">취소</button>
               <button onClick={save} disabled={saving}
                 className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
                 {saving ? '저장 중...' : '저장'}

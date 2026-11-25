@@ -141,8 +141,8 @@ function MarginLine({ label, m, purchase }: { label: string; m: Margin | null; p
   const neg = m !== null && roundProfit(m.profit, purchase) < 0
   return (
     <div className="flex justify-start items-baseline gap-1.5">
-      <span className="text-[0.625rem] text-gray-400">{label}</span>
-      {m === null ? <span className="text-gray-400">-</span> : (
+      <span className="text-xs text-slate-500">{label}</span>
+      {m === null ? <span className="text-slate-500">-</span> : (
         <span className={neg ? 'text-red-600 font-medium' : 'text-emerald-700'}>
           {formatProfit(m.profit, purchase)} <span className="text-xs">({formatRate(m.rate)})</span>
         </span>
@@ -420,13 +420,13 @@ export default function ProductsPage() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  const inputCls = 'border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm'
+  const inputCls = 'border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm'
 
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">품목 관리</h1>
-        <span className="text-xs text-gray-400">주문 입력의 품번 검색 원천 — 품번 선택 시 품명·매입처·가격 자동</span>
+        <h1 className="text-xl font-bold text-slate-900">품목 관리</h1>
+        <span className="text-xs text-slate-500">주문 입력의 품번 검색 원천 — 품번 선택 시 품명·매입처·가격 자동</span>
         <span className="ml-auto flex gap-2">
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) checkFile(f) }} />
@@ -438,12 +438,12 @@ export default function ProductsPage() {
               window.location.href = `/api/orders-portal/products/export?${p}`
             }}
             title="현재 필터·검색 조건 그대로 원가표 양식으로 다운로드 — 수정 후 그대로 재업로드 가능"
-            className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">
+            className="px-3.5 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">
             엑셀 다운로드
           </button>
           {canEdit && <>
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
-            className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">
+            className="px-3.5 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700 disabled:opacity-50">
             {uploading ? '처리 중...' : '상품 엑셀 업로드'}
           </button>
           <button onClick={() => { setEditingId('new'); setDraft(emptyDraft) }}
@@ -457,38 +457,38 @@ export default function ProductsPage() {
         {([
           ['all', '전체 품목', products.length, 'text-blue-700'],
           ['active', '사용 중 품목', kpi.active, ''],
-          ['inactive', '중지 품목', kpi.inactive, 'text-gray-400'],
+          ['inactive', '중지 품목', kpi.inactive, 'text-slate-500'],
           ['addon', '부가상품(옵션)', kpi.addon, 'text-violet-600'],
         ] as const).map(([key, title, val, cls]) => (
           <button key={key} onClick={() => { setFilter(key); setShowUnreg(false) }}
-            className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === key && !showUnreg ? 'border-slate-800' : 'border-gray-200'}`}>
-            <div className="text-[0.6875rem] text-gray-400">{title}</div>
+            className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === key && !showUnreg ? 'border-slate-800' : 'border-slate-300'}`}>
+            <div className="text-xs text-slate-500">{title}</div>
             <div className={`text-lg font-bold tabular-nums ${cls}`}>{val}</div>
           </button>
         ))}
         {/* 비용 품목 (배송비 · 퀵비 · 설치비 등) — 발주서 배송명단 제외 대상 (이름 키워드 후보 추천은 오판만 나와 폐지, 2026-11-05) */}
         <button onClick={() => { setFilter('cost'); setShowUnreg(false) }}
-          className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === 'cost' && !showUnreg ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[0.6875rem] text-gray-400">비용 품목</div>
+          className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === 'cost' && !showUnreg ? 'border-slate-800' : 'border-slate-300'}`}>
+          <div className="text-xs text-slate-500">비용 품목</div>
           <div className="text-lg font-bold tabular-nums text-amber-700">{kpi.cost}</div>
         </button>
         {/* 미등록 품목 (2026-11-19) — 주문 · 상담에 직접 입력된 품명. 누르면 표가 이 목록으로 바뀜 */}
         <button onClick={() => setShowUnreg(v => !v)} aria-pressed={showUnreg}
-          className={`bg-white border rounded-xl px-4 py-3 text-left ${showUnreg ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[0.6875rem] text-gray-400">미등록 품목</div>
+          className={`bg-white border rounded-xl px-4 py-3 text-left ${showUnreg ? 'border-slate-800' : 'border-slate-300'}`}>
+          <div className="text-xs text-slate-500">미등록 품목</div>
           <div className="text-lg font-bold tabular-nums text-orange-700">{unreg ? unreg.length : '-'}</div>
         </button>
         {/* 매입처 수 — 정보 표시용 (필터 아님) */}
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-left">
-          <div className="text-[0.6875rem] text-gray-400">매입처 수</div>
-          <div className="text-lg font-bold tabular-nums text-gray-500">{kpi.vendors}</div>
+        <div className="bg-white border border-slate-300 rounded-xl px-4 py-3 text-left">
+          <div className="text-xs text-slate-500">매입처 수</div>
+          <div className="text-lg font-bold tabular-nums text-slate-600">{kpi.vendors}</div>
         </div>
       </div>
 
       {/* 구분 검색 + 결과 내 재검색: Enter로 조건이 쌓이고 전부 만족한 품목만 표시 */}
       <div className="flex items-center gap-2 mt-3 flex-wrap">
         <select value={condField} onChange={e => setCondField(e.target.value as CondField)}
-          className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+          className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm">
           {(Object.keys(COND_LABEL) as CondField[]).map(f => (
             <option key={f} value={f}>{COND_LABEL[f]}</option>
           ))}
@@ -498,9 +498,9 @@ export default function ProductsPage() {
             if (e.key === 'Enter' && search.trim()) { addCond(condField, search); setSearch('') }
           }}
           placeholder={`${COND_LABEL[condField]} 검색 — Enter로 조건 고정(결과 내 재검색)`}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-80" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-80" />
         <button onClick={() => setBuilderOpen(o => !o)} aria-expanded={builderOpen}
-          className={`px-3 py-1.5 rounded-lg text-sm border ${builderOpen ? 'border-slate-800 text-slate-900 font-medium' : 'border-gray-300 text-gray-600'}`}>
+          className={`px-3 py-1.5 rounded-lg text-sm border ${builderOpen ? 'border-slate-800 text-slate-900 font-medium' : 'border-slate-400 text-slate-700'}`}>
           + 필터
         </button>
         {conds.map((c, i) => (
@@ -513,36 +513,36 @@ export default function ProductsPage() {
         ))}
         {itemFilters.map((f, i) => (
           <span key={encodeFilter(f)}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-slate-50 text-slate-700 border border-slate-300">
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-slate-50 text-slate-800 border border-slate-400">
             {filterLabel(f)}
             <button onClick={() => setItemFilters(prev => prev.filter((_, j) => j !== i))}
-              className="text-slate-400 hover:text-slate-700" title="필터 제거">×</button>
+              className="text-slate-500 hover:text-slate-800" title="필터 제거">×</button>
           </span>
         ))}
         {(conds.length > 0 || itemFilters.length > 0) && (
-          <button onClick={() => { setConds([]); setItemFilters([]) }} className="text-xs text-gray-400 hover:text-gray-600">
+          <button onClick={() => { setConds([]); setItemFilters([]) }} className="text-xs text-slate-500 hover:text-slate-700">
             조건 모두 지우기
           </button>
         )}
-        <span className="text-xs text-gray-400">{filtered.length}건</span>
+        <span className="text-xs text-slate-500">{filtered.length}건</span>
         {/* 정렬 기준 선택 — 머리글 클릭과 같은 상태 */}
         <span className="ml-auto flex items-center gap-1.5 flex-wrap">
           {!isDefaultSort && (
-            <button onClick={() => setSort(DEFAULT_SORT)} className="text-xs text-gray-400 hover:text-gray-600 mr-1"
+            <button onClick={() => setSort(DEFAULT_SORT)} className="text-xs text-slate-500 hover:text-slate-700 mr-1"
               title="기본 순서(품명 오름차순)로 되돌리기">
               정렬 해제
             </button>
           )}
-          <label htmlFor="product-sort-key" className="text-xs text-gray-500">정렬 기준</label>
+          <label htmlFor="product-sort-key" className="text-xs text-slate-600">정렬 기준</label>
           <select id="product-sort-key" value={sort.key}
             onChange={e => setSort(prev => ({ key: e.target.value as SortKey, dir: prev.dir }))}
-            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm">
             {SORT_OPTIONS.map(k => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
           </select>
-          <span className="inline-flex border border-gray-300 rounded-lg overflow-hidden" role="group" aria-label="정렬 방향">
+          <span className="inline-flex border border-slate-400 rounded-lg overflow-hidden" role="group" aria-label="정렬 방향">
             {(['asc', 'desc'] as const).map(d => (
               <button key={d} onClick={() => setSort(prev => ({ ...prev, dir: d }))} aria-pressed={sort.dir === d}
-                className={`px-2.5 py-1.5 text-sm ${sort.dir === d ? 'bg-slate-900 text-white' : 'bg-white text-gray-500 hover:text-gray-800'}`}>
+                className={`px-2.5 py-1.5 text-sm ${sort.dir === d ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 hover:text-slate-900'}`}>
                 {d === 'asc' ? '오름차순' : '내림차순'}
               </button>
             ))}
@@ -554,33 +554,33 @@ export default function ProductsPage() {
       {builderOpen && (() => {
         const kind = fieldOf(bField).kind
         const nVals = opsOf(bField).find(o => o.op === bOp)?.values ?? 0
-        const valCls = `border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm ${kind === 'text' ? 'w-48' : 'w-28 text-right tabular-nums'}`
+        const valCls = `border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm ${kind === 'text' ? 'w-48' : 'w-28 text-right tabular-nums'}`
         const unit = kind === 'rate' ? '%' : ''
         return (
-          <div className="mt-2 p-3 bg-white border border-slate-300 rounded-xl flex items-end gap-2.5 flex-wrap"
+          <div className="mt-2 p-3 bg-white border border-slate-400 rounded-xl flex items-end gap-2.5 flex-wrap"
             onKeyDown={e => { if (e.key === 'Enter') addFilter() }}>
             <div>
-              <label className="block text-[0.6875rem] text-gray-500 mb-0.5">항목</label>
+              <label className="block text-xs text-slate-600 mb-0.5">항목</label>
               <select value={bField} onChange={e => pickField(e.target.value as FilterFieldKey)}
-                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm">
                 {FILTER_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[0.6875rem] text-gray-500 mb-0.5">조건</label>
+              <label className="block text-xs text-slate-600 mb-0.5">조건</label>
               <select value={bOp} onChange={e => setBOp(e.target.value as FilterOp)}
-                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm">
                 {opsOf(bField).map(o => <option key={o.op} value={o.op}>{o.label}</option>)}
               </select>
             </div>
             {nVals > 0 && (
               <div>
-                <label className="block text-[0.6875rem] text-gray-500 mb-0.5">값{unit ? ` (${unit})` : ''}</label>
+                <label className="block text-xs text-slate-600 mb-0.5">값{unit ? ` (${unit})` : ''}</label>
                 <span className="inline-flex items-center gap-1.5">
                   <input value={bA} onChange={e => setBA(e.target.value)} className={valCls}
                     inputMode={kind === 'text' ? 'text' : 'decimal'} placeholder={nVals === 2 ? '부터' : ''} />
                   {nVals === 2 && <>
-                    <span className="text-gray-400">~</span>
+                    <span className="text-slate-500">~</span>
                     <input value={bB} onChange={e => setBB(e.target.value)} className={valCls} inputMode="decimal" placeholder="까지" />
                   </>}
                 </span>
@@ -588,7 +588,7 @@ export default function ProductsPage() {
             )}
             <button onClick={addFilter} disabled={!isComplete(draftFilter)}
               className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-40">조건 추가</button>
-            <span className="text-xs text-gray-400 pb-1.5">
+            <span className="text-xs text-slate-500 pb-1.5">
               칩은 몇 개든 쌓을 수 있고 모두 만족하는 품목만 보입니다. Enter로도 추가.
               {kind === 'rate' ? ' 마진율은 %로 입력(예: 20).' : ''}
             </span>
@@ -598,13 +598,13 @@ export default function ProductsPage() {
 
       {/* 금액대 칩 (2026-11-19) — 기준 선택, 여러 개 켜면 그중 하나에 드는 품목. 높은 · 낮은 가격순 = 기준 금액 정렬 */}
       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-        <span className="text-xs text-gray-500">금액대</span>
+        <span className="text-xs text-slate-600">금액대</span>
         <select value={basis} onChange={e => setBasis(e.target.value as PriceBasis)} aria-label="금액대 기준"
-          className="border border-gray-300 rounded-lg px-2 py-1 text-xs">
+          className="border border-slate-400 rounded-lg px-2 py-1 text-xs">
           {PRICE_BASES.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
         </select>
         <button onClick={() => setBands([])}
-          className={`px-2.5 py-1 rounded-full text-xs border ${bands.length ? 'bg-white border-gray-300 text-gray-600' : 'bg-slate-900 border-slate-900 text-white'}`}>
+          className={`px-2.5 py-1 rounded-full text-xs border ${bands.length ? 'bg-white border-slate-400 text-slate-700' : 'bg-slate-900 border-slate-900 text-white'}`}>
           전체
         </button>
         {PRICE_BANDS.map(b => {
@@ -612,18 +612,18 @@ export default function ProductsPage() {
           return (
             <button key={b.key} aria-pressed={on}
               onClick={() => setBands(prev => on ? prev.filter(x => x !== b.key) : [...prev, b.key])}
-              className={`px-2.5 py-1 rounded-full text-xs border tabular-nums ${on ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-gray-300 text-gray-600'}`}>
-              {b.label} <span className={on ? 'text-slate-300' : 'text-gray-400'}>{bandCounts[b.key] ?? 0}</span>
+              className={`px-2.5 py-1 rounded-full text-xs border tabular-nums ${on ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-400 text-slate-700'}`}>
+              {b.label} <span className={on ? 'text-slate-400' : 'text-slate-500'}>{bandCounts[b.key] ?? 0}</span>
             </button>
           )
         })}
-        <span className="ml-2 inline-flex border border-gray-300 rounded-lg overflow-hidden" role="group" aria-label="가격순 정렬">
+        <span className="ml-2 inline-flex border border-slate-400 rounded-lg overflow-hidden" role="group" aria-label="가격순 정렬">
           {([['desc', '높은 가격순'], ['asc', '낮은 가격순']] as const).map(([d, label]) => {
             const on = sort.key === priceSortKey && sort.dir === d
             return (
               <button key={d} onClick={() => setSort({ key: priceSortKey, dir: d })} aria-pressed={on}
                 title={`${PRICE_BASES.find(x => x.key === basis)?.label} 기준 정렬 (금액대 기준을 바꾸면 함께 바뀜)`}
-                className={`px-2.5 py-1 text-xs ${on ? 'bg-slate-900 text-white' : 'bg-white text-gray-500 hover:text-gray-800'}`}>
+                className={`px-2.5 py-1 text-xs ${on ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 hover:text-slate-900'}`}>
                 {label}
               </button>
             )
@@ -636,72 +636,72 @@ export default function ProductsPage() {
 
       {/* 등록·수정 폼 */}
       {editingId && (
-        <div className="mt-3 p-3.5 bg-white border border-slate-300 rounded-xl flex items-end gap-2.5 flex-wrap">
+        <div className="mt-3 p-3.5 bg-white border border-slate-400 rounded-xl flex items-end gap-2.5 flex-wrap">
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">품번</label>
+            <label className="block text-xs text-slate-600 mb-0.5">품번</label>
             <input value={draft.item_code} onChange={e => setDraft(d => ({ ...d, item_code: e.target.value }))}
               className={`${inputCls} w-28`} placeholder="없으면 빈칸" />
           </div>
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">품명 *</label>
+            <label className="block text-xs text-slate-600 mb-0.5">품명 *</label>
             <input value={draft.item_name} onChange={e => setDraft(d => ({ ...d, item_name: e.target.value }))}
               className={`${inputCls} w-64`} />
           </div>
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">매입처</label>
+            <label className="block text-xs text-slate-600 mb-0.5">매입처</label>
             <input value={draft.purchase_vendor_name} onChange={e => setDraft(d => ({ ...d, purchase_vendor_name: e.target.value }))}
               className={`${inputCls} w-40`} placeholder="발주서 분리 기준" />
           </div>
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">지점판매가</label>
+            <label className="block text-xs text-slate-600 mb-0.5">지점판매가</label>
             <NumInput value={draft.sale_price ? won(draft.sale_price) : ''} onChange={e => setDraft(d => ({ ...d, sale_price: toInt(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0"
               title="한 곳 묶음 배송 — 배송비는 카톤 기준 별도" />
           </div>
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">개별판매가</label>
+            <label className="block text-xs text-slate-600 mb-0.5">개별판매가</label>
             <NumInput value={draft.individual_sale_price ? won(draft.individual_sale_price) : ''} onChange={e => setDraft(d => ({ ...d, individual_sale_price: toInt(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="미지정"
               title="여러 곳 개별 배송 — 배송비 포함가. 비우면 지점판매가 사용" />
           </div>
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">매입가</label>
+            <label className="block text-xs text-slate-600 mb-0.5">매입가</label>
             <NumInput decimals={2} value={draft.purchase_price ? fmtPurchasePrice(draft.purchase_price) : ''} onChange={e => setDraft(d => ({ ...d, purchase_price: toPurchasePrice(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0" />
           </div>
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">카톤단위</label>
+            <label className="block text-xs text-slate-600 mb-0.5">카톤단위</label>
             <NumInput value={draft.carton_unit || ''} onChange={e => setDraft(d => ({ ...d, carton_unit: toInt(e.target.value) }))}
               className={`${inputCls} w-20 text-right tabular-nums`} placeholder="개/카톤" title="1카톤에 들어가는 수량 — 비우면 배송비 자동 계산 안 함" />
           </div>
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">카톤택배비</label>
+            <label className="block text-xs text-slate-600 mb-0.5">카톤택배비</label>
             <NumInput value={draft.carton_shipping_fee ? won(draft.carton_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, carton_shipping_fee: toInt(e.target.value) }))}
               className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0" title="카톤당 택배비" />
           </div>
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">카톤외택배비</label>
+            <label className="block text-xs text-slate-600 mb-0.5">카톤외택배비</label>
             <NumInput value={draft.loose_shipping_fee ? won(draft.loose_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, loose_shipping_fee: toInt(e.target.value) }))}
               className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0"
               title="낱개 1건 택배비 — 지점 배송 나머지 낱개분·개별 배송 파생가 계산에 사용" />
           </div>
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">분류</label>
+            <label className="block text-xs text-slate-600 mb-0.5">분류</label>
             <input value={draft.category} onChange={e => setDraft(d => ({ ...d, category: e.target.value }))}
               className={`${inputCls} w-24`} placeholder="타올 등" />
           </div>
           <div>
-            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">메모</label>
+            <label className="block text-xs text-slate-600 mb-0.5">메모</label>
             <input value={draft.memo} onChange={e => setDraft(d => ({ ...d, memo: e.target.value }))}
               className={`${inputCls} w-40`} />
           </div>
-          <label className="flex items-center gap-1.5 text-xs text-gray-600 pb-2 cursor-pointer"
+          <label className="flex items-center gap-1.5 text-xs text-slate-700 pb-2 cursor-pointer"
             title="포장지·쇼핑백 등 — 주문 입력에서 같은 매입처 상품의 옵션 추가 칩으로 노출">
             <input type="checkbox" checked={draft.is_addon}
               onChange={e => setDraft(d => ({ ...d, is_addon: e.target.checked }))} />
             부가상품
           </label>
-          <label className="flex items-center gap-1.5 text-xs text-gray-600 pb-2 cursor-pointer"
+          <label className="flex items-center gap-1.5 text-xs text-slate-700 pb-2 cursor-pointer"
             title="비용 품목 (배송비 · 퀵비 · 설치비 등, 703) — 옵션 칩으로 노출, 선택 시 판매가 0 기본. 발주서 품목 표에는 나오고 배송명단에서는 빠집니다">
             <input type="checkbox" checked={draft.is_shipping}
               onChange={e => setDraft(d => ({ ...d, is_shipping: e.target.checked }))} />
@@ -713,18 +713,18 @@ export default function ProductsPage() {
             {editingId === 'new' ? '등록' : '저장'}
           </button>
           <button onClick={() => { setEditingId(null); setDraft(emptyDraft) }}
-            className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
+            className="px-3.5 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
         </div>
       )}
 
       {showUnreg ? (
-        <div className="bg-white border border-gray-200 rounded-xl mt-3 overflow-x-auto">
-          <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">
+        <div className="bg-white border border-slate-300 rounded-xl mt-3 overflow-x-auto">
+          <div className="px-3 py-2 text-xs text-slate-600 border-b border-slate-200">
             미등록 품목 — 주문(직접 입력) · 상담에 품번 연결 없이 쓰인 품명을 품명 + 매입처로 묶었습니다. 등록해도 이미 저장된 주문 · 상담은 바뀌지 않고, 같은 품명 + 매입처가 품목에 생기면 이 목록에서 빠집니다.
           </div>
           <table className="w-full text-sm min-w-[760px]">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 px-3 font-medium text-left">품명 (직접 입력)</th>
                 <th className="py-2 px-3 font-medium text-left">매입처</th>
                 <th className="py-2 px-3 font-medium text-left">최근 판매가</th>
@@ -738,7 +738,7 @@ export default function ProductsPage() {
               {(unreg ?? []).map(u => {
                 const k = `${u.item_name}|${u.purchase_vendor_name}`
                 return (
-                  <tr key={k} className="border-b border-gray-50 align-top">
+                  <tr key={k} className="border-b border-slate-200 align-top">
                     <td className="py-2 px-3 font-medium">
                       {u.item_name}
                       {unregOpen === k && (
@@ -764,7 +764,7 @@ export default function ProductsPage() {
                           className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-xs mr-1.5">등록</button>
                       )}
                       <button onClick={() => setUnregOpen(o => o === k ? null : k)}
-                        className="px-2.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-600">
+                        className="px-2.5 py-1 border border-slate-400 rounded-lg text-xs text-slate-700">
                         {unregOpen === k ? '접기' : '쓰인 곳 보기'}
                       </button>
                     </td>
@@ -772,20 +772,20 @@ export default function ProductsPage() {
                 )
               })}
               {unreg && !unreg.length && (
-                <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">미등록 품목이 없습니다.</td></tr>
+                <tr><td colSpan={7} className="text-center py-12 text-slate-500 text-sm">미등록 품목이 없습니다.</td></tr>
               )}
               {!unreg && (
-                <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">불러오는 중...</td></tr>
+                <tr><td colSpan={7} className="text-center py-12 text-slate-500 text-sm">불러오는 중...</td></tr>
               )}
             </tbody>
           </table>
         </div>
       ) : (
-      <div className="bg-white border border-gray-200 rounded-xl mt-3 overflow-x-auto">
-        {loading || !ready ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : (
+      <div className="bg-white border border-slate-300 rounded-xl mt-3 overflow-x-auto">
+        {loading || !ready ? <div className="text-center py-16 text-slate-500">로딩 중...</div> : (
           <table className="w-full text-sm min-w-[760px]">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 {SORT_COLS.map(([key, label]) => {
                   const on = sort.key === key
                   return (
@@ -793,9 +793,9 @@ export default function ProductsPage() {
                       aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                       <button onClick={() => toggleSort(key)}
                         title="클릭: 오름차순 → 내림차순 → 기본 순서(품명)"
-                        className={`inline-flex items-center gap-0.5 whitespace-nowrap hover:text-gray-800 ${on ? 'text-gray-900' : ''}`}>
+                        className={`inline-flex items-center gap-0.5 whitespace-nowrap hover:text-slate-900 ${on ? 'text-slate-900' : ''}`}>
                         {label}
-                        <span className={on ? '' : 'text-gray-300'}>{on ? (sort.dir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                        <span className={on ? '' : 'text-slate-400'}>{on ? (sort.dir === 'asc' ? '▲' : '▼') : '⇅'}</span>
                       </button>
                     </th>
                   )
@@ -805,22 +805,22 @@ export default function ProductsPage() {
             </thead>
             <tbody>
               {sorted.map(p => (
-                <tr key={p.id} className={`border-b border-gray-50 ${p.is_active ? '' : 'text-gray-400'}`}>
+                <tr key={p.id} className={`border-b border-slate-200 ${p.is_active ? '' : 'text-slate-500'}`}>
                   <td className="py-2 px-3 text-xs tabular-nums whitespace-nowrap">{p.item_code ?? '-'}</td>
                   <td className="py-2 px-3 font-medium">
                     {p.item_name}
                     {p.is_addon && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-violet-50 text-violet-600">옵션</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-600">옵션</span>
                     )}
                     {p.is_shipping && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-amber-50 text-amber-700">비용</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">비용</span>
                     )}
                     {p.is_soldout && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-red-50 text-red-600">품절</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-600">품절</span>
                     )}
                     {/* 원가표 상태 메모 (512) — 원문 그대로 표시 */}
                     {p.status_note && (
-                      <span className="ml-1.5 text-[0.625rem] text-amber-600 whitespace-pre-line align-middle">{p.status_note}</span>
+                      <span className="ml-1.5 text-xs text-amber-600 whitespace-pre-line align-middle">{p.status_note}</span>
                     )}
                   </td>
                   <td className="py-2 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
@@ -834,7 +834,7 @@ export default function ProductsPage() {
                     ) : '-'}
                     {/* 매입처 연락처 (2026-11-10) — 수정 화면 매입처 정보와 같은 값, 출처 구분 없이 검정 */}
                     {p.purchase_vendor_name && vendorPhones[p.purchase_vendor_name] && (
-                      <div className="text-xs text-gray-900 tabular-nums">{vendorPhones[p.purchase_vendor_name]}</div>
+                      <div className="text-xs text-slate-900 tabular-nums">{vendorPhones[p.purchase_vendor_name]}</div>
                     )}
                   </td>
                   <td className="py-2 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
@@ -849,7 +849,7 @@ export default function ProductsPage() {
                   <td className="py-2 px-3 text-right tabular-nums">{p.loose_shipping_fee ? won(p.loose_shipping_fee) : '-'}</td>
                   <td className="py-2 px-3 text-xs">{p.memo ?? '-'}</td>
                   <td className="py-2 px-3">
-                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                       {p.is_active ? '사용' : '중지'}
                     </span>
                   </td>
@@ -857,18 +857,18 @@ export default function ProductsPage() {
                     <button onClick={() => startEdit(p)} className="text-xs text-blue-700 hover:underline mr-2.5">수정</button>
                     <button onClick={() => act({ action: p.is_soldout ? 'restock' : 'soldout', id: p.id },
                         p.is_soldout ? '품절이 해제되었습니다.' : '품절 처리되었습니다. 상담·주문 입력 검색에 품절로 표시됩니다.')}
-                      className={`text-xs mr-2.5 hover:underline ${p.is_soldout ? 'text-red-500' : 'text-gray-400'}`}>
+                      className={`text-xs mr-2.5 hover:underline ${p.is_soldout ? 'text-red-500' : 'text-slate-500'}`}>
                       {p.is_soldout ? '품절해제' : '품절'}
                     </button>
                     <button onClick={() => act({ action: p.is_active ? 'deactivate' : 'reactivate', id: p.id })}
-                      className="text-xs text-gray-400 hover:underline">
+                      className="text-xs text-slate-500 hover:underline">
                       {p.is_active ? '중지' : '재사용'}
                     </button>
                   </td>}
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={canEdit ? 14 : 13} className="text-center py-12 text-gray-400 text-sm">
+                <tr><td colSpan={canEdit ? 14 : 13} className="text-center py-12 text-slate-500 text-sm">
                   {canEdit ? '품목이 없습니다. 상품 엑셀 업로드 또는 개별 등록으로 시작하세요.' : '품목이 없습니다.'}
                 </td></tr>
               )}
@@ -877,7 +877,7 @@ export default function ProductsPage() {
         )}
       </div>
       )}
-      {canEdit && !showUnreg && <p className="text-xs text-gray-400 mt-2">
+      {canEdit && !showUnreg && <p className="text-xs text-slate-500 mt-2">
         회사 원가표 엑셀을 그대로 업로드하면 됩니다 (원가표 시트의 품번 · 상품명(원가표 등록용) · 옵션명 · 매입처 ·
         지점배송매입가 · 지점/개별배송판매가 · 목차 · 카톤단위 · 택배비(카톤단위/카톤외)를 인식, 카탈로그 제작용 컬럼은 무시).
         품번 기준으로 갱신되며, 주문 입력에서 지점=지점판매가+카톤 공식 배송비 / 개별=개별판매가(배송비 포함)가 자동 적용됩니다.
@@ -898,13 +898,13 @@ export default function ProductsPage() {
       {pending && (
         <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4"
           onClick={() => setPending(null)}>
-          <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-5 w-full max-w-md"
+          <div className="bg-white rounded-xl shadow-xl border border-slate-300 p-5 w-full max-w-md"
             onClick={e => e.stopPropagation()}>
-            <div className="text-sm font-bold text-gray-900">업로드 하시겠습니까?</div>
-            <div className="mt-2 text-sm text-gray-700 break-all">{pending.file.name}</div>
-            <div className="mt-3 p-3 bg-gray-50 rounded-lg text-sm text-gray-700 space-y-1">
+            <div className="text-sm font-bold text-slate-900">업로드 하시겠습니까?</div>
+            <div className="mt-2 text-sm text-slate-800 break-all">{pending.file.name}</div>
+            <div className="mt-3 p-3 bg-slate-50 rounded-lg text-sm text-slate-800 space-y-1">
               <div>인식 <b className="tabular-nums">{pending.stats.parsed ?? 0}</b>건
-                {pending.stats.skipped ? <span className="text-gray-400"> (건너뜀 {pending.stats.skipped}건)</span> : null}
+                {pending.stats.skipped ? <span className="text-slate-500"> (건너뜀 {pending.stats.skipped}건)</span> : null}
               </div>
               <div>
                 신규 <b className="tabular-nums">{pending.stats.created ?? 0}</b>건 ·
@@ -921,7 +921,7 @@ export default function ProductsPage() {
             )}
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setPending(null)}
-                className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
+                className="px-3.5 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
               <button onClick={() => upload(pending.file)}
                 className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">업로드</button>
             </div>

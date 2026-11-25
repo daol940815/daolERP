@@ -19,9 +19,9 @@ export const WR_STATUS_HINT: Partial<Record<WrStatus, string>> = {
   done_reported: '담당자가 처리 보고함 — 요청자의 완료 확정을 기다리는 중',
 }
 export const WR_STATUS_CLS: Record<WrStatus, string> = {
-  requested: 'bg-gray-100 text-gray-600', accepted: 'bg-blue-100 text-blue-700', in_progress: 'bg-indigo-100 text-indigo-700',
+  requested: 'bg-slate-100 text-slate-700', accepted: 'bg-blue-100 text-blue-700', in_progress: 'bg-indigo-100 text-indigo-700',
   done_reported: 'bg-amber-100 text-amber-700', completed: 'bg-green-100 text-green-700',
-  canceled: 'bg-gray-100 text-gray-400 line-through', rejected: 'bg-red-100 text-red-700',
+  canceled: 'bg-slate-100 text-slate-500 line-through', rejected: 'bg-red-100 text-red-700',
 }
 export const WR_EVENT_LABEL: Record<WrEvent, string> = {
   created: '요청 생성', accepted: '수락', rejected: '반려', memo: '진행 메모', reported: '처리 완료 보고',
@@ -38,8 +38,8 @@ export const WR_ASG_LABEL: Record<WrAsgStatus, string> = {
   invited: '미확인', accepted: '수락', in_progress: '진행 중', done_reported: '처리 보고', rejected: '반려', released: '다른 사람이 수락',
 }
 export const WR_ASG_CLS: Record<WrAsgStatus, string> = {
-  invited: 'bg-gray-100 text-gray-600', accepted: 'bg-blue-100 text-blue-700', in_progress: 'bg-indigo-100 text-indigo-700',
-  done_reported: 'bg-amber-100 text-amber-700', rejected: 'bg-red-100 text-red-700', released: 'bg-gray-100 text-gray-400',
+  invited: 'bg-slate-100 text-slate-700', accepted: 'bg-blue-100 text-blue-700', in_progress: 'bg-indigo-100 text-indigo-700',
+  done_reported: 'bg-amber-100 text-amber-700', rejected: 'bg-red-100 text-red-700', released: 'bg-slate-100 text-slate-500',
 }
 
 // 아직 끝나지 않은 상태 (담당자가 손에 들고 있는 것 + 요청자 확정 대기)
@@ -227,7 +227,7 @@ export const WR_TAG_COLORS: { key: string; label: string; dot: string }[] = [
   { key: 'emerald', label: '초록', dot: 'bg-emerald-600' }, { key: 'teal', label: '청록', dot: 'bg-teal-600' },
   { key: 'indigo', label: '남색', dot: 'bg-indigo-600' }, { key: 'violet', label: '보라', dot: 'bg-violet-600' },
   { key: 'pink', label: '분홍', dot: 'bg-pink-600' }, { key: 'lime', label: '연두', dot: 'bg-lime-600' },
-  { key: 'slate', label: '진회색', dot: 'bg-slate-600' }, { key: 'gray', label: '회색', dot: 'bg-gray-300' },
+  { key: 'slate', label: '진회색', dot: 'bg-slate-600' }, { key: 'gray', label: '회색', dot: 'bg-slate-300' },
 ]
 export const tagDotCls = (color: string) => WR_TAG_COLORS.find(c => c.key === color)?.dot ?? 'bg-slate-600'
 // 요청의 태그를 마스터 순서대로 (숨긴 태그도 과거 요청에는 그대로 보인다)
