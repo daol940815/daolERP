@@ -5,7 +5,8 @@ import { loadReceivableMap } from './orders-portal-list'
 import { vendorOfOrder } from './prepay'
 import { loadBillingFamily } from './billing'
 // 정산상태 중복해제(카드사 중복 승인 해제, 수금 없음)는 후보에서 제외 (2026-11-17)
-import { NOT_VOID_OR } from '@/lib/card-sale-status'
+import { NOT_VOID_OR, isCardSaleVoided, CARD_SALE_VOID_NOTE } from '@/lib/card-sale-status'
+import { addBankKeyword, keywordHit, learnableKeyword, loadBankKeywords } from './vendor-keywords.server'
 import { insertMatches, logUnmatch } from './match-log'
 import { hasCancelCols, loadCancelLines, loadCancelRowIds, netRecordLinks, type CancelLine } from './payment-cancel-meta'
 import { kindDiff, kindLabel, kindMissing, kindOfCardSale, CARD_ENTRY_LABEL, REC_VAT_LABEL, type CardEntry, type PayKind, type RecVat } from './payment-kind'
@@ -444,6 +445,9 @@ export interface SourceCandidate {
   reason: string
   kind?: string | null      // 원본에서 읽은 구분 (카드 매출)
   kind_diff?: boolean       // 기록한 구분과 다름 — 매칭 불가
+  learn?: string | null     // 통장: 확정할 때 매출처 통장 키워드로 기록할 입금자 표기(기록할 필요 없으면 없음, 2026-11-25)
+  // 카드 분할 결제 묶음(2026-11-25) — 같은 카드 · ±3일 승인 여러 건의 합계 = 기록 금액. source_id 는 첫 건, amount · remaining 은 합계
+  bundle?: { source_id: string; tx_date: string; approval_number: string; amount: number; void_paid?: boolean }[]
 }
 export interface QueueRow extends PayRecordView {
   vendor_name: string | null
@@ -605,6 +609,69 @@ const nameHit = (a: string | null | undefined, b: string | null | undefined) => 
   return x.length >= 2 && y.length >= 2 && (x.includes(y) || y.includes(x))
 }
 const dayDiff = (a: string, b: string) => Math.round((new Date(a).getTime() - new Date(b).getTime()) / 86400000)
+
+// ── 카드 분할 결제 묶음 후보 (2026-11-25 사용자 결정) ──
+// 같은 카드로 같은 날 나눠 결제(예: 50만 원 = 10만 원 × 5)하면 승인 1건 = 기록 금액이 아니라 단건 후보가 없다.
+// 기록의 카드 뒤 4자리와 같은 카드 · 결제일 ±3일 · 아직 한 푼도 배분되지 않은 승인들 중 합계가 기록 금액인 조합(2건 이상)을 찾는다.
+// 승인번호를 적은 기록이면 그 승인을 반드시 포함. 무효(중복해제 · 입금완료 아님) · 이전 처리분 · 구분이 다른 승인은 뺀다.
+// 조합이 하나면 강한 후보, 여럿이면(같은 금액 승인이 필요한 수보다 많음) 약한 후보 — 승인번호를 확인하고 확정하거나 "다른 입금 찾기"에서 골라 확정.
+const BUNDLE_MAX_ITEMS = 16
+async function buildCardBundles(admin: SupabaseClient, recs: QueueRow[], settled: Set<string>): Promise<Map<string, SourceCandidate>> {
+  const out = new Map<string, SourceCandidate>()
+  const targets = recs.filter(r => /^\d{4}$/.test(r.card_last4 ?? '') && r.amount > 0)
+  if (!targets.length) return out
+  const dates = targets.map(r => r.pay_date).sort()
+  type C = { id: string; tx_date: string; approval_number: string; card_number: string | null; acquirer: string | null; amount: number | null; transaction_type: string; settlement_status: string | null; processing_status: string | null }
+  const res = await fetchAllRows<C>((f, t) => admin.from('card_sales')
+    .select('id, tx_date, approval_number, card_number, acquirer, amount, transaction_type, settlement_status, processing_status')
+    .gte('tx_date', addDays(dates[0], -3)).lte('tx_date', addDays(dates[dates.length - 1], 3)).order('tx_date').range(f, t))
+  if ('error' in res) return out
+  const tails = new Set(targets.map(r => r.card_last4))
+  const tailOf = (c: C) => String(c.card_number ?? '').replace(/\D/g, '').slice(-4)
+  const cancelBy = new Map<string, number>()
+  for (const c of res.data) if (c.transaction_type === 'cancel') cancelBy.set(c.approval_number, (cancelBy.get(c.approval_number) ?? 0) + Math.abs(Number(c.amount ?? 0)))
+  const appr = res.data.filter(c => c.transaction_type === 'approval' && tails.has(tailOf(c)) && !isCardSaleVoided(c) && !settled.has(`card:${c.id}`))
+  if (!appr.length) return out
+  const used = sumBySource(await matchRowsBySource(admin, appr.map(c => c.id)))
+  const kinds = await loadCardKinds(admin, appr.map(c => c.id))
+  const pool = appr.map(c => ({ c, net: Math.abs(Number(c.amount ?? 0)) - (cancelBy.get(c.approval_number) ?? 0) }))
+    .filter(x => x.net > 0 && !(used.get(`card:${x.c.id}`) ?? 0))
+
+  for (const r of targets) {
+    const items = pool.filter(x => tailOf(x.c) === r.card_last4 && Math.abs(dayDiff(x.c.tx_date, r.pay_date)) <= 3 && x.net < r.amount && !kindDiff(r, kinds.get(x.c.id)).length)
+      .sort((a, b) => Math.abs(dayDiff(a.c.tx_date, r.pay_date)) - Math.abs(dayDiff(b.c.tx_date, r.pay_date)) || a.c.tx_date.localeCompare(b.c.tx_date))
+      .slice(0, BUNDLE_MAX_ITEMS)
+    if (items.length < 2) continue
+    const must = r.approval_number ? items.findIndex(x => x.c.approval_number === r.approval_number) : -1
+    if (r.approval_number && must < 0 && pool.some(x => x.c.approval_number === r.approval_number)) continue   // 적은 승인이 다른 날 · 다른 카드면 묶지 않는다
+    // 합계 = 기록 금액인 조합 찾기 (2건 이상). 해가 둘이면 멈춘다
+    const sols: number[][] = []
+    const pick: number[] = []
+    let nodes = 0
+    const dfs = (i: number, sum: number) => {
+      if (sols.length >= 2 || ++nodes > 20000) return
+      if (sum === r.amount) { if (pick.length >= 2 && (must < 0 || pick.includes(must))) sols.push([...pick]); return }
+      if (i >= items.length || sum > r.amount) return
+      pick.push(i); dfs(i + 1, sum + items[i].net); pick.pop()
+      if (i !== must) dfs(i + 1, sum)
+    }
+    dfs(0, 0)
+    if (!sols.length) continue
+    const sel = sols[0].map(i => items[i]).sort((a, b) => a.c.tx_date.localeCompare(b.c.tx_date))
+    const total = sel.reduce((x, y) => x + y.net, 0)
+    const k = kinds.get(sel[0].c.id)
+    const parts = [`카드 ${r.card_last4} 일치`, `${sel.length}건 합계 일치`]
+    if (must >= 0) parts.push('적은 승인번호 포함')
+    if (sols.length > 1) parts.push('같은 합계가 되는 다른 조합도 있음 — 승인번호를 확인하고 확정, 다르면 "다른 입금 찾기"에서 골라 확정')
+    out.set(r.id, {
+      source_type: 'card', source_id: sel[0].c.id, tx_date: sel[0].c.tx_date, label: `분할 결제 ${sel.length}건 ${sel[0].c.acquirer ?? ''}`.trim(),
+      amount: total, remaining: total, strength: sols.length === 1 ? 'strong' : 'weak', reason: parts.join(' · '),
+      kind: kindLabel(k), kind_diff: false,
+      bundle: sel.map(x => ({ source_id: x.c.id, tx_date: x.c.tx_date, approval_number: x.c.approval_number, amount: x.net, void_paid: (x.c.settlement_status ?? '').trim() === '중복해제' })),
+    })
+  }
+  return out
+}
 
 export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pending' | 'confirmed'; meId: string | null }): Promise<
   { error: string } | { rows: QueueRow[]; latest: { card: string | null; bank: string | null } }
@@ -787,6 +854,10 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
     return `다른 주문(${nos})에 ${won(others.reduce((s, m) => s + m.amount, 0))}원 배분됨`
   }
 
+  // 매출처 통장 키워드 (2026-11-25) — 입금자가 키워드에 걸리면 "키워드 일치"(강한 후보)
+  const bankKw = await loadBankKeywords(admin, rows.filter(r => r.method !== 'card').map(r => r.vendor_id ?? '').filter(Boolean))
+  const bundles = await buildCardBundles(admin, rows.filter(r => r.method === 'card'), settledKeys)
+
   for (const r of rows) {
     if (r.method === 'card') {
       const hit = r.approval_number ? cardNet(r.approval_number) : null
@@ -824,6 +895,16 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
           })
         }
       }
+      // 분할 결제 묶음 — 묶음에 든 승인의 단건 후보(금액 다름 · 불일치)는 뺀다
+      const b = bundles.get(r.id)
+      if (b) {
+        // 승인 1건이 기록과 딱 맞는 강한 후보가 있으면 묶음은 뒤에 약한 후보로만 둔다
+        if (r.candidates.some(c => c.strength === 'strong')) r.candidates.push({ ...b, strength: 'weak' })
+        else {
+          const inB = new Set(b.bundle!.map(x => x.source_id))
+          r.candidates = [b, ...r.candidates.filter(c => !inB.has(c.source_id))]
+        }
+      }
     } else {
       const from = r.method === 'invoice' ? r.pay_date : addDays(r.pay_date, -3)
       const to = addDays(r.pay_date, r.method === 'invoice' ? 120 : 14)
@@ -835,15 +916,19 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
         const who = (t.counterparty_name || t.description || '').trim()
         const byName = nameHit(who, r.depositor_name) || nameHit(who, r.vendor_name)
         const byVendor = !!r.vendor_id && t.vendor_id === r.vendor_id
+        const kws = r.vendor_id ? bankKw.get(r.vendor_id) ?? [] : []
+        const byKw = keywordHit(who, kws)
         const parts = ['금액 일치']
         if (own > 0) parts.push(`이 주문에 이미 ${won(own)}원 매칭됨 — 확정하면 기록에 연결`)
         if (byVendor) parts.push('거래처 일치')
-        if (byName) parts.push('입금자 비슷')
+        if (byKw) parts.push(`키워드 일치("${byKw}")`)
+        else if (byName) parts.push('입금자 비슷')
         const dd = dayDiff(t.tx_date, r.pay_date)
         if (r.method === 'transfer') parts.push(dd === 0 ? '같은 날' : `${Math.abs(dd)}일 ${dd > 0 ? '뒤' : '앞'}`)
         r.candidates.push({
           source_type: 'bank', source_id: t.id, tx_date: t.tx_date, label: `통장 ${who.slice(0, 20)}`.trim(),
-          amount: Number(t.amount_in ?? 0), remaining, strength: byVendor || byName ? 'strong' : 'weak', reason: parts.join(' · '),
+          amount: Number(t.amount_in ?? 0), remaining, strength: byVendor || byName || byKw ? 'strong' : 'weak', reason: parts.join(' · '),
+          learn: r.vendor_id ? learnableKeyword(who, r.vendor_name, kws) : null,
         })
       }
       r.candidates.sort((a, b) => (a.strength === b.strength ? Math.abs(dayDiff(a.tx_date, r.pay_date)) - Math.abs(dayDiff(b.tx_date, r.pay_date)) : a.strength === 'strong' ? -1 : 1))
@@ -869,7 +954,27 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
 // ── 2차: 확정 · 확인 해제 ─────────────────────────────────────────────────
 export interface ConfirmSource { source_type: 'bank' | 'card'; source_id: string; amount: number }
 
-export async function confirmRecord(admin: SupabaseClient, recordId: string, rawSources: ConfirmSource[], editor: Editor): Promise<{ error: string } | { ok: true; inserted: number }> {
+export async function confirmRecord(admin: SupabaseClient, recordId: string, rawSources: ConfirmSource[], editor: Editor, opts: { learnKeyword?: string | null } = {}): Promise<{ error: string } | { ok: true; inserted: number; keyword?: string | null }> {
+  const r = await confirmRecordInner(admin, recordId, rawSources, editor)
+  if ('error' in r || !opts.learnKeyword) return r
+  return { ...r, keyword: await learnFromConfirm(admin, recordId, rawSources, opts.learnKeyword) }
+}
+
+// 통장 확정 뒤 키워드 기록(2026-11-25) — 기록의 매출처에 입금자 표기를 통장 키워드로 남기고, 거래처가 비어 있는 입금에 매출처를 붙인다.
+// 실패해도 확정은 그대로다. 돌려주는 값 = 새로 기록한 키워드(없으면 null)
+async function learnFromConfirm(admin: SupabaseClient, recordId: string, sources: ConfirmSource[], text: string): Promise<string | null> {
+  try {
+    const { data: rec } = await admin.from('order_payment_records').select('vendor_id').eq('id', recordId).maybeSingle()
+    const vendorId = (rec?.vendor_id as string | null) ?? null
+    const bankIds = sources.filter(s => s?.source_type === 'bank' && s.source_id).map(s => s.source_id)
+    if (!vendorId || !bankIds.length) return null
+    await admin.from('transactions').update({ vendor_id: vendorId }).in('id', bankIds).is('vendor_id', null)
+    const r = await addBankKeyword(admin, vendorId, text)
+    return r.keyword
+  } catch { return null }
+}
+
+async function confirmRecordInner(admin: SupabaseClient, recordId: string, rawSources: ConfirmSource[], editor: Editor): Promise<{ error: string } | { ok: true; inserted: number }> {
   const { data: rec, error } = await admin.from('order_payment_records')
     .select('id, method, pay_date, amount, vendor_id, created_by, confirmed_at').eq('id', recordId).maybeSingle()
   if (error) return { error: errMsg(error.message) }
@@ -955,8 +1060,9 @@ export async function confirmRecord(admin: SupabaseClient, recordId: string, raw
       if (!t) return { error: '통장 입금 내역을 찾을 수 없습니다.' }
       srcAmount = Number(t.amount_in ?? 0); paidDate.set(k, String(t.tx_date).slice(0, 10))
     } else {
-      const { data: c } = await admin.from('card_sales').select('id, tx_date, amount, approval_number, vendor_id, transaction_type').eq('id', s.source_id).maybeSingle()
+      const { data: c } = await admin.from('card_sales').select('id, tx_date, amount, approval_number, vendor_id, transaction_type, settlement_status, processing_status').eq('id', s.source_id).maybeSingle()
       if (!c || c.transaction_type !== 'approval') return { error: '카드 매출 승인 내역을 찾을 수 없습니다.' }
+      if (isCardSaleVoided(c)) return { error: `${CARD_SALE_VOID_NOTE} — 승인 ${c.approval_number}은 확정할 수 없습니다.` }
       const { data: cancels } = await admin.from('card_sales').select('amount').eq('transaction_type', 'cancel').eq('approval_number', c.approval_number as string)
       srcAmount = Math.abs(Number(c.amount ?? 0)) - (cancels ?? []).reduce((x, y) => x + Math.abs(Number(y.amount ?? 0)), 0)
       paidDate.set(k, String(c.tx_date).slice(0, 10))

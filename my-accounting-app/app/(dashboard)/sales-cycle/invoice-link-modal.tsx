@@ -32,17 +32,22 @@ interface OpenOrder { id: string; order_no: string; order_date: string; net_amou
 // foreign: '다른 거래처 계산서에서 찾기'로 추가한 계산서 (이 매출처 · 청구처가 아닌 거래처 명의, 2026-11-17)
 interface OpenInvoice { id: string; issue_date: string; total_amount: number; item_name: string | null; remaining: number; vendor_name?: string; foreign?: boolean; vendor_id?: string | null; counterparty_name?: string | null; tax_type?: string | null }
 
-export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrderId, focusInvoiceId, onClose, onApplied }: {
+export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrderId: focusOne, focusOrderIds, focusInvoiceId, onClose, onApplied }: {
   vendorId: string
   vendorName: string
   // 주문 상세에서 열 때 — 그 주문 기준으로 연다(직접 연결에 미리 체크 · 추천 조합은 그 주문이 든 것만, 2026-11-17)
   focusOrderId?: string
+  // 결제 확인 › 매칭 대기에서 열 때 — 결제 기록에 묶인 주문 전부(2026-11-25)
+  focusOrderIds?: string[]
   // 계산서 내역에서 열 때 — 그 계산서 기준으로 연다(직접 연결에 미리 체크 · 추천 조합은 그 계산서가 든 것만, 2026-11-17)
   focusInvoiceId?: string
   from?: string   // 주문일 하한 — 화면의 조회 기간과 연동
   onClose: () => void
   onApplied: () => void
 }) {
+  const focusList = focusOrderIds?.length ? focusOrderIds : focusOne ? [focusOne] : []
+  const focusKey = focusList.join(',')
+  const focusOrderId = focusList[0]
   const [mode, setMode] = useState<'auto' | 'manual'>('auto')
   const [groups, setGroups] = useState<Group[] | null>(null)
   const [orders, setOrders] = useState<OpenOrder[]>([])
@@ -78,9 +83,10 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
       .then(({ ok, j }) => {
         if (!ok) { setError(j.error ?? '후보 조회 실패'); setGroups([]); return }
         const allGroups = (j.groups ?? []) as Group[]
-        const gs = focusOrderId ? allGroups.filter(g => g.orders.some(o => o.id === focusOrderId))
+        const gs = focusOrderId ? allGroups.filter(g => g.orders.some(o => focusList.includes(o.id)))
           : focusInvoiceId ? allGroups.filter(g => g.invoices.some(v => v.id === focusInvoiceId)) : allGroups
-        const hasFocus = !!focusOrderId && ((j.orders ?? []) as OpenOrder[]).some(o => o.id === focusOrderId)
+        const present = ((j.orders ?? []) as OpenOrder[]).filter(o => focusList.includes(o.id)).map(o => o.id)
+        const hasFocus = present.length > 0
         const hasFocusInv = !!focusInvoiceId && ((j.invoices ?? []) as OpenInvoice[]).some(v => v.id === focusInvoiceId)
         setGroups(gs)
         setFocusMissing(!!focusOrderId && !hasFocus)
@@ -93,12 +99,12 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
         setBilling(j.billing ?? { name: null, can_ask: false })
         setFound(null)
         setChecked(new Set())
-        setSelOrders(hasFocus ? new Set([focusOrderId!]) : new Set())
+        setSelOrders(new Set(present))
         setSelInvoices(hasFocusInv ? new Set([focusInvoiceId!]) : new Set())
       })
       .catch(() => { setError('네트워크 오류'); setGroups([]) })
   }
-  useEffect(load, [vendorId, from, focusOrderId, focusInvoiceId])
+  useEffect(load, [vendorId, from, focusKey, focusInvoiceId])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = (i: number) => setChecked(prev => {
     const next = new Set(prev)
@@ -132,47 +138,29 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
     const os = orders.filter(o => selOrders.has(o.id))
     const vs = invoices.filter(v => selInvoices.has(v.id))
     if (!os.length || !vs.length) return null
-    const clash = os.flatMap(o => vs.filter(v => !pairOk(o, v)).map(v => ({ o, v })))[0]
-    if (clash) {
-      return { valid: false as const, message: `주문 ${clash.o.order_no}의 결제 기록은 ${VAT_LABEL[clash.o.vat!]}인데 계산서(${clash.v.issue_date.slice(0, 10)})는 ${VAT_LABEL[clash.v.tax_type!] ?? clash.v.tax_type}입니다. 구분이 다르면 연결할 수 없습니다 — 기록을 잘못 적었으면 주문 상세에서 고치고, 계산서 종류를 잘못 발행했으면 수정 발행해야 합니다.` }
-    }
-    if (os.length > 1 && vs.length > 1) {
-      return { valid: false as const, message: '주문 여러 건 + 계산서 여러 장 조합은 지원하지 않습니다. 한쪽은 1건만 선택하세요.' }
-    }
+    // 주문 여러 건 + 계산서 여러 장(N:M)도 받는다(2026-11-25) — 주문은 주문일순, 계산서는 발행일순으로 앞에서부터 채운다.
+    // 1:N · N:1 은 이 계산의 특수한 경우(결과는 이전과 같다). 과세 구분은 실제로 붙는 짝마다 검사한다.
+    const oq = [...os].sort((a, b) => a.order_date.localeCompare(b.order_date)).map(o => ({ o, left: o.remaining }))
+    const vq = [...vs].sort((a, b) => a.issue_date.localeCompare(b.issue_date)).map(v => ({ v, left: v.remaining }))
     const links: { orderId: string; taxInvoiceId: string; amount: number; issueDate: string; label: string }[] = []
-    if (os.length === 1) {
-      // 주문 1건에 계산서들을 발행일순으로 충당
-      let capacity = os[0].remaining
-      for (const v of [...vs].sort((a, b) => a.issue_date.localeCompare(b.issue_date))) {
-        const amt = Math.min(v.remaining, capacity)
-        if (amt > 0) {
-          links.push({ orderId: os[0].id, taxInvoiceId: v.id, amount: amt, issueDate: v.issue_date, label: `계산서 ${v.issue_date} → 주문 ${os[0].order_no}` })
-          capacity -= amt
-        }
+    let i = 0, j = 0
+    while (i < oq.length && j < vq.length) {
+      if (oq[i].left <= 0) { i++; continue }
+      if (vq[j].left <= 0) { j++; continue }
+      const o = oq[i].o, v = vq[j].v
+      if (!pairOk(o, v)) {
+        return { valid: false as const, message: `주문 ${o.order_no}의 결제 기록은 ${VAT_LABEL[o.vat!]}인데 계산서(${v.issue_date.slice(0, 10)})는 ${VAT_LABEL[v.tax_type!] ?? v.tax_type}입니다. 구분이 다르면 연결할 수 없습니다 — 기록을 잘못 적었으면 주문 상세에서 고치고, 계산서 종류를 잘못 발행했으면 수정 발행해야 합니다. 구분이 같은 것끼리 나눠 연결하세요.` }
       }
-      const linked = links.reduce((s, l) => s + l.amount, 0)
-      return {
-        valid: links.length > 0, message: links.length === 0 ? '주문 잔액이 없어 배분할 수 없습니다.' : null,
-        links, linked,
-        leftOrder: os[0].remaining - linked,
-        leftInvoice: vs.reduce((s, v) => s + v.remaining, 0) - linked,
-      }
-    }
-    // 계산서 1장을 주문들(주문일순)에 배분
-    let left = vs[0].remaining
-    for (const o of [...os].sort((a, b) => a.order_date.localeCompare(b.order_date))) {
-      const amt = Math.min(o.remaining, left)
-      if (amt > 0) {
-        links.push({ orderId: o.id, taxInvoiceId: vs[0].id, amount: amt, issueDate: vs[0].issue_date, label: `계산서 ${vs[0].issue_date} → 주문 ${o.order_no}` })
-        left -= amt
-      }
+      const amt = Math.min(oq[i].left, vq[j].left)
+      links.push({ orderId: o.id, taxInvoiceId: v.id, amount: amt, issueDate: v.issue_date, label: `계산서 ${v.issue_date.slice(0, 10)} → 주문 ${o.order_no}` })
+      oq[i].left -= amt; vq[j].left -= amt
     }
     const linked = links.reduce((s, l) => s + l.amount, 0)
     return {
-      valid: links.length > 0, message: links.length === 0 ? '선택한 주문에 잔액이 없습니다.' : null,
+      valid: links.length > 0, message: links.length === 0 ? (os.every(o => o.remaining <= 0) ? '선택한 주문에 잔액이 없습니다.' : '선택한 계산서에 남은 금액이 없습니다.') : null,
       links, linked,
       leftOrder: os.reduce((s, o) => s + o.remaining, 0) - linked,
-      leftInvoice: vs[0].remaining - linked,
+      leftInvoice: vs.reduce((s, v) => s + v.remaining, 0) - linked,
     }
   }, [orders, invoices, selOrders, selInvoices])
 
@@ -290,7 +278,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
         <p className="text-xs text-slate-600 mt-1 mb-3">
           {mode === 'auto'
             ? '금액이 정확히 맞는 조합만 제시합니다. 같은 금액 주문이 여러 건이면 짝이 섞일 수 있으니 확인 후 확정하세요.'
-            : '주문 1건 + 계산서 여러 장, 또는 계산서 1장 + 주문 여러 건을 직접 골라 연결합니다. 금액이 달라도(부분 발행) 배분됩니다.'}
+            : '주문과 계산서를 직접 골라 연결합니다(여러 건 + 여러 장도 가능). 주문일순 · 발행일순으로 앞에서부터 채우고, 금액이 달라도(부분 발행) 배분됩니다.'}
           {summary && ` · 미연결 주문 ${summary.open_orders}건 · 미배분 계산서 ${summary.available_invoices}장`}
         </p>
         {focusMissing && groups && (

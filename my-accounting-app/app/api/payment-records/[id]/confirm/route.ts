@@ -9,7 +9,8 @@ import { resolveReason } from '@/lib/payment-reasons'
 export const dynamic = 'force-dynamic'
 
 // 결제 확인(2차) · 확인 해제 (1300, 2026-11-13 사용자 확정) — 수금 · 정산 작업 수정 권한자 누구나
-//   POST   { sources: [{ source_type: 'bank'|'card', source_id, amount }] }  → 기록의 주문별 금액대로 수금 매칭 생성
+//   POST   { sources: [{ source_type: 'bank'|'card', source_id, amount }], learn_keyword? }  → 기록의 주문별 금액대로 수금 매칭 생성
+//          learn_keyword: 통장 확정 뒤 입금자 표기를 기록 매출처의 통장 키워드로 기록(2026-11-25, 화면 체크 칸 기본 체크)
 //   DELETE { reason: { code, text } }                                        → 매칭 삭제, 기록은 매칭 대기로 복귀. 사유는 항목에서 고른다(필수, 1307)
 const DENY = '결제 확인은 수금 · 정산 작업 수정 권한이 필요합니다. 경영지원팀 오철준 대리 또는 ERP 담당에게 요청해주세요.'
 
@@ -28,9 +29,9 @@ async function syncInvoicesOfRecord(admin: ReturnType<typeof createAdminClient>,
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const g = await guard(); if ('res' in g) return g.res
-  const body = await req.json().catch(() => ({})) as { sources?: ConfirmSource[] }
+  const body = await req.json().catch(() => ({})) as { sources?: ConfirmSource[]; learn_keyword?: string | null }
   const admin = createAdminClient()
-  const r = await confirmRecord(admin, params.id, body.sources ?? [], g.editor)
+  const r = await confirmRecord(admin, params.id, body.sources ?? [], g.editor, { learnKeyword: typeof body.learn_keyword === 'string' ? body.learn_keyword : null })
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: 400 })
   await syncInvoicesOfRecord(admin, params.id)
   return NextResponse.json(r)

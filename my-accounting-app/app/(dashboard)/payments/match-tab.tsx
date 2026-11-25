@@ -7,6 +7,7 @@ import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/paymen
 import PayFilterBar, { passPayFilter, usePayFilter, type StaffScope } from '@/components/payments/PayFilterBar'
 import { OrderNoLink } from '@/components/payments/OrderPreview'
 import { kindLabel, type CardEntry, type RecVat } from '@/lib/payment-kind'
+import InvoiceLinkModal from '../sales-cycle/invoice-link-modal'
 
 // 결제 확인 (1300, 2026-11-13 사용자 확정 — 시안 docs/mockups/결제처리_시안.html)
 // 영업지원이 주문 상세에 남긴 결제 기록(1차)을 카드 매출 · 통장 입금 원본과 대조해 확정한다(2차).
@@ -18,11 +19,13 @@ interface Cand {
   source_type: 'bank' | 'card'; source_id: string; tx_date: string; label: string
   amount: number; remaining: number; strength: 'strong' | 'weak' | 'mismatch'; reason: string
   kind?: string | null; kind_diff?: boolean
+  learn?: string | null   // 통장: 확정할 때 매출처 통장 키워드로 기록할 입금자 표기 (2026-11-25)
+  bundle?: { source_id: string; tx_date: string; approval_number: string; amount: number; void_paid?: boolean }[]   // 카드 분할 결제 묶음
 }
 interface Row {
   id: string; method: Method; pay_date: string; amount: number
   approval_number: string | null; card_last4: string | null; depositor_name: string | null; due_date: string | null
-  memo: string | null; vendor_name: string | null; created_by_name: string | null; created_at: string
+  memo: string | null; vendor_id?: string | null; vendor_name: string | null; created_by_name: string | null; created_at: string
   confirmed_by_name: string | null; confirmed_at: string | null
   orders: { order_id: string; order_no: string | null; amount: number }[]
   candidates: Cand[]; flag: 'ready' | 'mismatch' | 'overdue' | 'waiting' | null; wait_days: number
@@ -86,6 +89,12 @@ export default function MatchTab() {
   const [relId, setRelId] = useState<string | null>(null)            // 매칭 해제 사유 창이 열린 기록
   const [relReason, setRelReason] = useState<ReasonValue | null>(null)
   const [showOtherKind, setShowOtherKind] = useState(false)   // 다른 입금 찾기 — 구분이 다른 카드 매출도 보기
+  // 통장 키워드 기록 체크 칸 — 기본 체크(2026-11-25 사용자 결정). 체크를 푼 후보(기록id:원본id)만 모은다
+  const [noLearn, setNoLearn] = useState<Set<string>>(new Set())
+  // 다른 입금 찾기 — 카드 승인 여러 건을 골라 함께 확정(분할 결제, 2026-11-25)
+  const [multi, setMulti] = useState<Set<string>>(new Set())
+  // ① 계산서 연결 창 (계산서 발행 기록, 2026-11-25)
+  const [linkFor, setLinkFor] = useState<Row | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -123,20 +132,33 @@ export default function MatchTab() {
   const [shown, setShown] = useState(100)
   useEffect(() => { setShown(100) }, [filter, tab, kpi, method, mineOnly])
 
-  const confirmWith = async (r: Row, src: { source_type: 'bank' | 'card'; source_id: string; tx_date: string; label: string }) => {
+  type Src = { source_type: 'bank' | 'card'; source_id: string; tx_date: string; label: string; learn?: string | null
+    parts?: { source_id: string; amount: number; tx_date: string; approval_number?: string }[] }
+  const confirmWith = async (r: Row, src: Src) => {
     const orders = r.orders.map(o => `${o.order_no ?? ''} ${won(o.amount)}원`).join('\n')
-    if (!confirm(`이 결제를 확정할까요?\n\n기록: ${SHORT[r.method]} ${r.pay_date} ${won(r.amount)}원\n원본: ${src.label} ${src.tx_date}\n\n주문별 수금 처리\n${orders}`)) return
+    const learn = src.source_type === 'bank' && src.learn && !noLearn.has(`${r.id}:${src.source_id}`) ? src.learn : null
+    const what = src.parts?.length
+      ? `${src.label}\n${src.parts.map(p => `  ${p.tx_date}${p.approval_number ? ` 승인 ${p.approval_number}` : ''} ${won(p.amount)}원`).join('\n')}`
+      : `${src.label} ${src.tx_date}`
+    if (!confirm(`이 결제를 확정할까요?\n\n기록: ${SHORT[r.method]} ${r.pay_date} ${won(r.amount)}원\n원본: ${what}\n\n주문별 수금 처리\n${orders}${learn ? `\n\n입금자 "${learn}"를 ${r.vendor_name ?? '매출처'} 통장 키워드로 기록합니다.` : ''}`)) return
     setBusyId(r.id); setMsg(null)
+    const sources = src.parts?.length
+      ? src.parts.map(p => ({ source_type: src.source_type, source_id: p.source_id, amount: p.amount }))
+      : [{ source_type: src.source_type, source_id: src.source_id, amount: r.amount }]
     const res = await fetch(`/api/payment-records/${r.id}/confirm`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sources: [{ source_type: src.source_type, source_id: src.source_id, amount: r.amount }] }),
+      body: JSON.stringify({ sources, learn_keyword: learn }),
     })
     const json = await res.json().catch(() => ({}))
     setBusyId(null)
     if (!res.ok) { setMsg(json.error ?? '확정 실패'); return }
-    setMsg(`확정했습니다 — ${r.vendor_name ?? ''} ${won(r.amount)}원, 주문 ${r.orders.length}건의 미수가 줄었습니다.`)
-    setFindId(null); requestNotifRefresh(); load()
+    setMsg(`확정했습니다 — ${r.vendor_name ?? ''} ${won(r.amount)}원, 주문 ${r.orders.length}건의 미수가 줄었습니다.${json.keyword ? ` 통장 키워드 "${json.keyword}"를 기록했습니다.` : ''}`)
+    setFindId(null); setMulti(new Set()); requestNotifRefresh(); load()
   }
+  const candSrc = (c: Cand): Src => ({
+    source_type: c.source_type, source_id: c.source_id, tx_date: c.tx_date, label: c.label, learn: c.learn,
+    parts: c.bundle?.map(b => ({ source_id: b.source_id, amount: b.amount, tx_date: b.tx_date, approval_number: b.approval_number })),
+  })
 
   const confirmCancel = async (c: CancelRow, cand: CancelCand) => {
     const effect = c.method === 'card'
@@ -185,7 +207,7 @@ export default function MatchTab() {
   }
   const openFind = (r: Row) => {
     if (findId === r.id) { setFindId(null); return }
-    setFindId(r.id); setFindQ(''); setFindAmount(true); setFound([]); setShowOtherKind(false); runFind(r, '', true)
+    setFindId(r.id); setFindQ(''); setFindAmount(r.method !== 'card'); setFound([]); setShowOtherKind(false); setMulti(new Set()); runFind(r, '', r.method !== 'card')
   }
 
   const kpiCard = (key: Kpi, label: string, value: string, sub: string, tone = 'text-slate-900') => (
@@ -372,6 +394,25 @@ export default function MatchTab() {
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-xs">
+                      {tab === 'pending' && r.method === 'invoice' && (() => {
+                        // 계산서 발행 기록 = ① 홈택스 계산서 연결 → ② 입금 확인 (2026-11-25)
+                        const linked = r.invoice_linked ?? 0
+                        const done = linked >= r.amount
+                        return (
+                          <div className="mb-1.5">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${done ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>{done ? '① 계산서 연결됨' : '① 계산서 연결'}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${done ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'}`}>② 입금 확인</span>
+                              {canEdit && r.vendor_id && (
+                                <button onClick={() => setLinkFor(r)} className={`ml-auto whitespace-nowrap px-2 py-0.5 rounded text-xs font-semibold ${done ? 'border border-slate-400 bg-white text-slate-800 hover:bg-slate-100' : 'bg-slate-900 text-white hover:bg-slate-700'}`}>
+                                  {done ? '연결 보기' : '계산서 연결'}
+                                </button>
+                              )}
+                            </div>
+                            {!done && <div className="text-xs text-slate-600 mt-0.5">{linked > 0 ? `연결 ${won(linked)}원 · 남은 ${won(r.amount - linked)}원` : '홈택스 계산서를 주문에 먼저 연결합니다 — 후보 · 직접 연결은 연결 창에서'}{!r.vendor_id && ' (매출처 미연결 — 주문 상세에서 연결)'}</div>}
+                          </div>
+                        )
+                      })()}
                       {tab === 'confirmed' ? (
                         r.matched.map((m, i) => (
                           <div key={i} className="text-slate-800">{m.label} <span className="tabular-nums text-slate-600">{m.paid_date} · {won(m.amount)}원</span></div>
@@ -391,13 +432,27 @@ export default function MatchTab() {
                                 {c.kind && <span className={`whitespace-nowrap text-xs ${c.kind_diff ? 'text-red-700 font-semibold' : 'text-slate-600'}`}>{c.kind}</span>}
                                 {c.kind_diff && <span className="ml-auto whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700">구분 다름 · 매칭 불가</span>}
                                 {canEdit && c.strength !== 'mismatch' && !c.kind_diff && (
-                                  <button onClick={() => confirmWith(r, c)} disabled={busyId === r.id}
+                                  <button onClick={() => confirmWith(r, candSrc(c))} disabled={busyId === r.id}
                                     className={`ml-auto whitespace-nowrap px-2 py-0.5 rounded text-xs font-semibold disabled:opacity-40 ${c.strength === 'strong' ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-slate-400 bg-white text-slate-800 hover:bg-slate-100'}`}>
-                                    확정
+                                    {c.bundle ? `${c.bundle.length}건 함께 확정` : '확정'}
                                   </button>
                                 )}
                               </div>
+                              {c.bundle && (
+                                <div className="text-xs text-slate-700 mt-0.5">
+                                  {c.bundle.map(b => (
+                                    <div key={b.source_id} className="tabular-nums">{b.tx_date} 승인 {b.approval_number} {won(b.amount)}원{b.void_paid && <span className="text-slate-500"> (중복해제 · 입금완료)</span>}</div>
+                                  ))}
+                                </div>
+                              )}
                               <div className="text-xs text-slate-600">{c.reason}</div>
+                              {canEdit && c.learn && (
+                                <label className="mt-1 flex items-center gap-1.5 text-xs text-slate-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                                  <input type="checkbox" checked={!noLearn.has(`${r.id}:${c.source_id}`)}
+                                    onChange={e => setNoLearn(prev => { const n = new Set(prev); const k = `${r.id}:${c.source_id}`; if (e.target.checked) n.delete(k); else n.add(k); return n })} />
+                                  <span>입금자 &quot;{c.learn}&quot;를 {r.vendor_name ?? '매출처'} 통장 키워드로 기록 — 다음 입금부터 &quot;키워드 일치&quot;로 추천</span>
+                                </label>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -451,7 +506,7 @@ export default function MatchTab() {
                             금액 {won(r.amount)}원만
                           </label>
                           <button onClick={() => runFind(r)} className="px-2.5 py-1 rounded-lg text-xs bg-slate-900 text-white">찾기</button>
-                          <span className="text-xs text-slate-500">결제일 7일 전부터 · 아직 주문에 배분되지 않은 것만</span>
+                          <span className="text-xs text-slate-500">결제일 7일 전부터 · 아직 주문에 배분되지 않은 것만{r.method === 'card' && ' · 분할 결제는 승인 여러 건을 "묶기"로 골라 함께 확정'}</span>
                         </div>
                         {finding ? <div className="text-xs text-slate-500 py-2">찾는 중...</div>
                           : found.length === 0 ? <div className="text-xs text-slate-500 py-2">조건에 맞는 원본이 없습니다. 원본 파일이 아직 올라오지 않았을 수 있습니다.</div>
@@ -465,6 +520,10 @@ export default function MatchTab() {
                                     {c.source_type === 'card' && <span className="px-1.5 py-px rounded-full border border-slate-300 bg-white text-xs text-slate-600 whitespace-nowrap">{c.kind ?? '구분 모름'}</span>}
                                     {c.vendor_name && <span className="text-slate-500">{c.vendor_name}</span>}
                                     <span className="ml-auto tabular-nums">잔액 <b>{won(c.remaining)}</b>{c.remaining !== c.amount && <span className="text-slate-500"> / {won(c.amount)}</span>}</span>
+                                    {r.method === 'card' && !c.kind_diff && c.remaining > 0 && c.remaining < r.amount && (
+                                      <label className="flex items-center gap-1 text-slate-700"><input type="checkbox" checked={multi.has(c.id)}
+                                        onChange={e => setMulti(prev => { const n = new Set(prev); if (e.target.checked) n.add(c.id); else n.delete(c.id); return n })} />묶기</label>
+                                    )}
                                     {c.kind_diff ? <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700">구분 다름 · 매칭 불가</span>
                                     : c.remaining >= r.amount ? (
                                       <button onClick={() => confirmWith(r, { source_type: c.source_type, source_id: c.id, tx_date: c.tx_date, label: c.label })} disabled={busyId === r.id}
@@ -474,6 +533,20 @@ export default function MatchTab() {
                                 ))}
                                 {found.every(c => c.kind_diff) && !showOtherKind && <div className="px-2.5 py-2 text-xs text-slate-500">같은 구분의 원본이 없습니다.</div>}
                               </div>
+                              {r.method === 'card' && multi.size > 0 && (() => {
+                                const pick = found.filter(c => multi.has(c.id))
+                                const sum = pick.reduce((x, c) => x + c.remaining, 0)
+                                const ok = pick.length >= 2 && sum === r.amount
+                                return (
+                                  <div className={`mt-2 flex items-center gap-2 flex-wrap rounded-lg border px-2.5 py-1.5 text-xs ${ok ? 'border-green-300 bg-green-50 text-green-900' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
+                                    <b>분할 결제 {pick.length}건 · 합계 {won(sum)}원</b>
+                                    <span>{ok ? '기록 금액과 같습니다.' : `기록 금액 ${won(r.amount)}원과 ${sum < r.amount ? `${won(r.amount - sum)}원 모자랍니다` : `${won(sum - r.amount)}원 넘칩니다`}${pick.length < 2 ? ' · 2건 이상 고르세요' : ''}`}</span>
+                                    <button disabled={!ok || busyId === r.id}
+                                      onClick={() => confirmWith(r, { source_type: 'card', source_id: pick[0].id, tx_date: pick[0].tx_date, label: `분할 결제 ${pick.length}건`, parts: pick.map(c => ({ source_id: c.id, amount: c.remaining, tx_date: c.tx_date })) })}
+                                      className="ml-auto px-2 py-0.5 rounded bg-slate-900 text-white font-semibold disabled:opacity-40">{pick.length}건 함께 확정</button>
+                                  </div>
+                                )
+                              })()}
                               {found.some(c => c.kind_diff) && (
                                 <div className="mt-2 flex items-center gap-2 flex-wrap rounded-lg border border-dashed border-slate-400 bg-white px-2.5 py-1.5 text-xs text-slate-700">
                                   <b>구분이 다른 카드 매출 {found.filter(c => c.kind_diff).length}건은 숨김</b>
@@ -496,6 +569,12 @@ export default function MatchTab() {
             </div>
           )}
         </div>
+      )}
+
+      {linkFor && linkFor.vendor_id && (
+        <InvoiceLinkModal vendorId={linkFor.vendor_id} vendorName={linkFor.vendor_name ?? ''}
+          focusOrderIds={linkFor.orders.map(o => o.order_id)}
+          onClose={() => setLinkFor(null)} onApplied={() => { requestNotifRefresh(); load() }} />
       )}
 
       <p className="text-xs text-slate-500 mt-3 leading-relaxed">

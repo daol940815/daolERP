@@ -41,6 +41,7 @@ interface PendingDeposit {
   candidates: Candidate[]
   // 추천 주문 — 같은 거래처 · 잔액 같음 · 날짜 가까움 · 양쪽 후보가 하나뿐 (확정은 사람이 누른다, 2026-11-16)
   recommend: { id: string; order_no: string; order_date: string; remaining: number; customer_name?: string; manager?: string } | null
+  learn?: string | null   // 통장 키워드로 기록할 입금자 표기 (2026-11-25, 체크 칸 기본 체크)
 }
 
 interface MatchedRow {
@@ -182,6 +183,9 @@ function ErpMatchingContent() {
     load()
   }
 
+  // 통장 키워드 기록 체크 칸 — 기본 체크(2026-11-25 사용자 결정). 체크를 푼 입금만 모은다
+  const [noLearn, setNoLearn] = useState<Set<string>>(new Set())
+  const learnOf = (d: PendingDeposit) => (d.learn && !noLearn.has(d.id) ? d.learn : null)
   const confirmRecommended = async (list: PendingDeposit[]) => {
     const targets = list.filter(d => d.recommend)
     if (!targets.length) return
@@ -194,7 +198,7 @@ function ErpMatchingContent() {
     for (const d of targets) {
       const res = await fetch('/api/erp-matching', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_type: d.source_type, source_id: d.id, allocations: [{ order_id: d.recommend!.id, amount: d.remaining }], memo: '추천 확정' }),
+        body: JSON.stringify({ source_type: d.source_type, source_id: d.id, allocations: [{ order_id: d.recommend!.id, amount: d.remaining }], memo: '추천 확정', learn_keyword: learnOf(d) }),
       })
       if (res.ok) ok++
       else { const j = await res.json().catch(() => ({})); fail = j.error ?? '확정 실패'; break }
@@ -223,12 +227,12 @@ function ErpMatchingContent() {
     const res  = await fetch('/api/erp-matching', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_type: d.source_type, source_id: d.id, allocations }),
+      body: JSON.stringify({ source_type: d.source_type, source_id: d.id, allocations, learn_keyword: learnOf(d) }),
     })
     const json = await res.json()
     setWorking(false)
     if (!res.ok) { showMsg(json.error ?? '배분 실패'); return }
-    showMsg(`${allocations.length}건 배분 완료 (${won(sum)})`)
+    showMsg(`${allocations.length}건 배분 완료 (${won(sum)})${json.keyword ? ` · 통장 키워드 "${json.keyword}" 기록` : ''}`)
     load()
   }
 
@@ -414,6 +418,13 @@ function ErpMatchingContent() {
                         <td className="py-2 px-3"><p className="truncate max-w-[160px]">{d.vendor_name}</p></td>
                         <td className="py-2 px-3">
                           <p className="truncate max-w-[200px] text-slate-700">{d.counterparty_name || d.description || '-'}</p>
+                          {d.learn && (
+                            <label className="flex items-center gap-1 text-xs text-slate-600 whitespace-nowrap" title={`붙일 때 입금자 "${d.learn}"를 ${d.vendor_name} 통장 키워드로 기록합니다 — 다음 입금부터 매출처를 알아보는 데 씁니다`}>
+                              <input type="checkbox" checked={!noLearn.has(d.id)}
+                                onChange={e => setNoLearn(prev => { const n = new Set(prev); if (e.target.checked) n.delete(d.id); else n.add(d.id); return n })} />
+                              키워드로 기록
+                            </label>
+                          )}
                         </td>
                         <td className="py-2 px-3 text-right whitespace-nowrap">{won(d.amount)}</td>
                         <td className="py-2 px-3 text-right whitespace-nowrap font-medium text-red-600">{won(d.remaining)}</td>
