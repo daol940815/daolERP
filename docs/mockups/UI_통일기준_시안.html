@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>daolERP UI 통일 기준 시안</title>
+<style>
+  :root{
+    /* 회색 한 계열(slate) — 기준 */
+    --ink:#0f172a;      /* 본문 글자 */
+    --ink2:#334155;     /* 보조 글자 · 머리줄 글자 */
+    --ink3:#64748b;     /* 가장 옅은 글자(설명 · 단위) — 이보다 옅게 쓰지 않는다 */
+    --line:#94a3b8;     /* 입력 칸 테두리 */
+    --rule:#cbd5e1;     /* 카드 테두리 · 표 줄 구분 */
+    --head:#e2e8f0;     /* 표 머리줄 바탕 */
+    --soft:#f1f5f9;     /* 자동 칸 · 합계 줄 바탕 */
+    --page:#f8fafc;     /* 화면 바탕 */
+    --navy:#0f172a;     /* 주 버튼 · 사이드바 */
+    --red:#b91c1c; --redbg:#fee2e2;
+    --amber:#92400e; --amberbg:#fef3c7;
+    --green:#047857; --greenbg:#d1fae5;
+    --blue:#1d4ed8; --bluebg:#dbeafe;
+    /* 묶음 색(입력 표) — A 선명 */
+    --g-item:#475569; --g-sale:#2563eb; --g-buy:#c2410c; --g-res:#047857;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#e5e7eb;color:var(--ink);font:14px/1.5 "Malgun Gothic","Apple SD Gothic Neo",Arial,sans-serif;word-break:keep-all}
+  .wrap{max-width:1500px;margin:0 auto;padding:24px 16px 80px}
+  h1{font-size:24px;margin:0 0 4px} h2{font-size:18px;margin:44px 0 6px;padding-top:14px;border-top:3px solid var(--navy)}
+  h3{font-size:14px;margin:0 0 8px}
+  .lead{color:var(--ink2);margin:0 0 6px}
+  .note{color:var(--ink2);font-size:13px;margin:4px 0 12px}
+  .rulebox{background:#fff;border:1px solid var(--rule);border-left:4px solid var(--navy);border-radius:8px;padding:10px 14px;font-size:13px;margin:10px 0 14px}
+  .rulebox b{color:var(--ink)} .rulebox li{margin:2px 0} .rulebox ul{margin:4px 0 0;padding-left:18px}
+  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .tagl{display:inline-block;font-size:12px;font-weight:700;padding:2px 10px;border-radius:4px;margin-bottom:6px}
+  .tagl.now{background:#fff;border:1px solid #9ca3af;color:#4b5563} .tagl.new{background:var(--navy);color:#fff}
+  .frame{background:var(--page);border:1px solid #9ca3af;border-radius:8px;padding:14px;overflow:auto}
+  .decide{background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:13px;margin:10px 0}
+  .decide b{color:#92400e}
+
+  /* ───────── 기준 부품 ───────── */
+  .card{background:#fff;border:1px solid var(--rule);border-radius:12px}
+  .btn{display:inline-flex;align-items:center;gap:4px;height:36px;padding:0 14px;border-radius:8px;font:600 14px inherit;font-family:inherit;border:1px solid transparent;cursor:pointer;white-space:nowrap}
+  .btn.pri{background:var(--navy);color:#fff}
+  .btn.sec{background:#fff;color:var(--ink);border-color:var(--line)}
+  .btn.dan{background:#fff;color:var(--red);border-color:#f87171}
+  .btn.txt{background:none;color:var(--blue);padding:0 6px;text-decoration:underline}
+  .btn.sm{height:28px;padding:0 10px;font-size:12px;border-radius:6px}
+  .in{height:36px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:14px inherit;font-family:inherit;color:var(--ink);background:#fff;width:100%}
+  .in:focus{outline:2px solid var(--navy);outline-offset:-1px}
+  .in.auto{background:var(--soft);color:var(--ink2);border-color:var(--rule)}
+  .in.pick{background:#fffbeb}
+  .lab{display:block;font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:3px}
+  .lab i{color:var(--red);font-style:normal}
+  .chip{display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:12px;font-weight:600;white-space:nowrap}
+  .chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+  .chip small{margin-left:5px;font-weight:400;opacity:.8}
+  .pre{display:inline-flex;align-items:center;height:26px;padding:0 9px;border-radius:6px;border:1px solid var(--rule);background:#fff;color:var(--ink2);font-size:12px}
+  .pre.on{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:700}
+  .bd{display:inline-block;padding:1px 8px;border-radius:5px;font-size:12px;font-weight:700;white-space:nowrap}
+  .bd.r{background:var(--redbg);color:var(--red)} .bd.a{background:var(--amberbg);color:var(--amber)}
+  .bd.g{background:var(--greenbg);color:var(--green)} .bd.b{background:var(--bluebg);color:var(--blue)}
+  .bd.n{background:var(--head);color:var(--ink2)}
+  .tg{display:inline-flex;align-items:center;gap:5px;padding:0 9px;height:22px;border-radius:999px;border:1px solid var(--line);font-size:12px;color:var(--ink2);background:#fff}
+  .tg::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--dot,#2563eb)}
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+  .kpi{background:#fff;border:1px solid var(--rule);border-radius:12px;padding:10px 14px;cursor:pointer}
+  .kpi.on{border:2px solid var(--navy);padding:9px 13px}
+  .kpi .k{font-size:12px;font-weight:700;color:var(--ink2)} .kpi .v{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+  .kpi .s{font-size:12px;color:var(--ink3)}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--rule)}
+  .tab{padding:8px 14px;font-size:14px;color:var(--ink2);border-bottom:3px solid transparent;margin-bottom:-1px}
+  .tab.on{color:var(--ink);font-weight:800;border-color:var(--navy)}
+
+  /* 조회 표 — 기준 */
+  table.t{width:100%;border-collapse:collapse;font-size:13px}
+  table.t th{background:var(--head);color:var(--ink2);font-size:12px;font-weight:700;text-align:left;padding:8px 12px;border-bottom:2px solid var(--line);white-space:nowrap}
+  table.t td{padding:8px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+  table.t tr:hover td{background:var(--page)}
+  table.t .r{text-align:right;font-variant-numeric:tabular-nums}
+  table.t .sub{display:block;font-size:12px;color:var(--ink3)}
+  table.t tfoot td{background:var(--soft);font-weight:800;border-top:2px solid var(--line);border-bottom:0}
+  table.t a{color:var(--blue);font-weight:600}
+  .neg{color:var(--red);font-weight:700}
+
+  /* 현재 모양 재현 */
+  .now-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px}
+  table.o{width:100%;border-collapse:collapse;font-size:14px}
+  table.o th{color:#9ca3af;font-size:12px;font-weight:500;text-align:left;padding:8px 12px;border-bottom:1px solid #e5e7eb}
+  table.o td{padding:8px 12px;border-bottom:1px solid #f9fafb;color:#111827}
+  table.o .r{text-align:right} table.o .sub{display:block;font-size:11px;color:#9ca3af}
+  .o-in{height:34px;border:1px solid #d1d5db;border-radius:8px;padding:0 10px;font:14px inherit;width:100%;color:#111827}
+  .o-in.y{border-color:#fde68a;background:#fffdf5} .o-in.p{border-color:#fecdd3} .o-in.g{border-color:#e5e7eb;background:#f9fafb;color:#6b7280}
+  .o-lab{display:block;font-size:11px;color:#9ca3af;margin-bottom:3px}
+  .o-bd{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px}
+
+  /* 입력 표(셀형) */
+  .grid{border-collapse:separate;border-spacing:4px;font-size:13px;width:100%}
+  .grid th{color:#fff;font-size:12px;font-weight:700;padding:5px 6px;border-radius:6px;white-space:nowrap}
+  .grid .band th{font-size:12px;letter-spacing:.1em}
+  .grid td{padding:0}
+  .cell{display:block;width:100%;height:32px;border-radius:7px;border:1.5px solid var(--c);background:#fff;padding:0 8px;font:13px inherit;font-family:inherit;color:var(--ink)}
+  .cell.num{text-align:right;font-variant-numeric:tabular-nums}
+  .cell:focus{outline:2.5px solid var(--navy);outline-offset:-1px}
+  .calc{display:flex;align-items:center;justify-content:flex-end;height:32px;border-radius:7px;padding:0 8px;font-weight:800;font-variant-numeric:tabular-nums;color:#fff;background:var(--c)}
+  .gi{--c:var(--g-item)} .gs{--c:var(--g-sale)} .gb{--c:var(--g-buy)} .gr{--c:var(--g-res)}
+  .grid th.gi,.grid th.gs,.grid th.gb,.grid th.gr{background:var(--c)}
+  .pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .pill{border-radius:999px;padding:4px 14px;font-size:13px;font-weight:700;color:#fff;background:var(--c)}
+  .pill span{font-weight:400;opacity:.9;margin-right:6px}
+
+  /* 화면 틀 예시 */
+  .screen{display:grid;grid-template-columns:150px 1fr;border:1px solid #9ca3af;border-radius:8px;overflow:hidden;background:var(--page)}
+  .side{background:var(--navy);color:#cbd5e1;font-size:12px;padding:12px 10px}
+  .side b{display:block;color:#fff;font-size:14px;margin-bottom:10px}
+  .side div{padding:6px 8px;border-radius:6px} .side .on{background:#334155;color:#fff;font-weight:700}
+  .side .grp{font-size:11px;color:#94a3b8;padding:10px 8px 2px}
+  .main{padding:18px 22px;min-width:0}
+  .ttl{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px}
+  .ttl h4{font-size:22px;margin:0;font-weight:800} .ttl p{margin:2px 0 0;font-size:13px;color:var(--ink2)}
+  .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .ord{counter-reset:o}
+  .ord .blk{position:relative}
+  .ord .blk::before{counter-increment:o;content:counter(o);position:absolute;left:-18px;top:2px;width:15px;height:15px;border-radius:50%;background:#f59e0b;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .sw{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+  .sw div{border-radius:8px;padding:10px;font-size:12px;border:1px solid #9ca3af;background:#fff}
+  .sw i{display:block;height:34px;border-radius:6px;margin-bottom:6px;border:1px solid #0001}
+  .formg{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .modal{background:#fff;border-radius:12px;box-shadow:0 20px 40px #0f172a40;padding:20px;max-width:380px}
+  .dim{background:#0f172a66;border-radius:8px;padding:26px;display:flex;justify-content:center}
+  @media(max-width:900px){.cmp,.formg{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.sw{grid-template-columns:repeat(3,1fr)}.screen{grid-template-columns:1fr}.side{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>daolERP UI 통일 기준 시안</h1>
+<p class="lead">2026-11-25 · UI 디자인 트랙 · 화면 54개 확인 결과를 바탕으로 한 "앞으로 모든 화면이 따를 한 가지 모양". 예시 데이터는 모두 가짜입니다.</p>
+<div class="rulebox">
+  <b>한 줄 요약</b>
+  <ul>
+    <li><b>진하게</b> — 글자 · 선 · 머리줄을 한두 단계 진하게. 가장 옅은 글자도 읽을 수 있는 진하기까지만.</li>
+    <li><b>한 가지로</b> — 화면 틀 · 표 · 입력 칸 · 버튼 · 배지를 종류별로 한 가지 모양으로.</li>
+    <li><b>색은 뜻이 있을 때만</b> — 빨강 = 위험 · 미수, 주황 = 주의 · 대기, 초록 = 완료, 파랑 = 정보 · 링크. 입력 표에서만 묶음 색(판매 파랑 · 매입 주황 · 결과 초록).</li>
+    <li>화면의 <b>기능 · 열 구성 · 동작은 바꾸지 않습니다.</b> 모양만 바꿉니다.</li>
+  </ul>
+</div>
+
+<!-- 1 -->
+<h2>1. 색 — 회색을 한 계열로, 한 단계씩 진하게</h2>
+<p class="note">지금은 회색이 두 계열(gray · slate)이고 가장 많이 쓰는 보조 글자색이 너무 옅습니다. 한 계열로 모으고 역할을 7개로 고정합니다.</p>
+<div class="sw">
+  <div><i style="background:#0f172a"></i><b>본문 글자</b><br>이름 · 금액 · 제목</div>
+  <div><i style="background:#334155"></i><b>보조 글자</b><br>머리줄 · 라벨 · 설명</div>
+  <div><i style="background:#64748b"></i><b>옅은 글자</b><br>단위 · 부가 정보<br>(이보다 옅게 금지)</div>
+  <div><i style="background:#94a3b8"></i><b>입력 칸 테두리</b><br>버튼 테두리</div>
+  <div><i style="background:#cbd5e1"></i><b>줄 구분 · 카드 테두리</b></div>
+  <div><i style="background:#e2e8f0"></i><b>표 머리줄 바탕</b></div>
+  <div><i style="background:#f1f5f9"></i><b>자동 칸 · 합계 줄</b></div>
+</div>
+<div class="cmp" style="margin-top:14px">
+  <div><span class="tagl now">현재</span>
+    <div class="frame" style="background:#fff">
+      <div style="color:#111827;font-size:14px">하나상사 강남지점</div>
+      <div style="color:#9ca3af;font-size:12px">머리줄 · 라벨 · 설명 글자 (전 화면 1,307곳) — 흰 바탕에서 흐리게 보임</div>
+      <div style="color:#9ca3af;font-size:11px">작은 부가 정보 11px</div>
+      <div style="border-bottom:1px solid #f9fafb;margin:8px 0"></div>
+      <div style="color:#9ca3af;font-size:12px">위 줄 구분선 — 거의 안 보임</div>
+    </div></div>
+  <div><span class="tagl new">기준</span>
+    <div class="frame" style="background:#fff">
+      <div style="color:var(--ink);font-size:14px">하나상사 강남지점</div>
+      <div style="color:var(--ink2);font-size:12px">머리줄 · 라벨 · 설명 글자 — 또렷하게</div>
+      <div style="color:var(--ink3);font-size:12px">작은 부가 정보도 12px 아래로 내리지 않음</div>
+      <div style="border-bottom:1px solid var(--rule);margin:8px 0"></div>
+      <div style="color:var(--ink2);font-size:12px">위 줄 구분선 — 보임</div>
+    </div></div>
+</div>
+<div class="rulebox"><b>글자 크기</b>는 4단계만: 화면 제목 22 · 구역 제목 16 · 본문 14(표 13) · 작은 글자 12. 10 · 11px(현재 888곳)는 12로 올립니다. 직원별 "작게 · 보통 · 크게" 설정은 그대로 동작합니다.</div>
+
+<!-- 2 -->
+<h2>2. 화면 틀 — 모든 화면이 같은 순서</h2>
+<p class="note">지금은 영역에 따라 상단 띠가 있거나 없고, 본문 폭 · 제목 줄 · 블록 순서가 화면마다 다릅니다. 아래 순서 하나로 맞춥니다(주황 번호).</p>
+<div class="screen">
+  <div class="side"><b>영업 · 주문</b><div class="grp">주문 · 발주</div><div>상담일지</div><div class="on">주문내역</div><div>신규 주문</div><div>발주서</div><div class="grp">수금 · 정산</div><div>결제 확인</div></div>
+  <div class="main ord" style="padding-left:34px">
+    <div class="blk ttl">
+      <div><h4>주문내역</h4><p>기간 안의 주문을 한 줄씩 봅니다. 줄을 누르면 주문 상세로 갑니다.</p></div>
+      <div style="display:flex;gap:6px"><button class="btn sec">엑셀 다운로드</button><button class="btn pri">+ 주문 추가</button></div>
+    </div>
+    <div class="blk tabs"><div class="tab on">전체</div><div class="tab">VIP</div><div class="tab">선결제</div></div>
+    <div class="blk row"><span class="pre">최근 7일</span><span class="pre on">최근 30일</span><span class="pre">당월</span><span class="pre">전월</span><span class="pre">당년</span><span class="pre">전체 기간</span>
+      <input class="in" style="width:140px;height:28px" value="2026-10-27"><span>~</span><input class="in" style="width:140px;height:28px" value="2026-11-25"></div>
+    <div class="blk kpis">
+      <div class="kpi on"><div class="k">기간 주문</div><div class="v">351건</div><div class="s">전체 보기</div></div>
+      <div class="kpi"><div class="k">총 금액</div><div class="v">263,966,730</div><div class="s">원</div></div>
+      <div class="kpi"><div class="k">미수금</div><div class="v neg">218,511,830</div><div class="s">미결제 147건</div></div>
+      <div class="kpi"><div class="k">발주 대기</div><div class="v" style="color:var(--amber)">22건</div><div class="s">발주서 미작성</div></div>
+      <div class="kpi"><div class="k">출고 완료</div><div class="v" style="color:var(--green)">288건</div><div class="s">82%</div></div>
+    </div>
+    <div class="blk row"><input class="in" style="width:300px;height:32px" placeholder="업체 · 지점 · 담당자 · 주문번호 검색">
+      <span class="chip on">전체<small>351</small></span><span class="chip">미결제<small>147</small></span><span class="chip">일부 결제<small>12</small></span><span class="chip">완료<small>192</small></span></div>
+    <div class="blk card" style="overflow:auto">
+      <table class="t">
+        <thead><tr><th>주문일 / 번호</th><th>업체(은행)</th><th>부서(지점)</th><th>담당자</th><th class="r">총금액</th><th class="r">미수금</th><th>결제</th><th>발주</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>2026-11-25<a class="sub" href="#">D261125-005</a></td><td><b>가나은행</b></td><td>역삼지점</td><td>김민수 과장님<span class="sub">010-0000-0000</span></td><td class="r">1,595,000</td><td class="r neg">1,595,000</td><td><span class="bd r">미결제</span></td><td><span class="bd g">발주 완료</span></td><td class="r"><button class="btn sec sm">수금</button></td></tr>
+          <tr><td>2026-11-25<a class="sub" href="#">D261125-004</a></td><td><b>다라생명</b></td><td>강북센터</td><td>이서연 님</td><td class="r">400,000</td><td class="r neg">400,000</td><td><span class="bd a">매칭 대기</span></td><td><span class="bd a">발주 대기</span></td><td class="r"><button class="btn sec sm">수금</button></td></tr>
+          <tr><td>2026-11-24<a class="sub" href="#">D261124-029</a></td><td><b>마바증권</b></td><td>본점 영업부</td><td>박지훈 부장님</td><td class="r">8,050,000</td><td class="r">0</td><td><span class="bd g">완료</span></td><td><span class="bd g">발주 완료</span></td><td class="r"><button class="btn sec sm">수금</button></td></tr>
+        </tbody>
+        <tfoot><tr><td colspan="4">합계 3건</td><td class="r">10,045,000</td><td class="r neg">1,995,000</td><td colspan="3"></td></tr></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+<div class="rulebox"><b>틀 규칙</b>
+  <ul>
+    <li><b>① 제목 줄</b>: 제목(22) + 설명은 제목 아래 한 줄. 주 버튼은 항상 오른쪽 위, 화면당 진한 버튼은 하나.</li>
+    <li><b>② 탭 → ③ 기간 → ④ 요약 카드 → ⑤ 검색 · 칩 → ⑥ 표</b> 순서 고정. 없는 블록은 건너뜁니다.</li>
+    <li><b>상단 흰 띠(작은 제목 + 날짜)는 없앱니다</b> — 회계 · 경영 화면에만 있고 제목이 두 번 나옵니다.</li>
+    <li><b>본문 폭</b>: 목록 · 표 화면은 전체 폭. 글 · 설정 화면(내 정보 · 도움말 · 등록 양식)만 가운데 좁은 폭.</li>
+  </ul>
+</div>
+<div class="decide"><b>확인 필요 ①</b> 상단 흰 띠 제거(권장) / 반대로 전 영역에 띠를 넣기. &nbsp; <b>확인 필요 ②</b> 대시보드 · 자금 계좌 · 분개장 · 계정과목 · 기초잔액처럼 지금 좁게 쓰는 표 화면도 전체 폭으로 넓힘(권장) / 그대로 둠.</div>
+
+<!-- 3 -->
+<h2>3. 조회 표 — 머리줄이 보이고 줄이 구분되게</h2>
+<div class="cmp">
+  <div><span class="tagl now">현재 (대부분의 화면)</span>
+    <div class="now-card" style="overflow:auto"><table class="o">
+      <thead><tr><th>거래처</th><th>담당</th><th class="r">매출</th><th class="r">미수</th><th>상태</th></tr></thead>
+      <tbody>
+        <tr><td>가나은행 역삼지점<span class="sub">별칭 2 · 카드 1</span></td><td>김민수</td><td class="r">14,432,000</td><td class="r" style="color:#dc2626">1,595,000</td><td><span class="o-bd" style="background:#fee2e2;color:#b91c1c">미결제</span></td></tr>
+        <tr><td>다라생명 강북센터<span class="sub">별칭 1</span></td><td>이서연</td><td class="r">11,999,200</td><td class="r">0</td><td><span class="o-bd" style="background:#dcfce7;color:#15803d">정상</span></td></tr>
+        <tr><td>마바증권 본점<span class="sub">별칭 3</span></td><td>박지훈</td><td class="r">10,171,600</td><td class="r" style="color:#dc2626">273,700</td><td><span class="o-bd" style="background:#fef3c7;color:#92400e">수금지연</span></td></tr>
+      </tbody></table></div></div>
+  <div><span class="tagl new">기준</span>
+    <div class="card" style="overflow:auto"><table class="t">
+      <thead><tr><th>거래처</th><th>담당</th><th class="r">매출</th><th class="r">미수</th><th>상태</th></tr></thead>
+      <tbody>
+        <tr><td><b>가나은행 역삼지점</b><span class="sub">별칭 2 · 카드 1</span></td><td>김민수</td><td class="r">14,432,000</td><td class="r neg">1,595,000</td><td><span class="bd r">미결제</span></td></tr>
+        <tr><td><b>다라생명 강북센터</b><span class="sub">별칭 1</span></td><td>이서연</td><td class="r">11,999,200</td><td class="r">0</td><td><span class="bd g">정상</span></td></tr>
+        <tr><td><b>마바증권 본점</b><span class="sub">별칭 3</span></td><td>박지훈</td><td class="r">10,171,600</td><td class="r neg">273,700</td><td><span class="bd a">수금 지연</span></td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="2">합계</td><td class="r">36,602,800</td><td class="r neg">1,868,700</td><td></td></tr></tfoot>
+    </table></div></div>
+</div>
+<div class="rulebox"><b>표 규칙</b>
+  <ul>
+    <li>머리줄: 회색 바탕 + 진한 굵은 글자 + 아래 굵은 선. 스크롤해도 위에 붙어 있음.</li>
+    <li>줄 구분선은 보이는 진하기로. 세로선은 넣지 않음(통장 내역 격자형은 엑셀식 편집 표라 예외로 유지하되 색만 맞춤).</li>
+    <li>숫자는 오른쪽 정렬 + 같은 폭 숫자. 금액에 "원"은 붙이지 않고 머리줄 · 요약에만.</li>
+    <li>줄의 첫 이름(거래처 · 품목)은 굵게, 부가 정보는 그 아래 작은 글자 한 줄까지.</li>
+    <li>합계 줄은 옅은 바탕 + 굵게 + 위 굵은 선.</li>
+  </ul>
+</div>
+
+<!-- 4 -->
+<h2>4. 입력 표 — 엑셀형 셀 + 묶음 색 (상담 품목 · 주문 상품 · 발주 품목)</h2>
+<p class="note">앞서 보신 색감 비교의 A(선명)를 기준으로 했습니다. 손으로 넣는 칸은 흰 바탕 + 묶음 색 테두리, 자동 계산 칸은 묶음 색으로 칠합니다. 칸을 누르면 진한 테두리가 생깁니다.</p>
+<div class="frame">
+  <div class="pills"><span class="pill gs"><span>판매합계</span>1,250,000</span><span class="pill gs" style="background:#b91c1c"><span>판매할인</span>-50,000</span><span class="pill gb"><span>매입합계</span>910,000</span><span class="pill gr"><span>마진</span>290,000 (24.2%)</span></div>
+  <table class="grid">
+    <thead>
+      <tr class="band"><th class="gi" colspan="3">품목</th><th class="gs" colspan="3">판매</th><th class="gb" colspan="2">매입</th><th class="gr">결과</th></tr>
+      <tr><th class="gi">품번</th><th class="gi" style="width:26%">상품명</th><th class="gi">수량</th><th class="gs">판매가</th><th class="gs">판매할인</th><th class="gs">판매합계</th><th class="gb">매입가</th><th class="gb">매입합계</th><th class="gr">마진</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><input class="cell gi" value="25-56-05"></td><td><input class="cell gi" value="유리 밀폐용기 3종 세트"></td><td><input class="cell num gi" value="100"></td>
+        <td><input class="cell num gs" value="8,400"></td><td><input class="cell num gs" value="50,000" style="background:#fee2e2;color:#b91c1c;--c:#b91c1c"></td><td><div class="calc gs">790,000</div></td>
+        <td><input class="cell num gb" value="5,800"></td><td><div class="calc gb">580,000</div></td><td><div class="calc gr">210,000</div></td></tr>
+      <tr><td><input class="cell gi" value="25-63-01"></td><td><input class="cell gi" value="타월 선물세트 2호"></td><td><input class="cell num gi" value="50"></td>
+        <td><input class="cell num gs" value="9,200" style="background:#fef3c7;--c:#b45309"></td><td><input class="cell num gs" value=""></td><td><div class="calc gs">460,000</div></td>
+        <td><input class="cell num gb" value="6,600"></td><td><div class="calc gb">330,000</div></td><td><div class="calc gr">130,000</div></td></tr>
+    </tbody>
+  </table>
+  <div style="font-size:12px;color:var(--ink2);margin-top:6px">빨간 칸 = 할인 · 품절, 노란 칸 = 단가 변경. 칸을 눌러 보세요.</div>
+</div>
+<div class="decide"><b>확인 필요 ③</b> 묶음 색을 위처럼 칸마다 쓰기(A 선명, 권장) / 머리줄만 색 + 입력 칸은 모두 회색 테두리(더 차분함).</div>
+
+<!-- 5 -->
+<h2>5. 입력 칸(양식) — 테두리는 한 가지, 종류는 바탕으로</h2>
+<div class="cmp">
+  <div><span class="tagl now">현재 (신규 주문 · 상담 기록)</span>
+    <div class="frame" style="background:#fff"><div class="formg" style="grid-template-columns:1fr 1fr">
+      <div><span class="o-lab">주문일 *</span><input class="o-in" value="2026-11-25"></div>
+      <div><span class="o-lab">업체 (은행 그룹)</span><input class="o-in y" placeholder="업체 검색"></div>
+      <div><span class="o-lab">지점(부서) — 주문처 *</span><input class="o-in p" placeholder="거래처 마스터 검색"></div>
+      <div><span class="o-lab">대표번호</span><input class="o-in g" value="02-000-0000"></div>
+    </div></div></div>
+  <div><span class="tagl new">기준</span>
+    <div class="frame" style="background:#fff"><div class="formg" style="grid-template-columns:1fr 1fr">
+      <div><label class="lab">주문일 <i>*</i></label><input class="in" value="2026-11-25"></div>
+      <div><label class="lab">업체 (은행 그룹)</label><input class="in pick" placeholder="업체 검색 — 목록에서 선택"></div>
+      <div><label class="lab">지점(부서) — 주문처 <i>*</i></label><input class="in pick" placeholder="거래처 검색 — 목록에서 선택"></div>
+      <div><label class="lab">대표번호 (자동)</label><input class="in auto" value="02-000-0000" readonly></div>
+    </div></div></div>
+</div>
+<div class="rulebox"><b>입력 칸 규칙</b>
+  <ul>
+    <li>높이 한 가지(양식 36, 필터 줄 28~32), 모서리 한 가지, 테두리는 모두 같은 진한 회색.</li>
+    <li>종류는 <b>바탕</b>으로: 흰 = 직접 입력, 옅은 노랑 = 목록에서 선택, 회색 = 자동(못 고침). 필수는 라벨의 빨간 별.</li>
+    <li>라벨은 칸 위, 진한 굵은 12. 눌렀을 때 진한 테두리.</li>
+  </ul>
+</div>
+
+<!-- 6 -->
+<h2>6. 버튼 · 배지 · 칩 · 요약 카드</h2>
+<div class="cmp">
+  <div class="frame" style="background:#fff">
+    <h3>버튼 — 4종 × 크기 2</h3>
+    <div class="row"><button class="btn pri">+ 주문 추가</button><button class="btn sec">엑셀 다운로드</button><button class="btn dan">삭제</button><button class="btn txt">자세히</button></div>
+    <div class="row"><button class="btn pri sm">연결</button><button class="btn sec sm">수정</button><button class="btn dan sm">삭제</button><span style="font-size:12px;color:var(--ink2)">← 표 줄 안의 작은 버튼</span></div>
+    <div style="font-size:13px;color:var(--ink2)">진한 버튼 = 그 화면의 주 작업 하나. 줄 안에서는 "지금 해야 할 조작"만 진하게, 나머지는 테두리.</div>
+    <h3 style="margin-top:16px">상태 배지 — 5색 고정</h3>
+    <div class="row"><span class="bd r">미결제 · 위험</span><span class="bd a">대기 · 주의</span><span class="bd g">완료 · 정상</span><span class="bd b">정보 · 진행</span><span class="bd n">해당 없음</span></div>
+    <h3 style="margin-top:16px">분류 꼬리표 — 테두리 알약 + 색 점 (상태와 구분)</h3>
+    <div class="row"><span class="tg">주문 · 배송</span><span class="tg" style="--dot:#c2410c">수금 · 계산서</span><span class="tg" style="--dot:#047857">고객 · 매입처</span></div>
+  </div>
+  <div class="frame" style="background:#fff">
+    <h3>칩 필터 · 기간</h3>
+    <div class="row"><span class="chip on">전체<small>351</small></span><span class="chip">미결제<small>147</small></span><span class="chip">완료<small>192</small></span></div>
+    <div class="row"><span class="pre">당월</span><span class="pre on">당년</span><span class="pre">전체 기간</span></div>
+    <h3 style="margin-top:16px">요약 카드 — 누르면 필터, 선택은 진한 테두리</h3>
+    <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi on"><div class="k">미수 총액</div><div class="v neg">218,511,830</div><div class="s">147곳</div></div>
+      <div class="kpi"><div class="k">30일 이내</div><div class="v">170,700,189</div><div class="s">76곳</div></div>
+      <div class="kpi"><div class="k">90일 초과</div><div class="v">0</div><div class="s">0곳</div></div>
+    </div>
+    <div style="font-size:13px;color:var(--ink2);margin-top:8px">숫자 색은 뜻이 있을 때만(미수 빨강 등). 나머지 숫자는 검정.</div>
+  </div>
+</div>
+
+<!-- 7 -->
+<h2>7. 창(모달)</h2>
+<div class="dim"><div class="modal">
+  <div style="font-size:16px;font-weight:800;margin-bottom:4px">수금 매칭 해제</div>
+  <div style="font-size:13px;color:var(--ink2);margin-bottom:12px">해제 사유를 골라 주세요. 이력에 남습니다.</div>
+  <label class="lab">사유 <i>*</i></label><input class="in" placeholder="사유 선택">
+  <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:16px"><button class="btn sec">취소</button><button class="btn dan">해제</button></div>
+</div></div>
+<div class="rulebox">배경 어둡기 한 가지(40%), 모서리 · 그림자 한 가지. 제목(16 굵게) → 설명 → 내용 → 오른쪽 아래 버튼(취소 왼쪽, 실행 오른쪽).</div>
+
+<!-- 8 -->
+<h2>8. 적용 순서와 확인하실 것</h2>
+<div class="rulebox">
+  <b>적용 순서(제안)</b>
+  <ul>
+    <li><b>1단계 · 색과 글자</b> — 회색 한 계열로 모으고 한 단계 진하게, 10 · 11px 글자를 12로. 전 화면이 한 번에 또렷해집니다(배치는 그대로).</li>
+    <li><b>2단계 · 공용 부품</b> — 표 · 입력 칸 · 버튼 · 배지 · 요약 카드 · 화면 제목 줄 · 입력 표(셀형)를 부품으로 만듭니다.</li>
+    <li><b>3단계 · 화면 이전</b> — 많이 쓰는 화면부터: 상담일지 · 신규 주문 · 주문내역 · 결제 확인 → 거래처 관리 → 회계 원본 목록 → 결산 · 도구 → 인사.</li>
+    <li><b>4단계 · 규칙 고정</b> — 기준을 CLAUDE.md와 빌드 검사에 넣어 다른 트랙의 새 화면도 따르게 합니다.</li>
+  </ul>
+</div>
+<div class="decide">
+  <b>확인하실 것</b><br>
+  ① 상단 흰 띠: 제거(권장) / 전 영역에 넣기<br>
+  ② 좁게 쓰는 표 화면: 전체 폭으로(권장) / 그대로<br>
+  ③ 입력 표 묶음 색: 칸마다(A 선명, 권장) / 머리줄만<br>
+  ④ 전체 진하기: 이 시안 정도(권장) / 더 진하게 / 덜 진하게<br>
+  ⑤ 1단계(색 · 글자)를 전 직원에게 바로 적용(권장 — 배치가 안 바뀌어 위험이 낮음) / 시험 기간을 둠
+</div>
+
+</div>
+</body>
+</html>
