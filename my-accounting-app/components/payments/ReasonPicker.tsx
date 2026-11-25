@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { REASONS, type ReasonKind } from '@/lib/payment-reasons'
+import { btnCls, fieldBox } from '@/components/ui/kit'
 
 // 결제 기록 취소 · 삭제 · 수정 사유 고르기 (1305, 2026-11-18)
 // 글자를 치면 항목 이름 · 키워드로 걸러진 목록이 나오고, 하나를 고른다. '기타'는 직접 입력이 필수.
@@ -26,10 +27,10 @@ export default function ReasonPicker({ kind, value, onChange, label }: {
       {picked ? (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="px-2 py-1 rounded-lg bg-slate-900 text-white text-xs">{picked.label}</span>
-          <button type="button" onClick={() => { onChange(null); setQ('') }} className="text-xs px-2 py-0.5 border border-slate-400 rounded bg-white text-slate-700 hover:bg-slate-50">다시 고르기</button>
+          <button type="button" onClick={() => { onChange(null); setQ('') }} className={btnCls('secondary', 'sm')}>다시 고르기</button>
           {picked.code === 'etc' && (
             <input value={value?.text ?? ''} onChange={e => onChange({ code: 'etc', text: e.target.value })} autoFocus placeholder="사유를 직접 입력하세요"
-              className="flex-1 min-w-[12rem] border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+              className={fieldBox({ noWidth: true, extra: 'flex-1 min-w-[12rem]' })} />
           )}
         </div>
       ) : (

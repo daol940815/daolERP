@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import PeriodPresets from '@/components/ui/PeriodPresets'
 import { getPeriodRange } from '@/lib/period-presets'
+import { chipCls, fieldBox } from '@/components/ui/kit'
 
 // 결제 확인 공통 필터 줄 (2026-11-18 실무자 요청 — 시안 docs/mockups/결제확인_탭5개_시안.html)
 // 전체 현황 · 매칭 대기 · 결제 안내 대상 세 탭이 같은 줄을 쓰고, 탭을 옮겨도 조건이 유지된다(브라우저 탭을 닫을 때까지 — sessionStorage).
@@ -65,9 +66,9 @@ export default function PayFilterBar({ filter, update, scope, noneCount }: {
   const meId = scope?.me.id ?? null
   const chip = (on: boolean, label: string, onClick: () => void) => (
     <button type="button" onClick={onClick}
-      className={`px-3 py-1 rounded-full text-xs border whitespace-nowrap ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>{label}</button>
+      className={chipCls(on)}>{label}</button>
   )
-  const inputCls = 'border border-slate-400 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const inputCls = fieldBox({ noWidth: true })
   return (
     <div className="mb-3">
       <PeriodPresets from={filter.from} to={filter.to} onChange={(from, to) => update({ from, to })} className="mb-2" />

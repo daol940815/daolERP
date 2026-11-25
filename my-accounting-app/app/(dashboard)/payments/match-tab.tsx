@@ -8,6 +8,7 @@ import PayFilterBar, { passPayFilter, usePayFilter, type StaffScope } from '@/co
 import { OrderNoLink } from '@/components/payments/OrderPreview'
 import { kindLabel, type CardEntry, type RecVat } from '@/lib/payment-kind'
 import InvoiceLinkModal from '../sales-cycle/invoice-link-modal'
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 
 // 결제 확인 (1300, 2026-11-13 사용자 확정 — 시안 docs/mockups/결제처리_시안.html)
 // 영업지원이 주문 상세에 남긴 결제 기록(1차)을 카드 매출 · 통장 입금 원본과 대조해 확정한다(2차).
@@ -212,15 +213,15 @@ export default function MatchTab() {
 
   const kpiCard = (key: Kpi, label: string, value: string, sub: string, tone = 'text-slate-900') => (
     <button onClick={() => { setTab('pending'); setKpi(key) }}
-      className={`text-left bg-white border rounded-xl px-4 py-3 ${tab === 'pending' && kpi === key ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:border-slate-400'}`}>
-      <p className="text-xs text-slate-600">{label}</p>
-      <p className={`text-lg font-bold mt-1 ${tone}`}>{value}</p>
-      <p className="text-xs text-slate-500">{sub}</p>
+      className={`text-left bg-white border rounded-xl px-3.5 py-2.5 ${tab === 'pending' && kpi === key ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:border-slate-400'}`}>
+      <p className="text-xs font-bold text-slate-700">{label}</p>
+      <p className={`text-xl font-extrabold tabular-nums ${tone}`}>{value}</p>
+      <p className="text-xs text-slate-600">{sub}</p>
     </button>
   )
   const chip = (on: boolean, label: string, onClick: () => void) => (
     <button onClick={onClick}
-      className={`px-3 py-1 rounded-full text-xs border ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>
+      className={chipCls(on)}>
       {label}
     </button>
   )
@@ -311,7 +312,7 @@ export default function MatchTab() {
                               <span className="text-slate-900">{cand.label} <span className="tabular-nums">{cand.date}</span></span>
                               {canEdit && (
                                 <button onClick={() => confirmCancel(c, cand)} disabled={busyId === c.id}
-                                  className="ml-auto whitespace-nowrap px-2 py-0.5 rounded text-xs font-semibold bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-40">취소 확정</button>
+                                  className={btnCls('primary', 'sm', 'ml-auto whitespace-nowrap')}>취소 확정</button>
                               )}
                             </div>
                             <div className="text-xs text-slate-600">{cand.note}</div>
@@ -463,7 +464,7 @@ export default function MatchTab() {
                         {r.flag === 'mismatch' && <div className="mb-1"><span className="inline-block px-1.5 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700">불일치</span></div>}
                         {canEdit && (
                           <button onClick={() => openFind(r)}
-                            className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">
+                            className={btnCls('secondary', 'sm')}>
                             {findId === r.id ? '찾기 닫기' : '다른 입금 찾기'}
                           </button>
                         )}
@@ -474,7 +475,7 @@ export default function MatchTab() {
                         )}
                       </>) : canEdit && (
                         <button onClick={() => { setRelId(relId === r.id ? null : r.id); setRelReason(null) }} disabled={busyId === r.id}
-                          className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50 disabled:opacity-40">{relId === r.id ? '닫기' : '매칭 해제'}</button>
+                          className={btnCls('secondary', 'sm')}>{relId === r.id ? '닫기' : '매칭 해제'}</button>
                       )}
                     </td>
                   </tr>
@@ -488,7 +489,7 @@ export default function MatchTab() {
                         <div className="flex justify-end gap-2 mt-2">
                           <button onClick={() => setRelId(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs bg-white">닫기</button>
                           <button onClick={() => release(r)} disabled={busyId === r.id || !reasonReady(relReason)}
-                            className="px-3 py-1.5 rounded-lg text-xs bg-slate-900 text-white font-semibold disabled:opacity-40">매칭 해제</button>
+                            className={btnCls('primary', 'sm')}>매칭 해제</button>
                         </div>
                       </td>
                     </tr>
@@ -500,12 +501,12 @@ export default function MatchTab() {
                           <span className="text-xs font-semibold text-slate-800">{r.method === 'card' ? '카드 매출' : '통장 입금'}에서 직접 찾기</span>
                           <input value={findQ} onChange={e => setFindQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') runFind(r) }}
                             placeholder={r.method === 'card' ? '카드번호 일부 · 매입사' : '입금자 · 적요'}
-                            className="border border-slate-400 rounded-lg px-2.5 py-1 text-xs w-52 bg-white" />
+                            className={fieldBox({ size: 'sm', noWidth: true, extra: 'w-52' })} />
                           <label className="text-xs text-slate-700 flex items-center gap-1">
                             <input type="checkbox" checked={findAmount} onChange={e => { setFindAmount(e.target.checked); runFind(r, findQ, e.target.checked) }} />
                             금액 {won(r.amount)}원만
                           </label>
-                          <button onClick={() => runFind(r)} className="px-2.5 py-1 rounded-lg text-xs bg-slate-900 text-white">찾기</button>
+                          <button onClick={() => runFind(r)} className={btnCls('primary', 'sm')}>찾기</button>
                           <span className="text-xs text-slate-500">결제일 7일 전부터 · 아직 주문에 배분되지 않은 것만{r.method === 'card' && ' · 분할 결제는 승인 여러 건을 "묶기"로 골라 함께 확정'}</span>
                         </div>
                         {finding ? <div className="text-xs text-slate-500 py-2">찾는 중...</div>
@@ -527,7 +528,7 @@ export default function MatchTab() {
                                     {c.kind_diff ? <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700">구분 다름 · 매칭 불가</span>
                                     : c.remaining >= r.amount ? (
                                       <button onClick={() => confirmWith(r, { source_type: c.source_type, source_id: c.id, tx_date: c.tx_date, label: c.label })} disabled={busyId === r.id}
-                                        className="px-2 py-0.5 rounded bg-slate-900 text-white font-semibold disabled:opacity-40">이 원본으로 확정</button>
+                                        className={btnCls('primary', 'sm')}>이 원본으로 확정</button>
                                     ) : <span className="text-slate-500">잔액 부족</span>}
                                   </div>
                                 ))}
@@ -543,7 +544,7 @@ export default function MatchTab() {
                                     <span>{ok ? '기록 금액과 같습니다.' : `기록 금액 ${won(r.amount)}원과 ${sum < r.amount ? `${won(r.amount - sum)}원 모자랍니다` : `${won(sum - r.amount)}원 넘칩니다`}${pick.length < 2 ? ' · 2건 이상 고르세요' : ''}`}</span>
                                     <button disabled={!ok || busyId === r.id}
                                       onClick={() => confirmWith(r, { source_type: 'card', source_id: pick[0].id, tx_date: pick[0].tx_date, label: `분할 결제 ${pick.length}건`, parts: pick.map(c => ({ source_id: c.id, amount: c.remaining, tx_date: c.tx_date })) })}
-                                      className="ml-auto px-2 py-0.5 rounded bg-slate-900 text-white font-semibold disabled:opacity-40">{pick.length}건 함께 확정</button>
+                                      className={btnCls('primary', 'sm', 'ml-auto')}>{pick.length}건 함께 확정</button>
                                   </div>
                                 )
                               })()}
@@ -551,7 +552,7 @@ export default function MatchTab() {
                                 <div className="mt-2 flex items-center gap-2 flex-wrap rounded-lg border border-dashed border-slate-400 bg-white px-2.5 py-1.5 text-xs text-slate-700">
                                   <b>구분이 다른 카드 매출 {found.filter(c => c.kind_diff).length}건은 숨김</b>
                                   <span className="text-slate-500">기록은 {kindLabel(r) ?? ''}</span>
-                                  <button onClick={() => setShowOtherKind(v => !v)} className="ml-auto px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">{showOtherKind ? '숨기기' : '보기'}</button>
+                                  <button onClick={() => setShowOtherKind(v => !v)} className={btnCls('secondary', 'sm', 'ml-auto')}>{showOtherKind ? '숨기기' : '보기'}</button>
                                 </div>
                               )}
                               </>
@@ -565,7 +566,7 @@ export default function MatchTab() {
           </table>
           {filtered.length > shown && (
             <div className="p-3 text-center border-t border-slate-200">
-              <button onClick={() => setShown(n => n + 100)} className="px-4 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">더 보기 ({shown} / {filtered.length})</button>
+              <button onClick={() => setShown(n => n + 100)} className={btnCls('secondary', 'md')}>더 보기 ({shown} / {filtered.length})</button>
             </div>
           )}
         </div>

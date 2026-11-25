@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import ReasonPicker, { reasonReady, type ReasonValue } from './ReasonPicker'
 import type { ReasonKind } from '@/lib/payment-reasons'
+import { btnCls } from '@/components/ui/kit'
 
 // 사유를 묻는 작은 창 (1307, 2026-11-18) — 매칭 해제처럼 "누르면 바로 실행"이던 조작에 사유 선택을 끼워 넣을 때 쓴다.
 //   const { ask, node } = useReasonDialog()
@@ -24,7 +25,7 @@ export function useReasonDialog() {
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={() => close(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm bg-white">닫기</button>
           <button onClick={() => close(value)} disabled={!reasonReady(value)}
-            className="px-3 py-1.5 rounded-lg text-sm bg-slate-900 text-white font-semibold disabled:opacity-40">확인</button>
+            className={btnCls('primary', 'md')}>확인</button>
         </div>
       </div>
     </div>
