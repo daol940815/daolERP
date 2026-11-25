@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { evidenceAppeared, loadLiveNoEvidence, splitTaxable, type NoEvidenceVat } from './no-evidence'
 import { fetchAllRows } from './fetch-all-rows'
 import { kstToday, type Editor } from './orders-portal'
 import { loadReceivableMap } from './orders-portal-list'
@@ -151,7 +152,15 @@ export interface InvoiceCandidate {
   tax_type?: string | null
 }
 
-export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: string } | { rows: InvoiceCheckRow[]; latest_invoice: string | null }> {
+// 증빙 없이 처리됨 (1310, 2026-11-25) — 주문 1건 = 1줄(입금 여러 건이면 합계, 입금일은 가장 늦은 날)
+export interface NoEvidenceDoneRow {
+  order_id: string; order_no: string | null; order_date: string; customer_name: string; vendor_id: string | null
+  paid_date: string; amount: number; vat_kind: NoEvidenceVat; taxable_amount: number; exempt_amount: number
+  supply: number; tax: number; reason_text: string; created_by_name: string | null; created_at: string
+  evidence_appeared: boolean   // 처리한 뒤 계산서 · 현금영수증이 연결됨 — 해제 필요
+}
+
+export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: string } | { rows: InvoiceCheckRow[]; latest_invoice: string | null; done: NoEvidenceDoneRow[]; no_evidence_available: boolean }> {
   // 대상 좁히기: 계산서 발행 기록이 걸린 주문 + 통장 입금이 매칭된 주문
   const recRes = await fetchAllRows<{ id: string; pay_date: string }>((f, t) =>
     admin.from('order_payment_records').select('id, pay_date').eq('method', 'invoice').range(f, t))
@@ -253,7 +262,11 @@ export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: 
     if (txWithReceipt.has(m.source_id)) cur.receipt = true
     paidByOrder.set(m.order_id, cur)
   }
+  // 증빙 없이 처리된 주문(1310)은 "증빙 없음"에서 빼고 "증빙 없이 처리됨"으로 보낸다
+  const ne = await loadLiveNoEvidence(admin)
+  const doneOrders = new Set(ne.rows.map(r => r.order_id))
   for (const [orderId, p] of Array.from(paidByOrder)) {
+    if (doneOrders.has(orderId)) continue
     if (p.receipt || hasInvoiceRecord.has(orderId) || (invByOrder.get(orderId) ?? 0) > 0) continue
     rows.push({ ...base(orders.get(orderId)!), issue: 'no_evidence', record_date: null, record_amount: null, invoice_amount: 0, paid_date: p.date, paid_amount: p.amount })
   }
@@ -292,5 +305,27 @@ export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: 
   }
 
   const { data: li } = await admin.from('tax_invoices').select('issue_date').eq('direction', 'sales').order('issue_date', { ascending: false }).limit(1)
-  return { rows, latest_invoice: (li?.[0]?.issue_date as string | undefined)?.slice(0, 10) ?? null }
+  // 처리됨 목록 — 주문 정보는 위에서 읽은 것(통장 매칭이 있는 주문)을 쓰고, 없으면 따로 읽는다
+  const appeared = await evidenceAppeared(admin, ne.rows)
+  const missingOrders = Array.from(doneOrders).filter(id => !orders.has(id))
+  for (const ch of chunk(missingOrders, 150)) {
+    const { data: os } = await admin.from('erp_orders').select('id, order_no, order_date, bank_name, branch_name, vendor_id, customer_alias_id, source, canceled_at').in('id', ch)
+    for (const o of (os ?? []) as O[]) orders.set(o.id, o)
+  }
+  const doneBy = new Map<string, NoEvidenceDoneRow>()
+  for (const r of ne.rows) {
+    const o = orders.get(r.order_id); if (!o) continue
+    const b = base(o)
+    const cur = doneBy.get(r.order_id) ?? {
+      order_id: r.order_id, order_no: b.order_no, order_date: b.order_date, customer_name: b.customer_name, vendor_id: b.vendor_id,
+      paid_date: r.paid_date, amount: 0, vat_kind: r.vat_kind, taxable_amount: 0, exempt_amount: 0, supply: 0, tax: 0,
+      reason_text: r.reason_text, created_by_name: r.created_by_name, created_at: r.created_at, evidence_appeared: appeared.has(r.order_id),
+    }
+    cur.amount += r.amount; cur.taxable_amount += r.taxable_amount; cur.exempt_amount += r.exempt_amount
+    const st = splitTaxable(r.taxable_amount); cur.supply += st.supply; cur.tax += st.tax
+    if (r.paid_date > cur.paid_date) cur.paid_date = r.paid_date
+    doneBy.set(r.order_id, cur)
+  }
+  const done = Array.from(doneBy.values()).sort((a, b) => b.paid_date.localeCompare(a.paid_date))
+  return { rows, latest_invoice: (li?.[0]?.issue_date as string | undefined)?.slice(0, 10) ?? null, done, no_evidence_available: ne.available }
 }

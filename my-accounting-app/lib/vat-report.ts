@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { loadLiveNoEvidence, splitTaxable } from './no-evidence'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { splitVat } from '@/lib/card-sale-vat'
 import { isCardSaleVoided } from '@/lib/card-sale-status'
@@ -68,7 +69,10 @@ export interface VatReturnView {
     purchase_invoice: VatCell[]
     purchase_card_cash: VatCell[]
     purchase_nondeduct: VatCell[]
+    sales_cash: VatCell[]          // 현금 매출(자동) — 증빙 없이 처리한 과세분, 입금일 달 (1310, 2026-11-25)
   }
+  exempt_cash: number[]            // 증빙 없이 처리한 면세분 — 신고 줄 아님, 참고 (months 순서 + 합계)
+  no_evidence_available: boolean
   manual: Record<string, VatCell>
   card_missing: { count: number; amount: number }
   migration106: boolean
@@ -124,6 +128,7 @@ export async function buildVatReturnView(
     purchase_invoice: zero(),
     purchase_card_cash: zero(),
     purchase_nondeduct: zero(),
+    sales_cash: zero(),
   }
 
   for (const r of (invR as { data: { issue_date: string; direction: string; supply_amount: number | null; tax_amount: number | null }[] }).data) {
@@ -156,6 +161,14 @@ export async function buildVatReturnView(
     if (nonDeductibleIds.has(r.confirmed_account_id)) add(auto.purchase_nondeduct, r.tx_date, supply, tax)
   }
 
+  // 현금 매출(자동) — 증빙 없이 처리(1310). 과세분 = 부가세 포함 금액 → 공급가 ÷ 1.1. 면세분은 참고
+  const exempt_cash = months.map(() => 0).concat([0])
+  const ne = await loadLiveNoEvidence(admin, from, to)
+  for (const r of ne.rows) {
+    if (r.taxable_amount) { const st = splitTaxable(r.taxable_amount); add(auto.sales_cash, r.paid_date, st.supply, st.tax) }
+    if (r.exempt_amount) { const i = idxOf(r.paid_date); if (i >= 0 && i < months.length) { exempt_cash[i] += r.exempt_amount; exempt_cash[months.length] += r.exempt_amount } }
+  }
+
   // 수동 입력 항목 (106 미적용 시 빈 값 폴백)
   const period_key = `${year}-${m1}-${m2}`
   const manual: Record<string, VatCell> = {}
@@ -172,7 +185,7 @@ export async function buildVatReturnView(
     }
   }
 
-  return { result: { year, m1, m2, months, period_key, auto, manual, card_missing, migration106 } }
+  return { result: { year, m1, m2, months, period_key, auto, exempt_cash, no_evidence_available: ne.available, manual, card_missing, migration106 } }
 }
 
 export async function buildVatEstimate(

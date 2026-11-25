@@ -2,11 +2,13 @@
 
 // 예상 부가세 — 신고서 서식 행 x (월별 열 + 신고기간 계)
 // 자동 집계: 세금계산서·신용카드/현금영수증 (월별로 의미 있는 발생 항목)
-// 수동 입력: 현금매출(원천 생기면 자동 전환 예정)·영세율·대손·경감공제·예정고지 등
+// 현금 매출: 자동(결제 확인 › 증빙 없이 처리한 과세분, 입금일 달, 2026-11-25) + 수동 조정 칸
+// 수동 입력: 현금매출 조정·영세율·대손·경감공제·예정고지 등
 //            — 월로 쪼개지 않는 항목은 월 칸을 빗금 처리하고 신고기간 계에만 표시
 
 import { useCallback, useEffect, useState } from 'react'
 
+import Link from 'next/link'
 import { btnCls, chipCls } from '@/components/ui/kit'
 interface CellV { supply: number; tax: number }
 interface ReturnView {
@@ -14,7 +16,10 @@ interface ReturnView {
   auto: {
     sales_invoice: CellV[]; sales_card_cash: CellV[]
     purchase_invoice: CellV[]; purchase_card_cash: CellV[]; purchase_nondeduct: CellV[]
+    sales_cash?: CellV[]   // 현금 매출(자동) — 증빙 없이 처리 과세분 (1310)
   }
+  exempt_cash?: number[]   // 증빙 없이 처리 면세분 — 참고
+  no_evidence_available?: boolean
   manual: Record<string, CellV>
   card_missing: { count: number; amount: number }
   migration106: boolean
@@ -116,8 +121,8 @@ export default function VatEstimatePage() {
   const n = v?.months.length ?? 0
   const at = (cells: CellV[] | undefined, i: number): CellV => cells?.[i] ?? { supply: 0, tax: 0 }
   const salesCell = (i: number): CellV => ({
-    supply: at(v?.auto.sales_invoice, i).supply + at(v?.auto.sales_card_cash, i).supply,
-    tax: at(v?.auto.sales_invoice, i).tax + at(v?.auto.sales_card_cash, i).tax,
+    supply: at(v?.auto.sales_invoice, i).supply + at(v?.auto.sales_card_cash, i).supply + at(v?.auto.sales_cash, i).supply,
+    tax: at(v?.auto.sales_invoice, i).tax + at(v?.auto.sales_card_cash, i).tax + at(v?.auto.sales_cash, i).tax,
   })
   const salesTotal: CellV = v ? {
     supply: salesCell(n).supply + manual('cash_sales').supply + manual('zero_invoice').supply + manual('zero_other').supply,
@@ -234,8 +239,8 @@ export default function VatEstimatePage() {
               </thead>
               <tbody className="[&_td]:border-b [&_td]:border-slate-200">
                 <tr>
-                  <td rowSpan={6} className="py-1.5 px-2 font-bold text-slate-900 bg-slate-50 whitespace-nowrap">과세표준<br />및<br />매출세액</td>
-                  <td rowSpan={3} className="py-1.5 px-2 text-center text-xs text-slate-600 bg-slate-50">과세</td>
+                  <td rowSpan={7} className="py-1.5 px-2 font-bold text-slate-900 bg-slate-50 whitespace-nowrap">과세표준<br />및<br />매출세액</td>
+                  <td rowSpan={4} className="py-1.5 px-2 text-center text-xs text-slate-600 bg-slate-50">과세</td>
                   <td className="py-1.5 px-2 text-slate-700">세금계산서</td>
                   {v.months.map((m, i) => <Cell key={m} c={at(v.auto.sales_invoice, i)} />)}
                   <TotCell c={at(v.auto.sales_invoice, n)} />
@@ -246,7 +251,15 @@ export default function VatEstimatePage() {
                   <TotCell c={at(v.auto.sales_card_cash, n)} />
                 </tr>
                 <tr>
-                  <td className="py-1.5 px-2 text-slate-700">현금 <span className="text-xs text-blue-500">수동</span></td>
+                  <td className="py-1.5 px-2 text-slate-700">
+                    현금 <span className="text-xs text-slate-600">자동 · 증빙 없이 처리</span>
+                    <Link href="/payments?tab=invoice" className="ml-1 text-xs text-blue-700 underline" title="결제 확인 › 계산서 확인 › 증빙 없이 처리됨 — 입금일 기준, 공급가 = 과세분 ÷ 1.1">목록</Link>
+                  </td>
+                  {v.months.map((m, i) => <Cell key={m} c={at(v.auto.sales_cash, i)} />)}
+                  <TotCell c={at(v.auto.sales_cash, n)} />
+                </tr>
+                <tr>
+                  <td className="py-1.5 px-2 text-slate-700">현금 <span className="text-xs text-blue-500">수동 조정</span></td>
                   {naCells()}
                   {manualTot('cash_sales')}
                 </tr>
@@ -342,9 +355,20 @@ export default function VatEstimatePage() {
             </table>
           </div>
 
+          {(v.exempt_cash?.[n] ?? 0) > 0 && (
+            <div className="mt-3 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-700 flex flex-wrap gap-x-4 gap-y-1">
+              <b className="text-slate-900">면세 수입금액(참고 — 신고 줄 아님)</b>
+              {v.months.map((m, i) => <span key={m}>{m}월 {fmt0(v.exempt_cash?.[i] ?? 0)}</span>)}
+              <span>합계 <b>{fmt0(v.exempt_cash?.[n] ?? 0)}</b></span>
+              <span className="text-slate-500">증빙 없이 처리한 면세분</span>
+            </div>
+          )}
+
           <p className="text-xs text-slate-500 mt-3 leading-relaxed">
             각 칸의 윗줄은 세액, 아랫줄 회색은 공급가액입니다. 파란 배경의 수동 항목은 클릭해 입력합니다(신고기간 단위 저장).
-            현금 매출은 데이터 원천이 생기면 자동 집계로 전환할 수 있습니다. 실제 신고액과는 가산·공제 세부 항목에서 차이가 있을 수 있습니다.
+            현금 매출 자동 줄은 결제 확인 › 계산서 확인에서 &quot;증빙 없이 처리&quot;한 과세분입니다(입금일 기준, 공급가 = 과세분 ÷ 1.1). 수동 조정 칸에 같은 금액을 넣어 두셨다면 두 번 잡히니 지워 주세요.
+            {v.no_evidence_available === false && ' (1310 마이그레이션 실행 전이라 자동 줄은 0입니다.)'}
+            실제 신고액과는 가산·공제 세부 항목에서 차이가 있을 수 있습니다.
           </p>
         </>
       )}

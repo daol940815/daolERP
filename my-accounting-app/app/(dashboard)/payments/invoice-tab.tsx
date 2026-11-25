@@ -6,6 +6,18 @@ import { OrderNoLink } from '@/components/payments/OrderPreview'
 import InvoiceLinkModal from '../sales-cycle/invoice-link-modal'
 import { BillingAskDialog, saveInvoiceLinks, type BillingAsk, type InvoiceLink } from '../sales-cycle/billing-ask'
 import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
+import { Modal } from '@/components/ui/modal'
+import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/payments/ReasonPicker'
+
+// 증빙 없이 처리됨 (1310, 2026-11-25 — 시안 docs/mockups/증빙없이처리_현금매출_시안.html)
+type NeVat = 'taxable' | 'exempt' | 'mixed'
+interface Done {
+  order_id: string; order_no: string | null; order_date: string; customer_name: string; vendor_id: string | null
+  paid_date: string; amount: number; vat_kind: NeVat; taxable_amount: number; exempt_amount: number
+  supply: number; tax: number; reason_text: string; created_by_name: string | null; created_at: string; evidence_appeared: boolean
+}
+const NE_VAT: Record<NeVat, string> = { taxable: '과세', exempt: '면세', mixed: '과세 · 면세 섞임' }
+const splitTaxable = (n: number) => { const supply = Math.round(n / 1.1); return { supply, tax: n - supply } }
 
 // 결제 확인 › 계산서 확인 (2026-11-16 3단계)
 // "발행할 주문 목록"은 만들 수 없다(카드로 낼지 계산서로 낼지 미리 알 수 없음) — 확인이 필요한 세 가지만 모은다.
@@ -44,13 +56,22 @@ export default function InvoiceTab() {
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [ask, setAsk] = useState<{ ask: BillingAsk; links: InvoiceLink[]; amount: number } | null>(null)
+  const [done, setDone] = useState<Done[]>([])
+  const [neAvail, setNeAvail] = useState(true)
+  const [showDone, setShowDone] = useState(false)
+  const [neFor, setNeFor] = useState<Row | null>(null)        // 증빙 없이 처리 창
+  const [neVat, setNeVat] = useState<NeVat>('taxable')
+  const [neTaxable, setNeTaxable] = useState('')
+  const [neReason, setNeReason] = useState<ReasonValue | null>(null)
+  const [relFor, setRelFor] = useState<Done | null>(null)     // 해제 창
+  const [relReason, setRelReason] = useState<ReasonValue | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     const res = await fetch('/api/payment-records/invoice-check')
     const json = await res.json().catch(() => ({}))
     if (!res.ok) { setError(json.error ?? '조회 실패'); setRows([]) }
-    else { setRows(json.rows ?? []); setLatest(json.latest_invoice ?? null); setCanEdit(!!json.can_edit); setCanSetBilling(!!json.can_set_billing) }
+    else { setRows(json.rows ?? []); setLatest(json.latest_invoice ?? null); setCanEdit(!!json.can_edit); setCanSetBilling(!!json.can_set_billing); setDone(json.done ?? []); setNeAvail(json.no_evidence_available !== false) }
     setLoading(false)
   }, [])
   useEffect(() => { load() }, [load])
@@ -81,6 +102,40 @@ export default function InvoiceTab() {
       },
     })
   }
+  const openNe = (r: Row) => { setNeFor(r); setNeVat('taxable'); setNeTaxable(''); setNeReason(null) }
+  const neAmount = neFor?.paid_amount ?? 0
+  const neTaxNum = Math.round(Number(neTaxable.replace(/,/g, '')))
+  const neReady = !!neFor && reasonReady(neReason) && (neVat !== 'mixed' || (Number.isFinite(neTaxNum) && neTaxNum > 0 && neTaxNum < neAmount))
+  const submitNe = async () => {
+    if (!neFor || !neReady) return
+    setBusy(true); setMsg(null)
+    const res = await fetch('/api/payment-records/no-evidence', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: neFor.order_id, vat_kind: neVat, taxable_amount: neVat === 'mixed' ? neTaxNum : null, reason: neReason }),
+    })
+    const j = await res.json().catch(() => ({}))
+    setBusy(false)
+    if (!res.ok) { setMsg(j.error ?? '처리 실패'); return }
+    setMsg(`증빙 없이 처리했습니다 — 주문 ${neFor.order_no ?? ''} · 입금 ${j.deposits}건 ${won(j.amount ?? 0)}원${j.confirmed ? `, 그중 ${j.confirmed}건을 상품매출로 확정` : ''}.${j.journal_errors?.length ? ` 분개 확인 필요: ${j.journal_errors.join(' / ')}` : ''}`)
+    setNeFor(null); load()
+  }
+  const submitRelease = async () => {
+    if (!relFor || !reasonReady(relReason)) return
+    setBusy(true); setMsg(null)
+    const res = await fetch('/api/payment-records/no-evidence', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order_id: relFor.order_id, reason: relReason }),
+    })
+    const j = await res.json().catch(() => ({}))
+    setBusy(false)
+    if (!res.ok) { setMsg(j.error ?? '해제 실패'); return }
+    setMsg(`해제했습니다 — 주문 ${relFor.order_no ?? ''}${j.restored ? `, 이 처리로 확정했던 입금 ${j.restored}건을 처리 전 분류로 되돌렸습니다` : ''}.`)
+    setRelFor(null); setRelReason(null); load()
+  }
+  const doneShown = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return done.filter(d => !q || [d.customer_name, d.order_no].some(v => (v ?? '').toLowerCase().includes(q)))
+  }, [done, search])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return rows.filter(r => (issue === 'all' || r.issue === issue)
@@ -106,11 +161,44 @@ export default function InvoiceTab() {
         {chip('no_hometax', '홈택스에 없음', count('no_hometax'))}
         {chip('amount_diff', '금액 다름', count('amount_diff'))}
         {chip('no_evidence', '입금 받았는데 증빙 없음', count('no_evidence'))}
+        <span className="w-px h-5 bg-slate-200 mx-1" />
+        <button onClick={() => setShowDone(v => !v)} className={chipCls(showDone)}>증빙 없이 처리됨 {done.length}{done.some(d => d.evidence_appeared) && ' · 해제 필요 있음'}</button>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처 · 청구처 · 주문번호 검색"
           className={fieldBox({ noWidth: true, extra: 'ml-auto w-64' })} />
       </div>
 
-      {loading ? <div className="text-center py-20 text-slate-500">불러오는 중...</div>
+      {!neAvail && <div className="mb-3 px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">1310 마이그레이션(증빙 없이 처리)이 아직 적용되지 않았습니다. SQL 편집기에서 1310_order_no_evidence.sql을 실행하면 증빙 없이 처리를 쓸 수 있습니다.</div>}
+      {showDone ? (
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
+          <table className="w-full text-sm min-w-[56rem]">
+            <thead>
+              <tr className="text-left">
+                <th className="py-2.5 px-3">입금일</th><th className="py-2.5 px-3">주문</th><th className="py-2.5 px-3">매출처</th>
+                <th className="py-2.5 px-3 text-right">입금</th><th className="py-2.5 px-3">과세 구분</th><th className="py-2.5 px-3 text-right">공급가 / 세액</th>
+                <th className="py-2.5 px-3">사유 · 처리</th><th className="py-2.5 px-3"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {doneShown.length === 0 ? (
+                <tr><td colSpan={8} className="py-10 text-center text-slate-500">증빙 없이 처리된 주문이 없습니다.</td></tr>
+              ) : doneShown.map(d => (
+                <tr key={d.order_id} className="border-b border-slate-200 align-top">
+                  <td className="py-2.5 px-3 tabular-nums whitespace-nowrap">{d.paid_date}</td>
+                  <td className="py-2.5 px-3 whitespace-nowrap"><OrderNoLink id={d.order_id} no={d.order_no} /></td>
+                  <td className="py-2.5 px-3">{d.customer_name}
+                    {d.evidence_appeared && <div><span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700" title="처리한 뒤 계산서 또는 현금영수증이 연결됐습니다 — 매출 · 부가세가 두 번 잡히지 않게 해제하세요">증빙 생김 — 해제 필요</span></div>}
+                  </td>
+                  <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">{won(d.amount)}</td>
+                  <td className="py-2.5 px-3 text-xs whitespace-nowrap">{NE_VAT[d.vat_kind]}{d.vat_kind === 'mixed' && <div className="text-slate-600">과세 {won(d.taxable_amount)} · 면세 {won(d.exempt_amount)}</div>}</td>
+                  <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap text-xs">{d.taxable_amount > 0 ? `${won(d.supply)} / ${won(d.tax)}` : '— (면세)'}</td>
+                  <td className="py-2.5 px-3 text-xs">{d.reason_text}<div className="text-slate-600">{d.created_by_name ?? '-'} · {d.created_at.slice(5, 16).replace('T', ' ')}</div></td>
+                  <td className="py-2.5 px-3 text-right">{canEdit && <button onClick={() => { setRelFor(d); setRelReason(null) }} className={btnCls('secondary', 'sm')}>해제</button>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : loading ? <div className="text-center py-20 text-slate-500">불러오는 중...</div>
         : filtered.length === 0 ? (
           <div className="text-center py-20 text-slate-500 text-sm">{rows.length === 0 ? '확인할 주문이 없습니다.' : '조건에 맞는 주문이 없습니다.'}</div>
         ) : (
@@ -178,6 +266,11 @@ export default function InvoiceTab() {
                             className={btnCls('primary', 'sm')}>이 계산서 연결</button>
                         </div>
                       )}
+                      {canEdit && neAvail && r.issue === 'no_evidence' && (
+                        <div className="mb-1">
+                          <button onClick={() => openNe(r)} disabled={busy} className={btnCls('primary', 'sm')}>증빙 없이 처리</button>
+                        </div>
+                      )}
                       {canEdit && r.vendor_id ? (
                         <button onClick={() => setLinkFor({ id: r.vendor_id!, name: r.customer_name })}
                           className={btnCls('secondary', 'sm')}>직접 찾기</button>
@@ -196,6 +289,46 @@ export default function InvoiceTab() {
         홈택스에 없음은 계산서 파일이 아직 올라오지 않았거나 주문과 연결되지 않은 경우입니다. 증빙 없음은 발행 누락 후보이며, 카드 · 선결제로 받은 주문은 대상이 아닙니다.
       </p>
 
+      {neFor && (
+        <Modal title={`증빙 없이 처리 — ${neFor.order_no ?? ''} · ${neFor.customer_name}`} onClose={() => setNeFor(null)}
+          desc={<>통장 입금 {neFor.paid_date ?? ''} {won(neAmount)}원 · 계산서 · 현금영수증 없음. 처리하면 분류 전인 입금을 <b>상품매출(4001)</b>로 확정하고 분개를 만듭니다. 과세분은 예상 부가세 <b>현금 매출</b>에 입금일 달로 자동으로 들어갑니다.</>}
+          footer={<>
+            <button onClick={() => setNeFor(null)} className={btnCls('secondary')}>닫기</button>
+            <button onClick={submitNe} disabled={!neReady || busy} className={btnCls('primary')}>증빙 없이 처리</button>
+          </>}>
+          <div className="space-y-3 text-sm">
+            <div>
+              <div className="text-xs font-semibold text-slate-700 mb-1">과세 구분</div>
+              <div className="flex gap-1.5 flex-wrap">
+                {(['taxable', 'exempt', 'mixed'] as NeVat[]).map(k => <button key={k} onClick={() => setNeVat(k)} className={chipCls(neVat === k)}>{NE_VAT[k]}</button>)}
+              </div>
+              {neVat === 'taxable' && <div className="text-xs text-slate-600 mt-1">공급가 {won(splitTaxable(neAmount).supply)} · 세액 {won(splitTaxable(neAmount).tax)} (입금액 ÷ 1.1, 원 단위 반올림)</div>}
+              {neVat === 'exempt' && <div className="text-xs text-slate-600 mt-1">면세분은 부가세 신고 줄에 넣지 않고 예상 부가세 화면에 &quot;면세 수입금액(참고)&quot;으로 보여 줍니다.</div>}
+              {neVat === 'mixed' && (
+                <div className="mt-1.5 space-y-1 text-xs text-slate-700">
+                  <label className="flex items-center gap-2">과세분
+                    <input value={neTaxable} onChange={e => setNeTaxable(e.target.value)} inputMode="numeric" placeholder="부가세 포함 금액" className={fieldBox({ noWidth: true, size: 'sm', extra: 'w-32 text-right' })} />
+                    {Number.isFinite(neTaxNum) && neTaxNum > 0 && <span className="text-slate-600">공급가 {won(splitTaxable(neTaxNum).supply)} · 세액 {won(splitTaxable(neTaxNum).tax)}</span>}
+                  </label>
+                  <div>면세분 = 입금 합계 − 과세분 = <b>{Number.isFinite(neTaxNum) && neTaxNum > 0 ? won(Math.max(0, neAmount - neTaxNum)) : '-'}</b></div>
+                  {Number.isFinite(neTaxNum) && neTaxNum >= neAmount && <div className="text-red-600">과세분은 입금 합계({won(neAmount)}원)보다 작아야 합니다 — 전액 과세면 &quot;과세&quot;를 고르세요.</div>}
+                </div>
+              )}
+            </div>
+            <ReasonPicker kind="no_evidence" value={neReason} onChange={setNeReason} label="사유" />
+          </div>
+        </Modal>
+      )}
+      {relFor && (
+        <Modal title={`증빙 없이 처리 해제 — ${relFor.order_no ?? ''}`} onClose={() => setRelFor(null)}
+          desc="처리 기록을 해제합니다. 이 처리로 상품매출로 확정했던 입금은 처리 전 분류로 되돌리고 분개도 취소합니다(처리 전에 이미 상품매출이었던 입금은 그대로). 예상 부가세 현금 매출에서도 빠집니다."
+          footer={<>
+            <button onClick={() => setRelFor(null)} className={btnCls('secondary')}>닫기</button>
+            <button onClick={submitRelease} disabled={!reasonReady(relReason) || busy} className={btnCls('primary')}>해제</button>
+          </>}>
+          <ReasonPicker kind="no_evidence_release" value={relReason} onChange={setRelReason} label="해제 사유" />
+        </Modal>
+      )}
       {linkFor && (
         <InvoiceLinkModal vendorId={linkFor.id} vendorName={linkFor.name}
           onClose={() => { setLinkFor(null); load() }} onApplied={() => {}} />
