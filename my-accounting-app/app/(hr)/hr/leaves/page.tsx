@@ -201,8 +201,8 @@ export default function LeaveListPage() {
 
   const KpiCard = ({ k, label, tone }: { k: Kpi; label: string; tone: string }) => (
     <button onClick={() => setKpi(kpi === k ? null : k)}
-      className={`text-left bg-white border rounded-xl px-4 py-3 transition-colors ${kpi === k ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:border-slate-400'}`}>
-      <div className="text-xs text-slate-600 font-semibold">{label}</div>
+      className={`text-left bg-white border rounded-xl px-3.5 py-2.5 transition-colors ${kpi === k ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:border-slate-400'}`}>
+      <div className="text-xs font-bold text-slate-700">{label}</div>
       <div className={`text-xl font-extrabold mt-0.5 tabular-nums ${tone}`}>{counts[k]}</div>
     </button>
   )

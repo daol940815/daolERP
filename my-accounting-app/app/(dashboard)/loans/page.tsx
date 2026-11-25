@@ -304,9 +304,9 @@ export default function LoansPage() {
       {tab === 'list' && (<>
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-        <button onClick={() => setFilter('all')} className="bg-white border border-slate-300 rounded-xl p-4 text-left hover:border-slate-400">
-          <div className="text-xs text-slate-500">대출 잔액 (일반)</div>
-          <div className="text-xl font-bold mt-1">{eok(kpi.balance)}</div>
+        <button onClick={() => setFilter('all')} className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-left hover:border-slate-400">
+          <div className="text-xs font-bold text-slate-700">대출 잔액 (일반)</div>
+          <div className="text-xl font-extrabold mt-1">{eok(kpi.balance)}</div>
           <div className="text-xs text-slate-500 mt-0.5">원 대출 {eok(kpi.original)}</div>
         </button>
         {/* 원금·이자를 같은 크기로 나란히 — 이자도 중요 지표로 본다(한도대출 예상 이자 포함) */}
@@ -327,9 +327,9 @@ export default function LoansPage() {
             {kpi.lineInterest > 0 && ` · 이자에 한도대출 ${manwon(kpi.lineInterest)} 포함`}
           </div>
         </div>
-        <div className="bg-white border border-slate-300 rounded-xl p-4">
-          <div className="text-xs text-slate-500">한도 사용액</div>
-          <div className={`text-xl font-bold mt-1 ${kpi.used > 0 ? 'text-rose-600' : ''}`}>{eok(kpi.used)}</div>
+        <div className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5">
+          <div className="text-xs font-bold text-slate-700">한도 사용액</div>
+          <div className={`text-xl font-extrabold mt-1 ${kpi.used > 0 ? 'text-rose-600' : ''}`}>{eok(kpi.used)}</div>
           <div className="text-xs text-slate-500 mt-0.5">
             한도 {eok(kpi.limit)} · 미사용 {eok(Math.max(kpi.limit - kpi.used, 0))}
           </div>

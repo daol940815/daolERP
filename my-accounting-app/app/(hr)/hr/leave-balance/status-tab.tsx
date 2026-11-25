@@ -48,8 +48,8 @@ export default function StatusTab() {
 
   const Kcard = ({ k, label, value, hint, tone }: { k: Kpi; label: string; value: string; hint: string; tone: string }) => (
     <button onClick={() => k && setKpi(kpi === k ? null : k)} disabled={!k}
-      className={`text-left bg-white border rounded-xl px-4 py-3 ${k && kpi === k ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300'} ${k ? 'hover:border-slate-400' : 'cursor-default'}`}>
-      <div className="text-xs text-slate-600 font-semibold">{label}</div>
+      className={`text-left bg-white border rounded-xl px-3.5 py-2.5 ${k && kpi === k ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300'} ${k ? 'hover:border-slate-400' : 'cursor-default'}`}>
+      <div className="text-xs font-bold text-slate-700">{label}</div>
       <div className={`text-xl font-extrabold mt-0.5 tabular-nums ${tone}`}>{value}</div>
       <div className="text-xs text-slate-500 mt-0.5">{hint}</div>
     </button>

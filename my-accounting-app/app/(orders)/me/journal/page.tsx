@@ -101,13 +101,16 @@ export default function MyJournalPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-slate-900">영업일지</h1>
+      {/* 제목 줄(UI 통일 기준) — 제목 + 설명은 아래 한 줄, 주 버튼은 오른쪽 위 */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">영업일지</h1>
+          <p className="mt-0.5 text-sm text-slate-700">본인 기록만, 최근 100건을 보여 줍니다.</p>
+        </div>
         <button onClick={() => setOpen(v => !v)}
           className={btnCls('primary', 'md')}>
           {open ? '작성 닫기' : '일지 작성'}
         </button>
-        <span className="ml-auto text-xs text-slate-500">최근 100건 표시 · 본인 기록만</span>
       </div>
 
       {error && <div className="mt-4 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}

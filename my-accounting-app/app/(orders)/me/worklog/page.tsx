@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
-import { btnCls, chipCls } from '@/components/ui/kit'
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 // 업무일지 — 계정이 ERP에서 진행한 업무 이력.
 // 자동 기재(상담·주문·영업일지)와 직접 기재(ERP 밖 업무)를 한 화면에서 시간순으로 본다.
 // 자동 기재 줄은 수정 불가, 직접 기재 줄만 본인이 수정·삭제한다.
@@ -164,15 +164,16 @@ export default function MyWorklogPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-slate-900">업무일지</h1>
-        <span className="text-xs text-slate-500">
-          ERP에서 한 업무는 자동으로 기록됩니다. ERP 밖 업무만 직접 기재하세요.
-        </span>
+      {/* 제목 줄(UI 통일 기준) — 제목 + 설명은 아래 한 줄, 조작은 오른쪽 위 */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">업무일지</h1>
+          <p className="mt-0.5 text-sm text-slate-700">ERP에서 한 업무는 자동으로 기록됩니다. ERP 밖 업무만 직접 기재하세요.</p>
+        </div>
         {isManager && (
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <select value={employee} onChange={e => setEmployee(e.target.value)}
-              className="border border-blue-200 bg-blue-50 rounded-lg px-2.5 py-1.5 text-sm text-slate-800">
+              className={fieldBox({ kind: 'pick', noWidth: true })}>
               <option value="">내 업무일지</option>
               {(data?.employees ?? []).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
@@ -198,10 +199,10 @@ export default function MyWorklogPage() {
           const on = action === k.key
           return (
             <button key={k.key} onClick={() => setAction(k.key)}
-              className={`text-left bg-white border rounded-xl px-3.5 py-3 transition-colors ${
+              className={`text-left bg-white border rounded-xl px-3.5 py-2.5 transition-colors ${
                 on ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:border-slate-400'}`}>
-              <div className="text-xs text-slate-600">{k.label}</div>
-              <div className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums">{k.value}</div>
+              <div className="text-xs font-bold text-slate-700">{k.label}</div>
+              <div className="text-xl font-extrabold text-slate-900 mt-0.5 tabular-nums">{k.value}</div>
               <div className="text-xs text-slate-500 mt-0.5">{k.sub}</div>
             </button>
           )

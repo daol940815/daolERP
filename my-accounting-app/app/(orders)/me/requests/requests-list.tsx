@@ -185,9 +185,9 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
         {cards.map(c => (
           <button key={c.key} onClick={() => setFilter(f => f === c.key ? 'all' : c.key)}
-            className={`text-left bg-white border rounded-xl px-4 py-3 transition-colors ${filter === c.key ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:bg-slate-50'}`}>
-            <p className="text-xs text-slate-600">{c.label}</p>
-            <p className={`text-lg font-bold mt-0.5 tabular-nums ${c.cls}`}>{c.value}</p>
+            className={`text-left bg-white border rounded-xl px-3.5 py-2.5 transition-colors ${filter === c.key ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:bg-slate-50'}`}>
+            <p className="text-xs font-bold text-slate-700">{c.label}</p>
+            <p className={`text-xl font-extrabold mt-0.5 tabular-nums ${c.cls}`}>{c.value}</p>
             {c.sub && <p className="text-xs text-slate-500 mt-0.5">{c.sub}</p>}
           </button>
         ))}
