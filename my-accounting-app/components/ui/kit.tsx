@@ -143,6 +143,12 @@ const KPI_COLS: Record<number, string> = { 2: 'md:grid-cols-2', 3: 'md:grid-cols
 export function KpiGrid({ cols = 4, children, className }: { cols?: 2 | 3 | 4 | 5 | 6; children: ReactNode; className?: string }) {
   return <div className={cx('grid grid-cols-2 gap-2.5 my-2.5', KPI_COLS[cols], className)}>{children}</div>
 }
+/** 요약 카드 모양만 — 카드 안을 직접 그리는 화면용(값 옆에 꼬리말이 붙는 등). 가능하면 KpiCard 를 쓴다. */
+export const kpiCls = (active = false, clickable = false, extra?: string) =>
+  cx('text-left bg-white rounded-xl px-3.5 py-2.5 border', active ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300', clickable && 'hover:border-slate-500 cursor-pointer', extra)
+export const kpiLabelCls = 'text-xs font-bold text-slate-700'
+export const kpiValueCls = 'text-xl font-extrabold tabular-nums'
+
 /** 요약 카드 — onClick 이 있으면 필터 버튼, 선택(active)은 진한 테두리. 숫자 색(tone)은 뜻이 있을 때만. */
 export function KpiCard({ label, value, sub, tone = 'default', active, onClick, className }:
   { label: ReactNode; value: ReactNode; sub?: ReactNode; tone?: Tone | 'default'; active?: boolean; onClick?: () => void; className?: string }) {

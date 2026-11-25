@@ -8,7 +8,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { STOCK_VAT_NOTE } from '@/lib/stock-cost'
 
-import { btnCls, chipCls } from '@/components/ui/kit'
+import { btnCls, chipCls, kpiLabelCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => Math.round(n ?? 0).toLocaleString('ko-KR')
 const mmdd = (d: string | null) => (d ? d.slice(5).replace('-', '/') : '-')
 
@@ -79,7 +79,7 @@ export default function PreStockView({ asof: asofParam, productId }: { asof: str
   const yearEnd = !!data && data.asof.endsWith('-12-31')
   const toggle = (id: string) => setOpen(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
-  const card = 'rounded-xl border bg-white px-4 py-3 text-left'
+  const card = 'text-left bg-white rounded-xl px-3.5 py-2.5 border'   // 요약 카드 바탕(테두리 색은 아래에서 선택 여부로 붙임) — kit kpiCls 와 같은 모양
   return (
     <div>
       <div className="flex items-center gap-2 flex-wrap mb-3 text-[0.8125rem]">
@@ -105,24 +105,24 @@ export default function PreStockView({ asof: asofParam, productId }: { asof: str
       {k && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mb-3">
           <button type="button" onClick={() => setChip('stock')} className={`${card} ${chip === 'stock' ? 'border-slate-900' : 'border-slate-300'}`}>
-            <div className="text-xs text-slate-600">재고 있는 품목</div>
-            <div className="text-lg font-bold tabular-nums">{won(k.products_with_stock)}<span className="text-xs font-normal text-slate-500 ml-1">/ 전체 {won(k.products_total)}</span></div>
+            <div className={kpiLabelCls}>재고 있는 품목</div>
+            <div className="text-xl font-extrabold tabular-nums">{won(k.products_with_stock)}<span className="text-xs font-normal text-slate-500 ml-1">/ 전체 {won(k.products_total)}</span></div>
           </button>
           <div className={`${card} border-slate-300`} title={`남은 입고분 × 입고 단가(부가세 포함). 월별 손익에서는 공급가액 — ${STOCK_VAT_NOTE}`}>
-            <div className="text-xs text-slate-600">재고 금액{yearEnd ? ' (연말 재고)' : ''}</div>
-            <div className="text-lg font-bold tabular-nums">{won(k.value)}</div>
+            <div className={kpiLabelCls}>재고 금액{yearEnd ? ' (연말 재고)' : ''}</div>
+            <div className="text-xl font-extrabold tabular-nums">{won(k.value)}</div>
           </div>
           <div className={`${card} border-slate-300`}>
-            <div className="text-xs text-slate-600">{data!.asof.slice(5, 7)}월 입고</div>
-            <div className="text-lg font-bold tabular-nums">{won(k.month_in)}<span className="text-xs font-normal text-slate-500 ml-1">{k.month_in_count}건</span></div>
+            <div className={kpiLabelCls}>{data!.asof.slice(5, 7)}월 입고</div>
+            <div className="text-xl font-extrabold tabular-nums">{won(k.month_in)}<span className="text-xs font-normal text-slate-500 ml-1">{k.month_in_count}건</span></div>
           </div>
           <div className={`${card} border-slate-300`}>
-            <div className="text-xs text-slate-600">{data!.asof.slice(5, 7)}월 출고 원가</div>
-            <div className="text-lg font-bold tabular-nums">{won(k.month_out_cost)}<span className="text-xs font-normal text-slate-500 ml-1">{k.month_out_count}건</span></div>
+            <div className={kpiLabelCls}>{data!.asof.slice(5, 7)}월 출고 원가</div>
+            <div className="text-xl font-extrabold tabular-nums">{won(k.month_out_cost)}<span className="text-xs font-normal text-slate-500 ml-1">{k.month_out_count}건</span></div>
           </div>
           <button type="button" onClick={() => setChip('old')} className={`${card} ${chip === 'old' ? 'border-slate-900' : 'border-slate-300'}`}>
-            <div className="text-xs text-slate-600">오래된 재고</div>
-            <div className={`text-lg font-bold tabular-nums ${k.old > 0 ? 'text-amber-700' : ''}`}>{won(k.old)}<span className="text-xs font-normal text-slate-500 ml-1">입고 후 {data!.old_days}일 넘게</span></div>
+            <div className={kpiLabelCls}>오래된 재고</div>
+            <div className={`text-xl font-extrabold tabular-nums ${k.old > 0 ? 'text-amber-700' : ''}`}>{won(k.old)}<span className="text-xs font-normal text-slate-500 ml-1">입고 후 {data!.old_days}일 넘게</span></div>
           </button>
         </div>
       )}

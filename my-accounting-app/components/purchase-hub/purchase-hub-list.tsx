@@ -7,7 +7,7 @@ import { getPeriodRange } from '@/lib/period-presets'
 import PeriodPresets from '@/components/ui/PeriodPresets'
 import type { PurchaseHubPerms } from '@/components/purchase-hub/perms'
 
-import { btnCls } from '@/components/ui/kit'
+import { btnCls, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 // 매입처 관리 — 목록(A) 공용 컴포넌트
 // 회계·경영 모드(/purchase-hub)와 주문 관리 모드(/orders/purchase-hub) 양쪽에서 쓴다.
 //   basePath  상세 화면 링크의 기준 경로 (영역마다 다르다)
@@ -382,31 +382,31 @@ export default function PurchaseHubList({ basePath, perms }: {
       {/* KPI — 필터 적용된 목록 기준으로 집계 */}
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
-            <div className="text-xs text-slate-600">활성 매입처{filterActive && <span className="ml-1 text-blue-600 font-semibold">(필터 적용)</span>}</div>
-            <div className="text-xl font-bold mt-0.5">{kpi.active_vendors.toLocaleString()}곳</div>
+          <div className={kpiCls()}>
+            <div className={kpiLabelCls}>활성 매입처{filterActive && <span className="ml-1 text-blue-600 font-semibold">(필터 적용)</span>}</div>
+            <div className="text-xl font-extrabold tabular-nums">{kpi.active_vendors.toLocaleString()}곳</div>
             <div className="text-xs text-slate-500 mt-0.5">
               {KIND_TABS.find(t => t.key === kindFilter)?.label} · 기간 내 계산서·ERP 발주 발생 기준
               {filterActive && ` · 전체 ${summary.active_vendors.toLocaleString()}곳 중`}
             </div>
           </div>
-          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
-            <div className="text-xs text-slate-600">기간 매입 (계산서 총액)</div>
-            <div className="text-xl font-bold mt-0.5 tabular-nums">{eok(kpi.invoice_total)}</div>
+          <div className={kpiCls()}>
+            <div className={kpiLabelCls}>기간 매입 (계산서 총액)</div>
+            <div className="text-xl font-extrabold tabular-nums">{eok(kpi.invoice_total)}</div>
             {/* 어느 구분·기간의 합인지 카드에 명시 — "전체로 잡히는 것 같다"는 혼동 방지 (2026-11-11) */}
             <div className="text-xs text-slate-500 mt-0.5">
               {KIND_TABS.find(t => t.key === kindFilter)?.label} · {from} ~ {to} · 부가세 포함
               {filterActive && ` · 전체 ${eok(summary.invoice_total)} 중`}
             </div>
           </div>
-          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
-            <div className="text-xs text-slate-600" title="기간에 발행된 매입 계산서 중 지급(연결 · 상계)된 비율 — 지급일이 기간 밖이어도 그 계산서를 갚았으면 지급된 것으로 봅니다">지급율 (기간 발행분)</div>
-            <div className="text-xl font-bold mt-0.5 tabular-nums">{(kpi.pay_ratio * 100).toFixed(1)}%</div>
+          <div className={kpiCls()}>
+            <div className={kpiLabelCls} title="기간에 발행된 매입 계산서 중 지급(연결 · 상계)된 비율 — 지급일이 기간 밖이어도 그 계산서를 갚았으면 지급된 것으로 봅니다">지급율 (기간 발행분)</div>
+            <div className="text-xl font-extrabold tabular-nums">{(kpi.pay_ratio * 100).toFixed(1)}%</div>
             <div className="text-xs text-slate-500 mt-0.5">기간 출금 {eok(kpi.paid_total)}</div>
           </div>
-          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
-            <div className="text-xs text-slate-600">{summary.period_basis ? '미지급 (기간 발행분)' : '미지급 잔액 (누적)'}</div>
-            <div className="text-xl font-bold mt-0.5 tabular-nums text-red-600">{eok(kpi.outstanding_total)}</div>
+          <div className={kpiCls()}>
+            <div className={kpiLabelCls}>{summary.period_basis ? '미지급 (기간 발행분)' : '미지급 잔액 (누적)'}</div>
+            <div className="text-xl font-extrabold tabular-nums text-red-600">{eok(kpi.outstanding_total)}</div>
             <div className="text-xs text-slate-500 mt-0.5"
               title={summary.period_basis ? '기간 안에 발행된 매입 계산서 중 아직 지급되지 않은 금액 — 전체 기간을 고르면 누적 미지급 잔액과 같습니다' : undefined}>
               90일 초과 {eok(kpi.over90_total)} 포함

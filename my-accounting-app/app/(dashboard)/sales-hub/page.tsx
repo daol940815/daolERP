@@ -10,7 +10,7 @@ import { getPeriodRange } from '@/lib/period-presets'
 import CustomerKpiTiles, { matchCategory, OTYPE_META } from './_components/CustomerKpiTiles'
 import type { KpiCategory, KpiFlags, VendorFlag } from './_components/CustomerKpiTiles'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 // 매출처 관리 허브 — 목록(A)
 // 기간 매출·수금·미수·담당·상태를 매출처 단위로 요약하고, 행 클릭 시 360° 상세로 드릴다운.
 
@@ -225,7 +225,7 @@ export default function SalesHubPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{mine ? '내 고객' : '매출처 관리 (지점)'}</h1>
-          <p className="text-sm mt-1 text-slate-600">
+          <p className="text-sm mt-0.5 text-slate-700">
             {mine
               ? '내가 현재 담당인 매출처만 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.'
               : 'ERP 주문 기준 매출·수금·미수와 담당을 매출처 단위로 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.'}
@@ -459,28 +459,28 @@ export default function SalesHubPage() {
       {/* KPI — 필터 적용된 목록 기준으로 집계 */}
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
-            <div className="text-xs text-slate-600">활성 매출처{filterActive && <span className="ml-1 text-blue-600 font-semibold">(필터 적용)</span>}</div>
-            <div className="text-xl font-bold mt-0.5">{kpi.active_vendors.toLocaleString()}곳</div>
+          <div className={kpiCls()}>
+            <div className={kpiLabelCls}>활성 매출처{filterActive && <span className="ml-1 text-blue-600 font-semibold">(필터 적용)</span>}</div>
+            <div className="text-xl font-extrabold tabular-nums">{kpi.active_vendors.toLocaleString()}곳</div>
             <div className="text-xs text-slate-500 mt-0.5">
               {filterActive ? `전체 ${summary.active_vendors.toLocaleString()}곳 중` : '기간 내 주문 발생 기준'}
             </div>
           </div>
-          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
-            <div className="text-xs text-slate-600">기간 매출 (ERP 순매출)</div>
-            <div className="text-xl font-bold mt-0.5 tabular-nums">{eok(kpi.net_total)}</div>
+          <div className={kpiCls()}>
+            <div className={kpiLabelCls}>기간 매출 (ERP 순매출)</div>
+            <div className="text-xl font-extrabold tabular-nums">{eok(kpi.net_total)}</div>
             <div className="text-xs text-slate-500 mt-0.5">
               {filterActive ? `전체 ${eok(summary.net_total)} 중` : '취소·VIP·선결제 품목 제외'}
             </div>
           </div>
-          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
-            <div className="text-xs text-slate-600">수금율 (ERP 기준)</div>
-            <div className="text-xl font-bold mt-0.5 tabular-nums">{(kpi.collect_ratio * 100).toFixed(1)}%</div>
+          <div className={kpiCls()}>
+            <div className={kpiLabelCls}>수금율 (ERP 기준)</div>
+            <div className="text-xl font-extrabold tabular-nums">{(kpi.collect_ratio * 100).toFixed(1)}%</div>
             <div className="text-xs text-slate-500 mt-0.5">수금 {eok(kpi.collected_total)}</div>
           </div>
-          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
-            <div className="text-xs text-slate-600">미수 잔액</div>
-            <div className="text-xl font-bold mt-0.5 tabular-nums text-red-600">{eok(kpi.outstanding_total)}</div>
+          <div className={kpiCls()}>
+            <div className={kpiLabelCls}>미수 잔액</div>
+            <div className="text-xl font-extrabold tabular-nums text-red-600">{eok(kpi.outstanding_total)}</div>
             <div className="text-xs text-slate-500 mt-0.5">90일 초과 {eok(kpi.over90_total)} 포함</div>
           </div>
         </div>

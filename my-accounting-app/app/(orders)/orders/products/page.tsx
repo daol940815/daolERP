@@ -14,7 +14,7 @@ import VendorInfoPanel, { useVendorInfo } from './vendor-info-panel'
 import ProductRegisterDialog, { type RegisterSeed } from '../product-register-dialog'
 import { branchMargin, individualMargin, formatProfit, formatRate, roundProfit, type Margin } from '@/lib/product-margin'
 
-import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, chipCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 // 품목 마스터 (2단계) — 주문 입력의 품번 검색 원천.
 // 목록 화면 관례: KPI 카드(클릭=필터) + 통합 검색 + 표.
 // 조회 · 엑셀 다운로드는 전 직원, 등록 · 수정 · 업로드 · 품절 · 중지는 영업·주문 그룹 수정 권한.
@@ -425,10 +425,13 @@ export default function ProductsPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-slate-900">품목 관리</h1>
-        <span className="text-xs text-slate-500">주문 입력의 품번 검색 원천 — 품번 선택 시 품명·매입처·가격 자동</span>
-        <span className="ml-auto flex gap-2">
+      {/* 제목 줄(UI 통일 기준) — 제목 + 설명은 아래 한 줄, 버튼은 오른쪽 위 */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">품목 관리</h1>
+          <p className="mt-0.5 text-sm text-slate-700">주문 입력의 품번 검색 원천입니다. 품번을 고르면 품명 · 매입처 · 가격이 자동으로 들어갑니다.</p>
+        </div>
+        <span className="flex gap-1.5 flex-wrap">
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) checkFile(f) }} />
           <button onClick={() => {
@@ -454,7 +457,7 @@ export default function ProductsPage() {
       </div>
 
       {/* KPI 카드 (클릭=필터) — 전체 품목 카드가 전체 조회 (2026-11-03 사용자 요청) */}
-      <div className="grid grid-cols-2 sm:grid-cols-7 gap-2.5 mt-4 max-w-6xl">
+      <div className="grid grid-cols-2 sm:grid-cols-7 gap-2.5 mt-3">
         {([
           ['all', '전체 품목', products.length, 'text-blue-700'],
           ['active', '사용 중 품목', kpi.active, ''],
@@ -462,27 +465,27 @@ export default function ProductsPage() {
           ['addon', '부가상품(옵션)', kpi.addon, 'text-violet-600'],
         ] as const).map(([key, title, val, cls]) => (
           <button key={key} onClick={() => { setFilter(key); setShowUnreg(false) }}
-            className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === key && !showUnreg ? 'border-slate-800' : 'border-slate-300'}`}>
-            <div className="text-xs text-slate-500">{title}</div>
-            <div className={`text-lg font-bold tabular-nums ${cls}`}>{val}</div>
+            className={kpiCls(filter === key && !showUnreg, true)}>
+            <div className={kpiLabelCls}>{title}</div>
+            <div className={`text-xl font-extrabold tabular-nums ${cls}`}>{val}</div>
           </button>
         ))}
         {/* 비용 품목 (배송비 · 퀵비 · 설치비 등) — 발주서 배송명단 제외 대상 (이름 키워드 후보 추천은 오판만 나와 폐지, 2026-11-05) */}
         <button onClick={() => { setFilter('cost'); setShowUnreg(false) }}
-          className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === 'cost' && !showUnreg ? 'border-slate-800' : 'border-slate-300'}`}>
-          <div className="text-xs text-slate-500">비용 품목</div>
-          <div className="text-lg font-bold tabular-nums text-amber-700">{kpi.cost}</div>
+          className={kpiCls(filter === 'cost' && !showUnreg, true)}>
+          <div className={kpiLabelCls}>비용 품목</div>
+          <div className="text-xl font-extrabold tabular-nums text-amber-700">{kpi.cost}</div>
         </button>
         {/* 미등록 품목 (2026-11-19) — 주문 · 상담에 직접 입력된 품명. 누르면 표가 이 목록으로 바뀜 */}
         <button onClick={() => setShowUnreg(v => !v)} aria-pressed={showUnreg}
-          className={`bg-white border rounded-xl px-4 py-3 text-left ${showUnreg ? 'border-slate-800' : 'border-slate-300'}`}>
-          <div className="text-xs text-slate-500">미등록 품목</div>
-          <div className="text-lg font-bold tabular-nums text-orange-700">{unreg ? unreg.length : '-'}</div>
+          className={kpiCls(showUnreg, true)}>
+          <div className={kpiLabelCls}>미등록 품목</div>
+          <div className="text-xl font-extrabold tabular-nums text-orange-700">{unreg ? unreg.length : '-'}</div>
         </button>
         {/* 매입처 수 — 정보 표시용 (필터 아님) */}
-        <div className="bg-white border border-slate-300 rounded-xl px-4 py-3 text-left">
-          <div className="text-xs text-slate-500">매입처 수</div>
-          <div className="text-lg font-bold tabular-nums text-slate-600">{kpi.vendors}</div>
+        <div className={kpiCls()}>
+          <div className={kpiLabelCls}>매입처 수</div>
+          <div className="text-xl font-extrabold tabular-nums text-slate-600">{kpi.vendors}</div>
         </div>
       </div>
 
