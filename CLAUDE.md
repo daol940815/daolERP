@@ -219,6 +219,10 @@
   가장 옅은 글자 `text-slate-500`(이보다 옅은 글자 금지, 자리 표시 `-` 만 400). 테두리: 입력 칸 · 버튼 `border-slate-400`, 카드 · 줄 구분 `border-slate-300`/`200`.
   글자 크기는 `text-xs`(12px) 아래로 내리지 않는다. **표 머리줄은 `globals.css` 의 `thead th` 공통 규칙**(회색 바탕 + 진한 굵은 글자)이 그린다 —
   화면에서 머리줄 색을 따로 주지 말 것. 화면 순서: 제목 줄(주 버튼 오른쪽 위) → 탭 → 기간 → 요약 카드 → 검색 · 칩 → 표. 상단 흰 띠(Header)는 제거됨.
+  **공용 부품(2단계, 2026-11-25)**: `components/ui/kit.tsx`(Page · PageHeader · SectionTitle · Card · FilterRow · Button/`btnCls` · Input · Select · Textarea · Field/`fieldCls` ·
+  Badge · Chip · KpiGrid · KpiCard · TableCard · `tbl` 표 클래스) · `components/ui/modal.tsx`(Modal) · `components/ui/cell-grid.tsx`(엑셀형 입력 표 — CellBand · CellHead ·
+  CellInput · CellSelect · CellCalc · SummaryPill, 묶음 색 품목 회색 · 판매 파랑 · 매입 주황 · 결과 초록). 견본 화면 `/me/ui-kit`(메뉴 없음).
+  **새 화면 · 고치는 화면은 이 부품을 쓴다 — 파일마다 `inp` · `btn` · `card` 상수를 새로 만들지 말 것.** 입력 칸 종류는 바탕으로(흰 = 직접 입력 · 옅은 노랑 = 목록에서 선택 · 회색 = 자동).
   옛 표기가 섞인 브랜치는 `node scripts/ui-codemod.mjs`(여러 번 돌려도 같음)로 맞춘다 — main 병합 충돌 시 자기 쪽 내용을 고른 뒤 실행. `check-ui` 가 gray · 작은 글자를 경고한다.
 - **기간 필터 표준(2026-09-30 확정)**: 기간이 있는 목록·분석 화면은 `components/ui/PeriodPresets.tsx`
   한 줄(최근 7일·최근 30일·당월·전월·1~4분기·상반기·하반기·당년·전년·전체 기간)을 필터 바 위에
