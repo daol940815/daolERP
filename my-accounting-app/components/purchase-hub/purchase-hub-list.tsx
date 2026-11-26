@@ -192,10 +192,10 @@ function NewVendorModal({ onClose, onCreated, showKind }: {
           </div>
         )}
 
-        <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className={btnCls('secondary', 'md', 'flex-1')}>취소</button>
+        <div className="flex gap-2 mt-5 justify-end">
+          <button onClick={onClose} className={btnCls('secondary', 'md')}>취소</button>
           <button onClick={() => submit(!!dups)} disabled={saving}
-            className={btnCls('primary', 'md', 'flex-1')}>
+            className={btnCls('primary', 'md')}>
             {saving ? '등록 중...' : dups ? '그래도 새로 등록' : '등록'}
           </button>
         </div>

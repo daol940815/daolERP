@@ -358,12 +358,12 @@ export default function SalesHubPage() {
                   className={fieldBox()} />
               </div>
             </div>
-            <div className="flex gap-2 mt-5">
+            <div className="flex gap-2 mt-5 justify-end">
               <button onClick={() => setAddForm(f => ({ ...f, open: false }))}
-                className={btnCls('secondary', 'md', 'flex-1')}>취소</button>
+                className={btnCls('secondary', 'md')}>취소</button>
               {nameCheck.existing ? (
                 <button onClick={() => { const id = nameCheck.existing!.id; setAddForm(ADD_EMPTY); router.push(`/sales-hub/${id}`) }}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">기존 매출처 사용</button>
+                  className="h-9 px-3.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">기존 매출처 사용</button>
               ) : (
               <button disabled={addForm.busy} onClick={async () => {
                 if (!addForm.group.trim()) { setAddForm(f => ({ ...f, msg: '업체명을 입력하세요.' })); return }
@@ -389,7 +389,7 @@ export default function SalesHubPage() {
                 setGroupNames([])
                 load(from, to)
               }}
-                className={btnCls('primary', 'md', 'flex-1')}>
+                className={btnCls('primary', 'md')}>
                 {addForm.busy ? '등록 중...' : '등록'}
               </button>
               )}

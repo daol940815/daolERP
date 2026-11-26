@@ -74,7 +74,7 @@ export default function YearEndTab() {
             </label>
           )}
           {data?.can_edit && (
-            <button onClick={confirm} disabled={busy} className="ml-auto px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">체크한 행 확정</button>
+            <button onClick={confirm} disabled={busy} className={btnCls('primary', 'md', 'ml-auto')}>체크한 행 확정</button>
           )}
         </div>
       </div>

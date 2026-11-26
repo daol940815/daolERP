@@ -270,17 +270,17 @@ function MatchPickerModal({
             합계금액 {won(currentInvoice.total_amount)} · 남은 금액 {won(remaining)}
           </p>
           {linkError && <p className="text-xs text-red-500 mt-1.5">{linkError}</p>}
-          <div className="flex gap-2 mt-5">
+          <div className="flex gap-2 mt-5 justify-end">
             <button
               onClick={() => { setConfirmTarget(null); setLinkError(null) }}
-              className={btnCls('secondary', 'md', 'flex-1')}
+              className={btnCls('secondary', 'md')}
             >
               취소
             </button>
             <button
               onClick={handleConfirmLink}
               disabled={linking}
-              className={btnCls('primary', 'md', 'flex-1')}
+              className={btnCls('primary', 'md')}
             >
               {linking ? '연결 중...' : '연결'}
             </button>
@@ -305,12 +305,12 @@ function MatchPickerModal({
             placeholder="예: 입금자명 또는 적요 표현"
             className={fieldBox()}
           />
-          <div className="flex gap-2 mt-5">
-            <button onClick={handleSkipAlias} className={btnCls('secondary', 'md', 'flex-1')}>건너뛰기</button>
+          <div className="flex gap-2 mt-5 justify-end">
+            <button onClick={handleSkipAlias} className={btnCls('secondary', 'md')}>건너뛰기</button>
             <button
               onClick={handleSaveAlias}
               disabled={savingAlias || !aliasInput.trim()}
-              className={btnCls('primary', 'md', 'flex-1')}
+              className={btnCls('primary', 'md')}
             >
               {savingAlias ? '저장 중...' : '별칭으로 저장'}
             </button>

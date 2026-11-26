@@ -277,7 +277,7 @@ export default function AttendanceAdminPage() {
             <span className="text-xs text-slate-500">{holidayRows.length}건 등록됨</span>
             {canSync ? (
               <button onClick={syncHolidays} disabled={syncing || busy}
-                className="ml-auto px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+                className={btnCls('primary', 'sm', 'ml-auto')}>
                 {syncing ? '불러오는 중...' : `${holidayYear}년 공휴일 불러오기`}
               </button>
             ) : (
