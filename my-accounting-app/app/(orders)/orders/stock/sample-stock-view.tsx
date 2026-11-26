@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, fieldBox, labelCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => (n ?? 0).toLocaleString('ko-KR')
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -607,8 +607,8 @@ function MoveModal({ initialType, stock, employees, onClose, onSaved }: {
     onSaved(`${TYPE_LABEL[moveType]} 1건이 원장에 기록되었습니다.`)
   }
 
-  const label = 'block text-xs font-semibold text-slate-600 mb-1'
-  const input = 'w-full rounded-lg border border-slate-400 px-3 py-2 text-[0.8125rem] outline-none focus:border-slate-500'
+  const label = labelCls
+  const input = fieldBox()
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
@@ -739,7 +739,7 @@ function StocktakeModal({ stock, employees, onClose, onSaved }: {
     onSaved(`실사 ${json.saved}품목 기록 완료${diffCount ? ` — 오차 ${diffCount}품목 (조정 행으로 해소하세요)` : ' — 오차 없음'}`)
   }
 
-  const input = 'rounded-lg border border-slate-400 px-3 py-2 text-[0.8125rem] outline-none focus:border-slate-500'
+  const input = fieldBox({ noWidth: true })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>

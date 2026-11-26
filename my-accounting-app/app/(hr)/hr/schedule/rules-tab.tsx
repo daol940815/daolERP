@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { KIND_LABEL, RULE_CATEGORIES, type RuleCategory, type RuleRow } from '@/lib/schedule'
 
-import { btnCls } from '@/components/ui/kit'
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 스케줄 관리 — ERP 원본에서 끌어올 수 없는 일정만 여기서 등록한다.
 // 반복(매월·매년)은 규칙만 저장하고 캘린더가 그 달의 날짜를 계산한다.
 // 휴일 처리 방향이 항목마다 다르다: 세무는 순연(next), 급여는 앞당김(prev).
@@ -120,7 +120,7 @@ export default function RulesTab() {
     return r.repeat_kind === 'yearly' ? `매년 ${r.repeat_month}월 ${d}` : `매월 ${d}`
   }
 
-  const inp = 'w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm'
+  const inp = fieldBox()
   const once = form.repeat_kind === 'once'
 
   return (

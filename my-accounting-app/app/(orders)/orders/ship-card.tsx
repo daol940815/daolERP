@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { ShipInput } from '@/lib/ship-address'
-import { fieldCls, labelCls } from '@/components/ui/kit'
+import { btnCls, fieldCls, labelCls } from '@/components/ui/kit'
 
 // 주문서 배송지 카드 (513, 2026-11-04 사용자 확정 — 시안 docs/mockups/배송지_주문서_시안.html)
 //  - 자동 채움 (2026-11-17 기준 = 지점 + 담당자): 같은 지점 + 같은 담당자의 최근 배송지 → 없으면 같은 지점의 최근 배송지
@@ -118,7 +118,7 @@ export default function ShipCard({ value, onChange, vendorId, contactId, contact
 
   const label = labelCls
   const free = fieldCls('free')   // 입력 칸 — components/ui/kit.tsx (흰 = 직접 입력 · 회색 = 자동)
-  const btn = 'px-2 py-1 text-xs border border-slate-400 rounded-md text-slate-700 hover:bg-slate-50 disabled:opacity-50'
+  const btn = btnCls('secondary', 'sm')
 
   return (
     <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">

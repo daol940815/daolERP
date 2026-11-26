@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { NumInput, toInt, type ItemDraft, type Product } from './form-shared'
 import { fmtPurchasePrice, toPurchasePrice } from '@/lib/purchase-price'
 
-import { btnCls } from '@/components/ui/kit'
+import { btnCls, labelCls } from '@/components/ui/kit'
 // 미등록 상품 → 품목 관리 등록 (2026-11-19 사용자 승인 "제안대로", 시안 docs/mockups/미등록품목_등록_시안.html)
 // 품목관리 트랙(docs/product-master-track.md) 소유 부품 — 상담일지 · 주문서 품목 행과 품목 관리 '미등록 품목' 목록이 같이 쓴다.
 //  - 품번 검색에서 고르지 않고 품명을 직접 쓴 행에 '미등록 품목' 표시 + (품목 등록 권한자만) '품목 등록' 버튼
@@ -112,7 +112,7 @@ export default function ProductRegisterDialog({ seed, products, onClose, onDone 
   const pre = (on: boolean) => on ? 'border-sky-300 bg-sky-50' : 'border-slate-400 bg-white'
   const cls = 'border rounded-lg px-2.5 py-1.5 text-sm w-full'
   const num = 'text-right tabular-nums'
-  const label = 'block text-xs text-slate-600 mb-0.5'
+  const label = labelCls
   const req = <span className="text-red-600">*</span>
 
   return (

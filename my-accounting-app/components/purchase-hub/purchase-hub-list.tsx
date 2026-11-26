@@ -7,7 +7,7 @@ import { getPeriodRange } from '@/lib/period-presets'
 import PeriodPresets from '@/components/ui/PeriodPresets'
 import type { PurchaseHubPerms } from '@/components/purchase-hub/perms'
 
-import { btnCls, kpiCls, kpiLabelCls } from '@/components/ui/kit'
+import { btnCls, fieldBox, kpiCls, kpiLabelCls, labelCls } from '@/components/ui/kit'
 // 매입처 관리 — 목록(A) 공용 컴포넌트
 // 회계·경영 모드(/purchase-hub)와 주문 관리 모드(/orders/purchase-hub) 양쪽에서 쓴다.
 //   basePath  상세 화면 링크의 기준 경로 (영역마다 다르다)
@@ -110,8 +110,8 @@ function NewVendorModal({ onClose, onCreated, showKind }: {
     onCreated(json.vendor.id, !!json.reused)
   }
 
-  const field = 'w-full border border-slate-400 rounded-lg px-3 py-2 text-sm'
-  const label = 'block text-xs font-medium text-slate-800 mb-1'
+  const field = fieldBox()
+  const label = labelCls
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4" onClick={onClose}>

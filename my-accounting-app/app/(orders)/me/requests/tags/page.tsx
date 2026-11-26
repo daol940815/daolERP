@@ -80,7 +80,7 @@ export default function TagManagePage() {
   if (!data.ready) return <div className="max-w-5xl mx-auto">{back}<div className="mt-3 px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">904 마이그레이션(업무 요청 태그)이 아직 적용되지 않았습니다. SQL 편집기에서 904_work_request_tags.sql을 실행해주세요.</div></div>
   if (!data.can_manage) return <div className="max-w-5xl mx-auto">{back}<div className="mt-3 px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">태그 관리는 마스터 계정만 할 수 있습니다. 필요한 태그가 있으면 ERP 총괄 담당자에게 업무 요청으로 알려 주세요.</div></div>
 
-  const inputCls = 'w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const inputCls = fieldBox()
   const colorSelect = (value: string, onChange: (v: string) => void) => (
     <span className="inline-flex items-center gap-1.5">
       <span className={`w-2.5 h-2.5 rounded-full ${tagDotCls(value)}`} />

@@ -17,7 +17,7 @@ import { GROUP_LABELS, type GroupKey } from '@/lib/permissions'
 import { deviceLabelFrom } from '@/lib/push'
 import AttachmentBox from '@/components/attachments/AttachmentBox'
 
-import { btnCls } from '@/components/ui/kit'
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 질문 · 권한 요청의 기본 마감: 익일 18:00 (KST) — 2026-11-03 결정 ⑤
 function questionDueLocal(now = new Date()): string {
   const k = kstParts(new Date(now.getTime() + 86400_000))
@@ -147,7 +147,7 @@ function NewRequestForm() {
     router.push(`/me/requests/${json.id}`)
   }
 
-  const inputCls = 'w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const inputCls = fieldBox()
   const quickBtn = 'px-2.5 py-1 text-xs border border-slate-400 rounded-full text-slate-800 hover:bg-slate-100 disabled:opacity-40'
   const now = new Date()
   const todayKst = kstParts(now).date
@@ -240,7 +240,7 @@ function NewRequestForm() {
           )}
           <label className="block">
             <span className="text-xs font-medium text-slate-700">내용</span>
-            <textarea value={content} onChange={e => setContent(e.target.value)} rows={5} placeholder="무엇을 · 어디까지 · 결과를 어떻게 남길지" className={`${inputCls} mt-1`} />
+            <textarea value={content} onChange={e => setContent(e.target.value)} rows={5} placeholder="무엇을 · 어디까지 · 결과를 어떻게 남길지" className={fieldBox({ area: true, extra: 'mt-1' })} />
           </label>
           <div className="flex gap-4 flex-wrap items-end">
             <label className="block">

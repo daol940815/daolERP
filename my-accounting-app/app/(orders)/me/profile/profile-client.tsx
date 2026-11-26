@@ -12,7 +12,7 @@ import { kstTime, LEAVE_TYPE_LABEL, LEAVE_STATUS_LABEL, type LeaveType, type Lea
 import NotifyTab from './notify-tab'
 import DisplayTab from './display-tab'
 
-import { btnCls } from '@/components/ui/kit'
+import { btnCls, fieldBox } from '@/components/ui/kit'
 export type ProfileTab = 'basic' | 'account' | 'work' | 'notify' | 'display'
 
 export interface EmployeeRow {
@@ -149,7 +149,7 @@ function BasicTab({ p, onSaved }: { p: Profile; onSaved: () => void }) {
     if (!res.ok) { setMsg(json.error ?? '저장 실패'); return }
     setMsg('연락처가 저장되었습니다.'); onSaved()
   }
-  const inputCls = 'w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const inputCls = fieldBox()
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <EmployeeBasicCard emp={emp} today={p.today} />
@@ -227,7 +227,7 @@ export function PasswordForm() {
     if (updErr) { setError(/password/i.test(updErr.message) ? `비밀번호 규칙에 맞지 않습니다 (${MIN_LEN}자 이상). ${updErr.message}` : `변경 실패: ${updErr.message}`); return }
     setDone(true); setCurrent(''); setNext(''); setConfirm('')
   }
-  const inputCls = 'w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const inputCls = fieldBox()
   if (done) {
     return (
       <div>
