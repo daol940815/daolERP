@@ -547,6 +547,7 @@ export const HELP: HelpEntry[] = [
     related: ['/payments', '/transactions', '/tax-invoices', '/erp-aliases'], keywords: ['키워드', '통장 키워드', '계산서 키워드', '별칭', '입금자', '자동 연결', '겹침', '거래처 알아보기'],
     updated: '2026-11-26',
     changes: [
+      { date: '2026-11-26', text: '검색창을 왼쪽(칩 앞)으로 옮겼습니다.' },
       { date: '2026-11-26', text: '새 화면 — 통장 키워드 · 계산서 키워드를 거래처별로 보고(걸린 수 · 겹침 · 의심 표시) 추가 · 삭제합니다.' },
     ],
   },
