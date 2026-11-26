@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>증빙 없이 처리 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .lab { font-size:11px; font-weight:bold; color:#64748b; margin-bottom:8px; }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .chip { border-radius:8px; padding:5px 11px; font-size:12.5px; color:#475569; background:#f1f5f9; }
+  .chip.on { background:#0f172a; color:#fff; }
+  .chip.nw { outline:2px solid #3b82f6; outline-offset:1px; }
+  .sep { width:1px; height:18px; background:#e2e8f0; margin:0 4px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:920px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:9px 8px; border-bottom:1px solid #f1f5f9; vertical-align:top; line-height:1.5; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; }
+  th.hl, td.hl { background:#eff6ff; }
+  .st { font-size:11px; font-weight:bold; padding:3px 8px; border-radius:999px; white-space:nowrap; }
+  .ok { background:#dcfce7; color:#166534; } .pt { background:#fef3c7; color:#92400e; } .no { background:#f1f5f9; color:#64748b; }
+  .btn { display:inline-block; border-radius:7px; padding:2px 8px; font-size:11px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.blue { border-color:#c7d2fe; background:#eef2ff; color:#4338ca; font-weight:bold; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; padding:5px 11px; font-size:12px; }
+  .ord { color:#0f172a; font-variant-numeric:tabular-nums; }
+  .mut { color:#94a3b8; } .am { color:#b45309; }
+  .tag { font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; white-space:nowrap; }
+  .t-auto { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); overflow:hidden; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .modal .mb { padding:14px 16px; }
+  .modal .mf { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; }
+  .seg { display:flex; gap:4px; margin-left:auto; }
+  .seg span { border:1px solid #cbd5e1; border-radius:7px; padding:3px 9px; font-size:11.5px; color:#475569; font-weight:normal; }
+  .seg span.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .list { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+  .list .lh { background:#f8fafc; padding:7px 10px; font-size:11.5px; color:#64748b; border-bottom:1px solid #e2e8f0; }
+  .list .li { padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:12.5px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .list .li:last-child { border-bottom:none; }
+  .list .li .a { margin-left:auto; font-weight:bold; font-variant-numeric:tabular-nums; }
+  .list .li.sel { background:#eff6ff; }
+  .prev { margin-top:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 11px; font-size:12px; line-height:1.7; }
+
+  .fgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px 12px; margin-top:12px; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:4px; }
+  .f .in { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:12.5px; background:#fff; color:#0f172a; }
+  .f .in.ph { color:#94a3b8; }
+  .pick { display:flex; gap:5px; flex-wrap:wrap; }
+  .pick span { border:1px solid #cbd5e1; border-radius:8px; padding:6px 13px; font-size:12.5px; color:#475569; background:#fff; }
+  .pick span.on { background:#0f172a; color:#fff; border-color:#0f172a; font-weight:bold; }
+  .pick span.dis { background:#f1f5f9; color:#cbd5e1; border-color:#e2e8f0; }
+  .newbox { border:2px solid #3b82f6; border-radius:10px; padding:10px 12px; background:#eff6ff; margin-top:12px; }
+  .newbox .row { display:flex; gap:24px; flex-wrap:wrap; }
+  .req { color:#dc2626; }
+  .bad { background:#fee2e2; color:#991b1b; }
+  .t-warn { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+  .t-none { background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; }
+  .t-src { background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; }
+  .bd-card { background:#e0e7ff; color:#3730a3; } .bd-inv { background:#fae8ff; color:#86198f; } .bd-tr { background:#ccfbf1; color:#115e59; }
+
+
+  .hid { border:1px dashed #94a3b8; background:#f8fafc; border-radius:8px; padding:7px 11px; font-size:12px; color:#475569; margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .hid.new { border:2px solid #3b82f6; background:#eff6ff; }
+  .li.off { background:#f8fafc; color:#94a3b8; }
+  .kd { font-size:11px; padding:1px 7px; border-radius:999px; border:1px solid #cbd5e1; color:#475569; background:#fff; white-space:nowrap; }
+  .kd.tx { border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff; } .kd.ex { border-color:#fde68a; color:#92400e; background:#fffbeb; }
+
+
+  tr.cx td { background:#fff7ed; }
+  tr.dead td { color:#94a3b8; } tr.dead td.amt { text-decoration:line-through; }
+  .cn { background:#ffedd5; color:#9a3412; } .cw { background:#fef3c7; color:#92400e; } .cd { background:#e2e8f0; color:#475569; }
+  .tip { position:relative; display:inline-block; cursor:help; border-bottom:1px dotted #94a3b8; }
+  .tipbox { display:inline-block; margin-top:5px; background:#0f172a; color:#fff; border-radius:8px; padding:7px 10px; font-size:11.5px; line-height:1.6; font-weight:normal; white-space:normal; max-width:280px; }
+  .combo { border:1px solid #cbd5e1; border-radius:8px; background:#fff; overflow:hidden; max-width:360px; }
+  .combo .q { padding:7px 10px; border-bottom:1px solid #e2e8f0; font-size:12.5px; }
+  .combo .opt { padding:6px 10px; font-size:12.5px; color:#334155; }
+  .combo .opt.on { background:#eff6ff; color:#1d4ed8; font-weight:bold; }
+  .combo .opt mark { background:#fde68a; color:inherit; }
+  .neg { color:#b91c1c; }
+  .sub { padding-left:18px; position:relative; } .sub:before { content:"└"; position:absolute; left:4px; color:#94a3b8; }
+
+
+  .tabs { display:flex; gap:2px; border-bottom:1px solid #e2e8f0; margin-bottom:12px; flex-wrap:wrap; }
+  .tabs span { padding:8px 14px; font-size:13px; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabs span.on { color:#0f172a; font-weight:bold; border-color:#0f172a; }
+  .tabs span.gone { text-decoration:line-through; color:#cbd5e1; }
+  .bar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .sel { border:1px solid #cbd5e1; border-radius:8px; padding:5px 9px; font-size:12.5px; background:#fff; color:#334155; }
+  .srch { border:1px solid #cbd5e1; border-radius:8px; padding:5px 10px; font-size:12.5px; background:#fff; color:#94a3b8; min-width:220px; }
+  .cnt { font-size:11px; opacity:.75; margin-left:3px; }
+  .s-un { background:#fee2e2; color:#991b1b; } .s-pp { background:#ffedd5; color:#9a3412; } .s-mw { background:#fef3c7; color:#92400e; } .s-pm { background:#e0e7ff; color:#3730a3; } .s-dn { background:#dcfce7; color:#166534; }
+  tr.open td { background:#f8fafc; }
+  .inner { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; }
+  .who { color:#64748b; font-size:11px; display:block; }
+
+
+  .lk { color:#1d4ed8; text-decoration:underline; text-decoration-style:dotted; cursor:pointer; }
+  .fbar { border:2px solid #3b82f6; border-radius:10px; padding:8px 10px; background:#eff6ff; margin-bottom:10px; }
+  .kv { display:grid; grid-template-columns:90px 1fr; gap:4px 10px; font-size:12.5px; }
+  .kv span:nth-child(odd) { color:#64748b; }
+
+
+  .combo { border:1px solid #cbd5e1; border-radius:8px; background:#fff; overflow:hidden; max-width:360px; }
+  .combo .q { padding:7px 10px; border-bottom:1px solid #e2e8f0; font-size:12.5px; }
+  .combo .opt { padding:6px 10px; font-size:12.5px; color:#334155; }
+  .combo .opt.on { background:#eff6ff; color:#1d4ed8; font-weight:bold; }
+  .combo .opt mark { background:#fde68a; color:inherit; }
+
+  .s-pr { background:#e2e8f0; color:#334155; }
+</style>
+<style>
+  .step { display:inline-block; font-size:11px; font-weight:bold; padding:2px 7px; border-radius:6px; margin-right:4px; }
+  .s-done { background:#dcfce7; color:#166534; } .s-now { background:#dbeafe; color:#1e40af; } .s-wait { background:#f1f5f9; color:#64748b; }
+  .cand { border:1px solid #cbd5e1; border-radius:8px; padding:6px 8px; margin-bottom:5px; background:#f8fafc; }
+  .cand.strong { background:#f0fdf4; border-color:#bbf7d0; }
+  .cand .r { font-size:11px; color:#475569; }
+  .kw { margin-top:5px; font-size:11.5px; color:#1e293b; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:4px 7px; }
+  .tag { font-size:11px; padding:1px 6px; border-radius:5px; background:#ede9fe; color:#5b21b6; font-weight:bold; }
+  .note { font-size:12px; color:#334155; line-height:1.7; }
+  .note b { color:#0f172a; }
+  .q { background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:10px 14px; font-size:12.5px; line-height:1.7; }
+</style>
+<style>
+  .modal { max-width:520px; background:#fff; border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,.15); padding:16px 18px; }
+  .modal h3 { font-size:14px; color:#0f172a; margin-bottom:8px; }
+  .row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:6px 0; font-size:12.5px; }
+  .opt { border:1px solid #94a3b8; border-radius:8px; padding:5px 10px; background:#fff; }
+  .opt.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .sel { border:1px solid #94a3b8; border-radius:8px; padding:5px 8px; background:#fff; min-width:220px; }
+  .box { border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; background:#f8fafc; font-size:12px; line-height:1.7; }
+  .warn { border:1px solid #fecaca; background:#fef2f2; color:#991b1b; border-radius:8px; padding:8px 10px; font-size:12px; }
+  .inp { border:1px solid #94a3b8; border-radius:6px; padding:3px 6px; width:110px; text-align:right; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:800px){ .grid2 { grid-template-columns:1fr; } }
+  .vt td, .vt th { font-size:12px; }
+</style>
+</head>
+<body><div class="frame">
+<h1>결제 확인 › 계산서 확인 — 증빙 없이 처리 시안</h1>
+<p class="desc">2026-11-25 · 결정 반영: 부가세 귀속 = 입금일 · 과세 구분 기본 = 과세 · 처리 = 수금 · 정산 수정 권한자. 파란 테두리 = 새로 생기는 부분. 데이터는 예시.</p>
+
+<h2>1. 계산서 확인 탭 — 칩과 버튼</h2>
+<p class="desc">"증빙 없이 처리됨" 칩이 새로 생긴다(기본 목록에서는 빠짐 · 칩을 누르면 보임). 증빙 없음 줄 오른쪽에 [증빙 없이 처리].</p>
+<div class="panel new">
+  <div class="chips">
+    <span class="chip">전체 7</span><span class="chip">홈택스에 없음 2</span><span class="chip">금액 다름 1</span><span class="chip on">입금 받았는데 증빙 없음 4</span>
+    <span class="sep"></span><span class="chip nw">증빙 없이 처리됨 12</span>
+  </div>
+  <div class="scroll"><table>
+    <tr><th>구분</th><th>주문일</th><th>주문</th><th>매출처</th><th class="n">청구 금액</th><th>내용</th><th></th></tr>
+    <tr><td><span class="st pt">증빙 없음</span></td><td>11-03</td><td class="ord">D261103-010</td><td>하나은행 월곡동지점</td><td class="n">55,000</td>
+      <td>이체 11-05 통장 입금 55,000원 매칭됨<small>계산서 · 현금영수증 연결 없음 · 입금 분류: 확정 전</small></td>
+      <td class="hl"><span class="btn pri">증빙 없이 처리</span></td></tr>
+    <tr><td><span class="st pt">증빙 없음</span></td><td>11-12</td><td class="ord">D261112-004</td><td>KB국민은행 잠실지점</td><td class="n">330,000</td>
+      <td>이체 11-14 통장 입금 330,000원 매칭됨<small>입금 분류: <b style="color:#b91c1c">매출채권(1101)으로 확정됨</b></small></td>
+      <td class="hl"><span class="btn">증빙 없이 처리</span><small style="color:#b91c1c">누르면 막힘 — 아래 3번</small></td></tr>
+  </table></div>
+</div>
+
+<h2>2. 처리 창</h2>
+<div class="grid2">
+<div class="modal">
+  <h3>증빙 없이 처리 — D261103-010 · 하나은행 월곡동지점</h3>
+  <div class="box">통장 입금 11-05 55,000원 (입금자 홍길동) · 분류 확정 전<br>처리하면 이 입금을 <b>상품매출(4001)</b>로 확정하고 분개를 만듭니다. 과세분은 예상 부가세 <b>11월 현금 매출</b>에 자동으로 들어갑니다(입금일 기준).</div>
+  <div class="row" style="margin-top:10px"><b style="width:70px">과세 구분</b>
+    <span class="opt on">과세</span><span class="opt">면세</span><span class="opt">과세 · 면세 섞임</span></div>
+  <div class="row" style="color:#475569;font-size:12px;padding-left:76px">공급가 50,000 · 세액 5,000 (입금액 ÷ 1.1, 원 단위 반올림)</div>
+  <div class="row"><b style="width:70px">사유</b>
+    <span class="sel">고객이 발행을 원하지 않음 ▾</span></div>
+  <div class="row" style="padding-left:76px;font-size:12px;color:#475569">항목: 고객이 발행을 원하지 않음 · 개인 고객 · 소액 · 기타(직접 입력)</div>
+  <div class="row" style="justify-content:flex-end;margin-top:10px"><span class="btn">닫기</span><span class="btn pri">증빙 없이 처리</span></div>
+</div>
+<div class="modal">
+  <h3>과세 · 면세 섞임을 고르면</h3>
+  <div class="row"><b style="width:70px">과세분</b><span class="inp">33,000</span><span style="font-size:12px;color:#475569">공급가 30,000 · 세액 3,000</span></div>
+  <div class="row"><b style="width:70px">면세분</b><span class="inp">22,000</span><span style="font-size:12px;color:#475569">자동 = 입금 합계 − 과세분</span></div>
+  <div class="box" style="margin-top:8px">면세분은 부가세 신고 줄에 넣지 않고 예상 부가세 화면 아래 "면세 수입금액(참고)"에 표시합니다.</div>
+</div>
+</div>
+
+<h2>3. 막히는 경우</h2>
+<div class="panel"><div class="warn">입금 11-14 330,000원이 이미 <b>매출채권(1101)</b>으로 확정돼 있습니다. 증빙 없는 매출은 상품매출로 확정해야 합니다 — 통장 내역에서 분류를 확정 전으로 되돌린 뒤 다시 처리하세요. (시스템은 이미 확정된 분류를 덮어쓰지 않습니다)</div>
+<p class="note" style="margin-top:8px">상품매출로 이미 확정된 입금(예: D261110-011)은 막지 않는다 — 분류는 그대로 두고 처리 기록만 남긴다.<br>
+주문에 계산서 · 현금영수증이 나중에 연결되면 처리 기록은 그대로 두되 "증빙 생김 — 해제 필요" 경고를 붙인다(매출 · 부가세가 두 번 잡히지 않게 해제를 안내).</p></div>
+
+<h2>4. 증빙 없이 처리됨 칩</h2>
+<div class="panel new"><div class="scroll"><table>
+  <tr><th>입금일</th><th>주문</th><th>매출처</th><th class="n">입금</th><th>과세 구분</th><th class="n">공급가 / 세액</th><th>사유 · 처리</th><th></th></tr>
+  <tr><td>11-05</td><td class="ord">D261103-010</td><td>하나은행 월곡동지점</td><td class="n">55,000</td><td>과세</td><td class="n">50,000 / 5,000</td><td>고객이 발행을 원하지 않음<small>김주연 · 11-25 15:10</small></td><td><span class="btn">해제</span></td></tr>
+  <tr><td>11-11</td><td class="ord">D261110-011</td><td>푸본현대생명</td><td class="n">120,000</td><td>면세</td><td class="n">— (면세)</td><td>개인 고객<small>오철준 · 11-25 15:20</small></td><td><span class="btn">해제</span></td></tr>
+</table></div>
+<p class="note" style="margin-top:8px">[해제] = 사유 필수. 처리할 때 함께 확정한 입금 분류는 확정 전으로 되돌린다(분개도 취소). 처리 전에 이미 상품매출이었던 입금은 그대로 둔다.</p></div>
+
+<h2>5. 예상 부가세 — 현금 매출 줄</h2>
+<div class="panel new"><div class="scroll"><table class="vt">
+  <tr><th>항목</th><th class="n">10월</th><th class="n">11월</th><th class="n">12월</th><th class="n">신고기간 계</th></tr>
+  <tr><td>현금 매출 — 자동(증빙 없이 처리 · 과세)<small>금액을 누르면 처리된 주문 목록</small></td><td class="n">0</td><td class="n hl"><b>50,000</b><small>세액 5,000</small></td><td class="n">0</td><td class="n">50,000</td></tr>
+  <tr><td>현금 매출 — 수동 조정</td><td class="n" colspan="3" style="text-align:center;color:#64748b">신고기간 단위 입력(지금 칸 그대로)</td><td class="n">0</td></tr>
+  <tr><td><b>현금 매출 합계</b></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"><b>50,000</b></td></tr>
+  <tr><td style="color:#64748b">면세 수입금액(참고 — 신고 줄 아님)</td><td class="n">0</td><td class="n">120,000</td><td class="n">0</td><td class="n">120,000</td></tr>
+</table></div>
+<p class="note" style="margin-top:8px">주의: 이미 수동 칸에 현금 매출을 넣어 두셨다면 자동분과 두 번 잡힌다 — 배포 뒤 수동 칸을 한 번 확인.</p></div>
+
+<h2>저장 (마이그레이션 1310)</h2>
+<div class="panel"><p class="note">표 <b>order_no_evidence</b> — 주문 · 입금(통장 원본) · 입금일 · 과세분 · 면세분 · 사유 · 처리한 사람 · 시각 · 이 처리로 확정한 입금 표시 · 해제(사유 · 사람 · 시각). 주문 · 통장 원본은 고치지 않는다.<br>
+부가세 귀속 달 = 입금일. 입금이 여러 건이면 입금별로 나눠 저장(달이 다를 수 있음).</p></div>
+</div></body></html>

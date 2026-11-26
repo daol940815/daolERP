@@ -1,7 +1,7 @@
 // 결제 기록 취소 · 삭제 · 수정 사유 항목 (1305, 2026-11-18 사용자 확정 — 초안대로)
 // 화면: 글자를 치면 label · keywords 로 걸러지는 드롭다운에서 고른다. 'etc'(기타)는 직접 입력이 필수.
 // 항목을 고치려면 여기만 고친다(저장은 code + 표시 문구). 클라이언트에서도 쓴다.
-export type ReasonKind = 'cancel' | 'delete' | 'update' | 'release' | 'settle' | 'unsettle' | 'stock_out' | 'stock_confirm' | 'stock_adjust'
+export type ReasonKind = 'cancel' | 'delete' | 'update' | 'release' | 'settle' | 'unsettle' | 'stock_out' | 'stock_confirm' | 'stock_adjust' | 'no_evidence' | 'no_evidence_release'
 export interface ReasonItem { code: string; label: string; keywords?: string }
 
 export const REASONS: Record<ReasonKind, ReasonItem[]> = {
@@ -52,6 +52,19 @@ export const REASONS: Record<ReasonKind, ReasonItem[]> = {
     { code: 'amount', label: '금액을 잘못 배분', keywords: '금액 배분 잘못' },
     { code: 'record_fix', label: '결제 기록 수정 필요(입력자 요청)', keywords: '기록 수정 입력자 요청 오기재' },
     { code: 'duplicate', label: '중복 매칭', keywords: '중복 두 번' },
+    { code: 'etc', label: '기타 — 직접 입력' },
+  ],
+  // 증빙 없이 처리 · 해제 — 1310, 2026-11-25 (계산서 · 현금영수증 없이 통장으로 받은 주문)
+  no_evidence: [
+    { code: 'customer_declined', label: '고객이 발행을 원하지 않음', keywords: '고객 원하지 않음 불필요 발행 안 함' },
+    { code: 'individual', label: '개인 고객', keywords: '개인 고객 직원 개인' },
+    { code: 'small', label: '소액', keywords: '소액 금액 작음' },
+    { code: 'etc', label: '기타 — 직접 입력' },
+  ],
+  no_evidence_release: [
+    { code: 'evidence_issued', label: '계산서 · 현금영수증을 발행함', keywords: '계산서 현금영수증 발행 증빙 생김' },
+    { code: 'wrong_vat', label: '과세 구분을 잘못 고름(다시 처리 예정)', keywords: '과세 면세 구분 잘못' },
+    { code: 'wrong_order', label: '다른 주문을 잘못 처리함', keywords: '잘못 다른 주문' },
     { code: 'etc', label: '기타 — 직접 입력' },
   ],
   // 재고 관리 확인 필요 탭 (1401, 2026-11-23 — 재고 관리 트랙)
