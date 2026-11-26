@@ -193,7 +193,7 @@ function NewRequestForm() {
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {assignees.map(id => { const e = empById.get(id); return (
                   <span key={id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-900 text-white text-xs">
-                    {e?.name ?? '직원'}{e?.team && <span className="text-slate-400">· {e.team}</span>}{id === meId && <span className="text-slate-400">(나)</span>}
+                    {e?.name ?? '직원'}{e?.team && <span className="text-slate-400">· {e.team}</span>}{id === meId && <span className="text-slate-500">(나)</span>}
                     <button type="button" onClick={() => toggle(id)} className="ml-0.5 text-slate-400 hover:text-white" aria-label="제거">✕</button>
                   </span>
                 ) })}

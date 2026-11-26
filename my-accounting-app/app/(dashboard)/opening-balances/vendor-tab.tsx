@@ -127,7 +127,7 @@ export default function VendorTab() {
                         <span className={`text-xs px-1.5 py-0.5 rounded ${r.amount < 0 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                           {r.amount < 0 ? '미지급' : '미수'}
                         </span>
-                      ) : <span className="text-slate-400 text-xs">미설정</span>}
+                      ) : <span className="text-slate-500 text-xs">미설정</span>}
                     </td>
                     <td className="py-1.5 px-3 text-right">
                       {ed ? (
