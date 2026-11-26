@@ -7,7 +7,8 @@ import { decryptPayment, encryptPayment, encryptionReady, maskPayment } from '@/
 import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_509_HINT, CONSULT_706_HINT } from '@/lib/consultations'
 import { fillContactPhonesIfEmpty } from '@/lib/contact-phone-sync'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
-import { isOrderAssignee, parseOrderRequest, saveOrderRequest } from '@/lib/order-request'
+import { isOrderAssignee, parseOrderRequest, saveOrderRequest, transferOrderRequest, loadRequestHistory } from '@/lib/order-request'
+import { loadConsultStatusMap } from '@/lib/consult-status'
 import { loadConsultReqMap, saveConsultUnable, CONSULT_REQ_LABEL } from '@/lib/order-reply'
 import { REASON_MAX } from '@/lib/cancel-reasons'
 
@@ -111,6 +112,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   // 전환 전 처리 불가 회신: 요청받은 직원 또는 관리자급(요청자 본인 제외)
   const canUnable = c.status === '진행중' && !!c.order_assignee_id
     && (isOrderAssignee(c, me.employeeId) || (isManagerLike(me) && c.order_requested_by !== me.employeeId))
+  // 상태 · 주문일 (2026-11-26) · 요청 진행 이력 (711)
+  const [statusMap, history] = await Promise.all([
+    loadConsultStatusMap(admin, [{ id: params.id, status: c.status as string, closed_at: c.closed_at as string | null, close_reason: c.close_reason as string | null }]),
+    loadRequestHistory(admin, c),
+  ])
+  const requester = (c.order_requested_by as string | null) ?? null
 
   return NextResponse.json({
     consult: rest,
@@ -118,6 +125,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     order_request: orderRequest,
     request_status: requestStatus,
     can_unable: canUnable,
+    can_transfer: canUnable,   // 전달 = 처리 불가와 같은 사람(진행자 · 관리자급)
+    // 요청자 쪽 재요청 · 취소: 요청자 본인 · 상담 작성자 · 관리자급 (진행 중이거나 처리 불가로 되돌아온 요청)
+    can_rerequest: c.status === '진행중' && !!requester && canAccess(snap.consult, me) && !isOrderAssignee(c, me.employeeId),
+    requested_by_name: requester ? names.get(requester) ?? null : null,
+    status_info: statusMap.get(params.id) ?? null,
+    request_history: history.items,
+    has_711: history.has711,
     // 종결 · 삭제 기록 (709)
     closed_by_name: c.closed_by ? names.get(c.closed_by as string) ?? null : null,
     deleted_by_name: c.deleted_by ? names.get(c.deleted_by as string) ?? null : null,
@@ -149,6 +163,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const allowed = isOrderAssignee(c, me.employeeId) || (isManagerLike(me) && c.order_requested_by !== me.employeeId)
     if (!allowed) return NextResponse.json({ error: '나에게 주문 진행이 요청된 상담만 처리 불가 회신을 보낼 수 있습니다.' }, { status: 403 })
     const err = await saveConsultUnable(admin, params.id, String(body.memo ?? '').trim() || null, editor)
+    if (err) return NextResponse.json({ error: err }, { status: 400 })
+    return NextResponse.json({ ok: true })
+  }
+
+  // 다른 직원에게 전달 (711, 2026-11-26) — 진행자(수정 권한 없음) · 관리자급. 사유 필수
+  if (body.action === 'transfer') {
+    const err = await transferOrderRequest(admin, params.id, String(body.to ?? ''), String(body.reason ?? '').trim().slice(0, REASON_MAX) || null,
+      editor, { manager: isManagerLike(me) })
     if (err) return NextResponse.json({ error: err }, { status: 400 })
     return NextResponse.json({ ok: true })
   }
