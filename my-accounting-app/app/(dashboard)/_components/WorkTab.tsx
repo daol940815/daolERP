@@ -8,10 +8,10 @@ function CountCard({
   label, value, sub, href, alert = false,
 }: { label: string; value: string; sub?: string; href?: string; alert?: boolean }) {
   const inner = (
-    <div className={`rounded-xl border p-5 h-full ${alert
+    <div className={`rounded-xl border px-3.5 py-2.5 h-full ${alert
       ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-300'}`}>
-      <p className={`text-xs mb-1.5 ${alert ? 'text-amber-700' : 'text-slate-500'}`}>{label}</p>
-      <p className={`text-xl font-bold ${alert ? 'text-amber-800' : 'text-slate-900'}`}>{value}</p>
+      <p className={`text-xs font-bold ${alert ? 'text-amber-800' : 'text-slate-700'}`}>{label}</p>
+      <p className={`text-xl font-extrabold tabular-nums ${alert ? 'text-amber-800' : 'text-slate-900'}`}>{value}</p>
       {sub && <p className={`text-xs mt-1 ${alert ? 'text-amber-700' : 'text-slate-500'}`}>{sub}</p>}
     </div>
   )

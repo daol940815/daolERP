@@ -259,7 +259,7 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
   }), [rows, bucketFilter, staffFilter, statusFilter, search])
 
   const sum = (k: keyof AgingBuckets) => visible.reduce((s, r) => s + r[k], 0)
-  const cardCls = (on: boolean) => `text-left border rounded-lg px-4 py-3 flex-1 min-w-[140px] transition-colors ${on ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:bg-slate-50'}`
+  const cardCls = (on: boolean) => `text-left bg-white border rounded-xl px-3.5 py-2.5 flex-1 min-w-[140px] transition-colors ${on ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:border-slate-500'}`
 
   return (
     <div className="w-full">
@@ -314,20 +314,20 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
       {/* 요약 카드 — 클릭하면 그 구간에 잔액이 있는 거래처만 */}
       <div className="flex gap-3 flex-wrap mb-5">
         <button onClick={() => setBucketFilter(null)} className={cardCls(bucketFilter === null)}>
-          <p className="text-xs text-slate-500 mb-1">{cfg.totalLabel}</p>
-          <p className="text-lg font-bold text-red-600">{won(total.total)}</p>
+          <p className="text-xs font-bold text-slate-700">{cfg.totalLabel}</p>
+          <p className="text-xl font-extrabold tabular-nums text-red-600">{won(total.total)}</p>
           <p className="text-xs text-slate-500">{rows.length.toLocaleString()}곳</p>
         </button>
         {BUCKETS.map(b => (
           <button key={b.key} onClick={() => setBucketFilter(f => f === b.key ? null : b.key)} className={cardCls(bucketFilter === b.key)}>
-            <p className="text-xs text-slate-500 mb-1">{b.label}</p>
-            <p className={`text-lg font-bold ${b.strong}`}>{won(total[b.key])}</p>
+            <p className="text-xs font-bold text-slate-700">{b.label}</p>
+            <p className={`text-xl font-extrabold tabular-nums ${b.strong}`}>{won(total[b.key])}</p>
             <p className="text-xs text-slate-500">{rows.filter(r => r[b.key] > 0).length.toLocaleString()}곳</p>
           </button>
         ))}
         <button onClick={() => setBucketFilter(f => f === 'opening' ? null : 'opening')} className={cardCls(bucketFilter === 'opening')}>
-          <p className="text-xs text-slate-500 mb-1">기초이월 잔여</p>
-          <p className="text-lg font-bold text-slate-900">{won(openingTotal)}</p>
+          <p className="text-xs font-bold text-slate-700">기초이월 잔여</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(openingTotal)}</p>
           <p className="text-xs text-slate-500">기초잔액(거래처) 미회수분 · 구간에 포함</p>
         </button>
       </div>
