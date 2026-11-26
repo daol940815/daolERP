@@ -7,6 +7,7 @@ import { honorify } from '@/lib/contact-label'
 import ReasonBadge from '@/components/ui/ReasonBadge'
 
 import { KpiCard, KpiGrid, PageHeader, btnCls, fieldBox } from '@/components/ui/kit'
+import { StaffPickList, useWorkload } from './request-flow'
 // 상담일지 목록 — 기본 본인 작성분, manager/admin은 전체 보기 전환 가능.
 // 품목 행 단위 표시 (실무자 피드백 7, 2안): 상품 1개 = 1줄, 부자재·배송비 행 제외.
 // 같은 상담의 줄들은 하나의 상담일지로 인식 — 행 클릭 = 상세, 전환도 상담 단위.
@@ -52,6 +53,8 @@ interface Row {
   deleted_at?: string | null
   delete_reason?: string | null
   deleted_by_name?: string | null
+  // 보이는 상태 · 상태 갱신일 · 주문일 (2026-11-26 — lib/consult-status.ts)
+  status_info?: { status: string; kind: string; label: string; date: string | null; order_date: string | null; order_count: number; order_nos: string[] } | null
 }
 type Scope = 'mine' | 'assigned' | 'requested' | 'done'
 interface Emp { id: string; name: string; team: string | null; position: string | null; employment_type?: string | null }
@@ -75,6 +78,10 @@ const STATUS_BADGE: Record<string, string> = {
   '진행중': 'bg-amber-100 text-amber-800',
   '주문전환': 'bg-emerald-100 text-emerald-700',
   '종결': 'bg-slate-100 text-slate-600',
+}
+const KIND_BADGE: Record<string, string> = {
+  open: 'bg-amber-100 text-amber-800', converted: 'bg-violet-100 text-violet-700',
+  po_done: 'bg-emerald-100 text-emerald-700', closed: 'bg-slate-100 text-slate-700',
 }
 const chip = (on: boolean) =>
   `px-3 py-1 rounded-full text-xs border whitespace-nowrap ${
@@ -107,6 +114,7 @@ export default function ConsultationsPage() {
   const [reqMemo, setReqMemo] = useState('')
   const [reqBusy, setReqBusy] = useState(false)
   const [reqErr, setReqErr] = useState<string | null>(null)
+  const workload = useWorkload(!!reqFor)
   useEffect(() => {   // 알림에서 ?scope=assigned 로 들어오는 경우
     try {
       const sc = new URLSearchParams(window.location.search).get('scope')
@@ -230,7 +238,16 @@ export default function ConsultationsPage() {
               title="숨김 삭제된 상담일지를 사유와 함께 흐리게 보여 줍니다 (관리자만)">삭제된 것 보기 {deletedCount}</button>
           )}
           {manager && (
-            <button onClick={() => setAll(v => !v)} className={chip(all)}>{all ? '전체 직원 보기 중' : '내 것만 보기 중'}</button>
+            // 두 칸 묶음 버튼 (2026-11-26 사용자 피드백 — 한 버튼 토글은 어디 있는지 직관적이지 않음)
+            <span className="inline-flex items-center gap-1.5">
+              <span className="text-xs text-slate-600">보기</span>
+              <span className="inline-flex border border-slate-400 rounded-lg overflow-hidden bg-white" role="group" aria-label="보기 범위">
+                <button type="button" onClick={() => setAll(false)} aria-pressed={!all}
+                  className={`px-3 py-1 text-xs font-bold ${!all ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'}`}>내 것만</button>
+                <button type="button" onClick={() => setAll(true)} aria-pressed={all}
+                  className={`px-3 py-1 text-xs font-bold border-l border-slate-400 ${all ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'}`}>전체 직원</button>
+              </span>
+            </span>
           )}
         </div>
       </div>
@@ -244,6 +261,7 @@ export default function ConsultationsPage() {
               <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 pl-3 pr-1 w-8" title="선택 복사 — 같은 상담의 품목만 함께" />
                 <th className="py-2 px-3 text-left font-medium">상담일</th>
+                <th className="py-2 px-3 text-left font-medium" title="이 상담으로 만든 주문서의 주문일 (취소 제외)">주문일</th>
                 <th className="py-2 px-3 text-left font-medium">구분</th>
                 <th className="py-2 px-3 text-left font-medium">업체(은행)</th>
                 <th className="py-2 px-3 text-left font-medium">부서(지점)</th>
@@ -278,6 +296,11 @@ export default function ConsultationsPage() {
                     )}
                   </td>
                   <td className="py-2 px-3 tabular-nums text-xs font-semibold">{r.consult_date}</td>
+                  <td className="py-2 px-3 tabular-nums text-xs font-semibold whitespace-nowrap" title={r.status_info?.order_nos.join(', ') || undefined}>
+                    {r.status_info?.order_date
+                      ? <>{r.status_info.order_date}{r.status_info.order_count > 1 && <span className="block text-xs font-normal text-slate-600">외 {r.status_info.order_count - 1}</span>}</>
+                      : <span className="text-slate-400">-</span>}
+                  </td>
                   <td className="py-2 px-3">
                     <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${TYPE_BADGE[r.consult_type] ?? 'bg-slate-100 text-slate-600'}`}>
                       {r.consult_type}
@@ -329,12 +352,16 @@ export default function ConsultationsPage() {
                       <ReasonBadge label="삭제됨" cls="bg-red-100 text-red-700" title="삭제 사유"
                         reason={r.delete_reason} by={r.deleted_by_name} at={r.deleted_at} />
                     ) : r.status === '종결' ? (
-                      <ReasonBadge label="종결" cls={STATUS_BADGE['종결']} title="종결 사유"
+                      <ReasonBadge label={r.status_info?.label ?? '종결'} cls={KIND_BADGE.closed} title="종결 사유"
                         reason={r.close_reason} by={r.closed_by_name} at={r.closed_at} />
                     ) : (
-                      <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[r.status] ?? 'bg-slate-100 text-slate-600'}`}>
-                        {r.status}
+                      <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${r.status_info ? KIND_BADGE[r.status_info.kind] : STATUS_BADGE[r.status] ?? 'bg-slate-100 text-slate-600'}`}>
+                        {r.status_info?.label ?? r.status}
                       </span>
+                    )}
+                    {/* 상태 갱신일 (2026-11-26) — 주문전환 = 전환한 날, 종결 · 발주 완료 = 마지막 발주서 작성일, 종결 = 종결한 날 */}
+                    {!r.deleted_at && r.status_info?.date && (
+                      <span className="block mt-0.5 text-xs text-slate-600 tabular-nums">{r.status_info.date.slice(5)}</span>
                     )}
                     {/* (b) 정책: 지점·담당자 마스터 연결이 끝나야 주문 전환 가능 */}
                     {!r.master_linked && (
@@ -346,11 +373,10 @@ export default function ConsultationsPage() {
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap">
                     {/* 행 "요청" — 작성자 · 관리자급 (요청받은 직원에게는 안 보임) */}
-                    {r.status === '진행중' && !r.deleted_at && (r.is_owner || manager) && !r.assigned_to_me && (
+                    {/* 새 요청만 — 이미 요청한 상담의 재요청 · 취소는 상세에서 사유와 함께 (711) */}
+                    {r.status === '진행중' && !r.deleted_at && (r.is_owner || manager) && !r.assigned_to_me && !r.assignee_name && r.req_state !== 'returned' && (
                       <button onClick={e => { e.stopPropagation(); openRequest(r) }}
-                        className="text-xs text-slate-700 hover:underline mr-2" title="다른 직원에게 주문 진행을 요청">
-                        {r.assignee_name ? '요청 변경' : '요청'}
-                      </button>
+                        className="text-xs text-slate-700 hover:underline mr-2" title="다른 직원에게 주문 진행을 요청">요청</button>
                     )}
                     {r.status === '진행중' && !r.deleted_at && (
                       r.master_linked ? (
@@ -367,7 +393,7 @@ export default function ConsultationsPage() {
                 )
               })}
               {!rows.length && (
-                <tr><td colSpan={all ? 14 : 13} className="text-center py-12 text-slate-500 text-sm">
+                <tr><td colSpan={all ? 15 : 14} className="text-center py-12 text-slate-500 text-sm">
                   상담 기록이 없습니다. 상단의 상담 기록 버튼으로 시작하세요.
                 </td></tr>
               )}
@@ -388,17 +414,11 @@ export default function ConsultationsPage() {
       {/* 행 "요청" 창 (705) */}
       {reqFor && (
         <div className="fixed inset-0 z-40 bg-slate-900/40 flex items-center justify-center p-4" onClick={() => setReqFor(null)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-xl p-4" onClick={e => e.stopPropagation()}>
             <div className="text-sm font-bold text-slate-900">주문 진행 요청 — {[reqFor.bank_name, reqFor.branch_name].filter(Boolean).join(' ') || '상담일지'}</div>
-            <div className="text-xs text-slate-600 mt-0.5">요청받은 직원은 이 상담을 열람 · 주문 전환만 할 수 있습니다. 비우면 요청 취소.</div>
+            <div className="text-xs text-slate-600 mt-0.5">요청받은 직원은 이 상담을 열람 · 주문 전환만 할 수 있습니다. 숫자 = 요청 대기 · 진행 중 주문(발주 미완료).</div>
             <label className="block text-xs text-slate-600 mt-3 mb-0.5">주문 진행 담당</label>
-            <select value={reqAssignee} onChange={e => setReqAssignee(e.target.value)}
-              className={fieldBox()}>
-              <option value="">요청 안 함 (내가 진행)</option>
-              {emps.map(e => (
-                <option key={e.id} value={e.id}>{e.name}{e.team || e.position ? ` (${[e.team, e.employment_type === 'parttime' ? '아르바이트' : e.position].filter(Boolean).join(' · ')})` : ''}</option>
-              ))}
-            </select>
+<StaffPickList employees={emps} value={reqAssignee} onChange={setReqAssignee} workload={workload} />
             <label className="block text-xs text-slate-600 mt-2 mb-0.5">요청 메모 (선택)</label>
             <input value={reqMemo} onChange={e => setReqMemo(e.target.value)} disabled={!reqAssignee}
               placeholder="예: 11/10 출고 맞춰서 발주까지 부탁해요"
@@ -412,9 +432,9 @@ export default function ConsultationsPage() {
             {reqErr && <div className="mt-2 text-xs text-red-600">{reqErr}</div>}
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setReqFor(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm">닫기</button>
-              <button onClick={submitRequest} disabled={reqBusy || (!!reqAssignee && !reqFor.master_linked)}
+              <button onClick={submitRequest} disabled={reqBusy || !reqAssignee || !reqFor.master_linked}
                 className={btnCls('primary', 'md')}>
-                {reqBusy ? '저장 중...' : reqAssignee ? '요청 보내기' : '요청 취소'}
+                {reqBusy ? '저장 중...' : '요청 보내기'}
               </button>
             </div>
           </div>

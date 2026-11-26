@@ -10,6 +10,7 @@ import { recordWorkLog, consultContent } from '@/lib/work-log'
 import { resolveContact } from '@/lib/contact-resolve'
 import { parseOrderRequest, saveOrderRequest } from '@/lib/order-request'
 import { loadConsultReqMap, CONSULT_REQ_LABEL, type ConsultReqRow } from '@/lib/order-reply'
+import { loadConsultStatusMap } from '@/lib/consult-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,7 +64,9 @@ export async function GET(req: NextRequest) {
           .not('order_assignee_id', 'is', null).eq('status', '주문전환').gte('order_requested_at', monthStart)
       }
     }
-    if (status !== 'all') query = query.eq('status', status)
+    // 종결 = 수동 종결 + 발주가 끝난 주문전환(자동, 아래에서 계산해 거른다 — 2026-11-26)
+    if (status === '종결') query = query.in('status', ['종결', '주문전환'])
+    else if (status !== 'all') query = query.eq('status', status)
     if (type !== 'all') query = query.eq('consult_type', type)
     if (with709 && !showDeleted) query = query.is('deleted_at', null)
     return query.limit(2000)
@@ -129,10 +132,19 @@ export async function GET(req: NextRequest) {
   }
 
   // 요청 진행 상태 (515 완료 회신) — 요청됨 / 처리 불가 / 회신 대기 / 완료 …
-  const reqMap = has705 ? await loadConsultReqMap(admin, (data ?? []) as unknown as ConsultReqRow[]) : new Map()
+  const [reqMap, statusMap] = await Promise.all([
+    has705 ? loadConsultReqMap(admin, (data ?? []) as unknown as ConsultReqRow[]) : Promise.resolve(new Map()),
+    // 상태 · 주문일 · 상태 갱신일 (2026-11-26) — 종결(자동) = 연결 주문의 발주 완료
+    loadConsultStatusMap(admin, (data ?? []).map(r => ({
+      id: r.id as string, status: (r.status as string | null) ?? null,
+      closed_at: (r.closed_at as string | null) ?? null, close_reason: (r.close_reason as string | null) ?? null,
+    }))),
+  ])
 
   // 상담 × 본 상품 → 행 전개. 품목 없는 상담도 1줄은 남긴다.
-  let rows = (data ?? []).flatMap(r => {
+  // 상태 칩 필터는 화면에 보이는 상태 기준 (주문전환 중 발주 완료는 종결로)
+  const visible = (data ?? []).filter(r => status === 'all' || statusMap.get(r.id as string)?.status === status)
+  let rows = visible.flatMap(r => {
     const nm = (v: unknown) => (Array.isArray(v) ? v[0]?.name : (v as { name?: string } | null)?.name) ?? null
     const base = {
       ...r,
@@ -147,6 +159,7 @@ export async function GET(req: NextRequest) {
       assigned_to_me: !!me.employeeId && r.order_assignee_id === me.employeeId,
       is_owner: !!me.employeeId && r.employee_id === me.employeeId,
       consult_total: totals.get(r.id as string) ?? 0,     // 상담 전체 합계 (전 품목·옵션·배송비 포함)
+      status_info: statusMap.get(r.id as string) ?? null,   // 보이는 상태 · 갱신일 · 주문일 (2026-11-26)
       // (b) 정책: 지점·담당자가 모두 마스터에 연결된 상담만 주문 전환 가능
       master_linked: !!r.vendor_id && !!r.contact_id,
     }

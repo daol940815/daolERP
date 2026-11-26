@@ -10,6 +10,7 @@ import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-seaso
 import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
 import { cellTableCls, cellBlankTh, cellCls, calcCls, CellBand, CellHead, SummaryPill } from '@/components/ui/cell-grid'
 import { btnCls, fieldBox, fieldCls, labelCls } from '@/components/ui/kit'
+import { StaffPickList, RequestHistory, RequestDialog, useWorkload, type HistoryItem } from './request-flow'
 import { isMoimVendor, orgSubLabel } from '../form-shared'
 import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from '../product-register-dialog'
 import IndividualRegister from '../individual-register'
@@ -124,6 +125,14 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   // 완료 회신 (515): 요청 진행 상태 · 전환 전 처리 불가 회신
   const [requestStatus, setRequestStatus] = useState<{ state: string; label: string; memo: string | null; by: string | null; at: string | null; requested_by_name: string | null } | null>(null)
   const [canUnable, setCanUnable] = useState(false)
+  // 요청 흐름 (711, 2026-11-26): 전달 · 재요청 · 요청 취소 + 진행 이력, 상태 · 주문일
+  const [canTransfer, setCanTransfer] = useState(false)
+  const [canRerequest, setCanRerequest] = useState(false)
+  const [requestedByName, setRequestedByName] = useState<string | null>(null)
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [statusInfo, setStatusInfo] = useState<{ label: string; date: string | null; kind: string; order_date: string | null; order_count: number; order_nos: string[] } | null>(null)
+  const [reqDialog, setReqDialog] = useState<'transfer' | 'rerequest' | 'cancel' | null>(null)
+  const [reqBusy, setReqBusy] = useState(false)
   const [unableOpen, setUnableOpen] = useState(false)
   const [unableMemo, setUnableMemo] = useState('')
   const [unableBusy, setUnableBusy] = useState(false)
@@ -152,6 +161,30 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [endBusy, setEndBusy] = useState(false)
 
   const converted = status === '주문전환'
+  const reqExists = !!orderRequest || requestStatus?.state === 'returned'
+  const workload = useWorkload(!!reqDialog || (!reqExists && status === '진행중'))
+  // 전달 (진행자) · 재요청 · 요청 취소 (요청자) — 711, 2026-11-26
+  const submitReq = async (to: string | null, reason: string) => {
+    if (!reqDialog) return
+    setReqBusy(true); setError(null)
+    try {
+      const body = reqDialog === 'transfer'
+        ? { action: 'transfer', to, reason }
+        : { action: 'request', order_request: reqDialog === 'cancel'
+            ? { assignee_id: null, memo: null, reason: reason || null }
+            : { assignee_id: to, memo: orderRequest?.memo ?? null, reason } }
+      const res = await fetch(`/api/orders-portal/consultations/${consultId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? '처리 실패')
+      if (reqDialog === 'transfer' && isAssignee) { router.push('/orders/consultations?scope=assigned'); return }
+      window.location.reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '처리 실패')
+      setReqBusy(false); setReqDialog(null)
+    }
+  }
   const closed = status === '종결'
   const deleted = !!deleteInfo
   // 전환 후 수정 잠금(이력 보존) · 종결 · 삭제된 상담 잠금 · 요청받은 직원 읽기 전용
@@ -218,6 +251,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           setOrderRequest(c.order_request ?? null)
           setRequestStatus(c.request_status ?? null)
           setCanUnable(c.can_unable === true)
+          setCanTransfer(c.can_transfer === true)
+          setCanRerequest(c.can_rerequest === true)
+          setRequestedByName(c.requested_by_name ?? null)
+          setHistory(c.request_history ?? [])
+          setStatusInfo(c.status_info ?? null)
           setReqAssignee(c.order_request?.assignee_id ?? '')
           setReqMemo(c.order_request?.memo ?? '')
           const prodList: Product[] = pRes.ok ? (p.products ?? []) : []
@@ -661,7 +699,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     ceo_name: ceoName || null,
     ship,   // 배송지 (706) — 서버가 ship_* 컬럼으로 저장
     // 주문 진행 요청 (705) — 비우면 요청 취소
-    order_request: { assignee_id: reqAssignee || null, memo: reqMemo.trim() || null },
+    // 이미 요청이 있으면(진행 중 · 처리 불가로 되돌아옴) 저장으로 바꾸지 않는다 — 재요청 · 취소는 버튼으로 (711)
+    ...(reqExists ? {} : { order_request: { assignee_id: reqAssignee || null, memo: reqMemo.trim() || null } }),
     items: (() => {
       // 옵션 연결(parent_uid)을 저장용 행 번호(parent_line_no)로 직렬화 — 주문 입력과 동일
       const filled = items.filter(it => it.item_name.trim())
@@ -745,8 +784,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             deleted ? 'bg-red-100 text-red-700'
               : status === '주문전환' ? 'bg-emerald-100 text-emerald-700'
               : status === '종결' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'}`}>
-            {deleted ? '삭제됨' : status}
+            {deleted ? '삭제됨' : statusInfo?.label ?? status}
           </span>
+        )}
+        {isEdit && !deleted && statusInfo?.date && (
+          <span className="text-xs text-slate-600 tabular-nums" title="상태가 바뀐 날">{statusInfo.date.slice(5)}</span>
         )}
         {orders.map(o => (
           <a key={o.id} href={`/orders/${o.id}`} className="text-xs text-blue-700 hover:underline tabular-nums">
@@ -848,7 +890,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         <div className="mt-3 px-4 py-2.5 bg-red-50 border border-red-200 text-red-900 text-sm rounded-lg">
           <span className="inline-block px-1.5 py-0.5 rounded text-xs font-medium mr-1.5 bg-red-100 text-red-700">처리 불가</span>
           <b>{requestStatus.by ?? ''}</b> 회신{requestStatus.memo ? `: “${requestStatus.memo}”` : ''}
-          <div className="mt-1 text-xs text-red-700">아래 &lsquo;주문 진행 요청&rsquo; 칸에서 다른 직원에게 다시 요청하거나 직접 주문서로 전환하세요.</div>
+          <div className="mt-1 text-xs text-red-700">아래 &lsquo;다른 직원에게 재요청&rsquo;으로 다시 요청하거나, 직접 주문서로 전환하세요.</div>
         </div>
       )}
       {/* 주문 진행 요청 (705) — 요청받은 직원에게는 요청 내용, 작성자에게는 진행 상태 */}
@@ -857,6 +899,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           <b>{orderRequest.requested_by_name ?? ''}</b>님이 주문 진행을 요청했습니다
           {orderRequest.requested_at && <span className="text-blue-700"> · {new Date(orderRequest.requested_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
           {orderRequest.memo && <div className="mt-0.5 text-blue-800">&ldquo;{orderRequest.memo}&rdquo;</div>}
+          {history.length > 1 && (
+            <div className="mt-2 p-2.5 bg-white rounded-lg border border-blue-200"><RequestHistory items={history} /></div>
+          )}
           {!canEdit && <div className="mt-1 text-xs text-blue-700">상담 내용은 수정할 수 없고, 아래 &lsquo;주문서로 전환&rsquo;으로 주문을 입력합니다. 고칠 부분은 주문서에서 바꾸세요. 주문 입력 후 주문 상세에서 &lsquo;완료 회신&rsquo;을 보내야 요청이 완료됩니다.</div>}
           {canUnable && (unableOpen ? (
             <div className="mt-2">
@@ -872,17 +917,55 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </div>
             </div>
           ) : (
-            <div className="mt-2 text-right">
+            <div className="mt-2 flex justify-end gap-1.5">
               <button type="button" onClick={() => setUnableOpen(true)}
                 className={btnCls('danger', 'sm')}>처리 불가 회신</button>
+              {canTransfer && (
+                <button type="button" onClick={() => setReqDialog('transfer')}
+                  className={btnCls('secondary', 'sm')}>다른 직원에게 전달</button>
+              )}
             </div>
           ))}
         </div>
       )}
-      {!converted && !closed && !deleted && orderRequest && !isAssignee && (
-        <div className="mt-3 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-lg">
-          <b>{orderRequest.assignee_name ?? ''}</b>에게 주문 진행을 요청했습니다 — 주문 입력 · 완료 회신이 오면 알림이 옵니다.
+      {/* 요청자가 보는 주문 진행 요청 — 진행 이력 + 재요청 · 요청 취소 (711, 2026-11-26) */}
+      {!converted && !closed && !deleted && reqExists && !isAssignee && (
+        <div className="mt-3 p-4 bg-white border border-slate-300 rounded-xl">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-bold text-slate-900">주문 진행 요청</span>
+            {orderRequest
+              ? <span className="inline-block px-2 py-px rounded text-xs font-bold bg-amber-100 text-amber-800">진행 대기</span>
+              : <span className="inline-block px-2 py-px rounded text-xs font-bold bg-red-100 text-red-700">처리 불가로 돌아옴</span>}
+            {orderRequest && (
+              <span className="text-sm text-slate-700">지금 진행자 <b className="text-slate-900">{orderRequest.assignee_name ?? ''}</b>
+                {requestedByName && <> · 요청 {requestedByName}</>}</span>
+            )}
+            <span className="flex-1" />
+            {canRerequest && (
+              <>
+                <button type="button" onClick={() => setReqDialog('rerequest')} className={btnCls('secondary', 'sm')}>다른 직원에게 재요청</button>
+                {orderRequest && <button type="button" onClick={() => setReqDialog('cancel')} className={btnCls('danger', 'sm')}>요청 취소</button>}
+              </>
+            )}
+          </div>
+          {history.length > 0 && (
+            <div className="mt-3"><RequestHistory items={history} current={orderRequest?.assignee_name ?? null} /></div>
+          )}
+          <div className="mt-2 text-xs text-slate-600">주문 입력 · 완료 회신이 오면 알림이 옵니다.</div>
         </div>
+      )}
+      {/* 전환 · 종결된 상담의 요청 이력 (읽기 전용) */}
+      {(converted || closed) && !deleted && history.length > 0 && (
+        <div className="mt-3 p-4 bg-white border border-slate-300 rounded-xl">
+          <div className="text-sm font-bold text-slate-900 mb-2">주문 진행 이력</div>
+          <RequestHistory items={history} />
+        </div>
+      )}
+      {reqDialog && (
+        <RequestDialog mode={reqDialog} employees={employees} workload={workload}
+          exclude={[orderRequest?.assignee_id, reqDialog === 'transfer' ? null : undefined]}
+          currentName={orderRequest?.assignee_name ?? null} requesterName={requestedByName}
+          busy={reqBusy} onSubmit={submitReq} onClose={() => setReqDialog(null)} />
       )}
       {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
       {notice && <div className="mt-3 px-4 py-2.5 bg-emerald-50 text-emerald-700 text-sm rounded-lg">{notice}</div>}
@@ -898,6 +981,21 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             <input type="date" value={consultDate} disabled={locked}
               onChange={e => setConsultDate(e.target.value)} className={free} />
           </div>
+          {/* 주문일 (2026-11-26) — 이 상담으로 만든 주문서의 주문일(취소 제외), 읽기 전용 */}
+          {isEdit && (
+            <div>
+              <label className={label}>주문일</label>
+              {statusInfo?.order_date && orders[0] ? (
+                <a href={`/orders/${(orders.find(o => o.order_date === statusInfo.order_date) ?? orders[0]).id}`}
+                  title={statusInfo.order_nos.join(', ')}
+                  className={fieldCls('auto', 'md', 'flex items-center tabular-nums text-blue-700 hover:underline')}>
+                  {statusInfo.order_date}{statusInfo.order_count > 1 ? ` 외 ${statusInfo.order_count - 1}` : ''}
+                </a>
+              ) : (
+                <div className={fieldCls('auto', 'md', 'flex items-center text-slate-500')}>전환 전</div>
+              )}
+            </div>
+          )}
           <div>
             <label className={label}>구분 <em className="not-italic text-red-500">*</em></label>
             <select value={consultType} disabled={locked} onChange={e => setConsultType(e.target.value)}
@@ -1692,7 +1790,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         />
 
         {/* 주문 진행 요청 (705, 2026-11-05) — 상담만 하고 주문 입력은 다른 직원에게. 비우면 내가 직접 진행 */}
-        {!locked && (() => {
+        {!locked && !reqExists && (() => {
           const picked = employees.find(e => e.id === reqAssignee)
           const ptBlock = !!reqAssignee && (!vendorId || !contactId)   // 마스터 미연결이면 누구에게도 요청 불가 (2026-11-19, 서버 lib/order-request.ts와 같은 규칙)
           return (
@@ -1701,17 +1799,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 주문 진행 요청 <span className="text-xs font-normal text-slate-600 ml-1">상담만 하고 주문 입력은 다른 직원에게 맡길 때 · 비워두면 내가 직접 진행</span>
               </div>
               <div className="flex gap-3 flex-wrap items-start">
-                <div className="w-64">
-                  <label className={label}>주문 진행 담당</label>
-                  <select value={reqAssignee} onChange={e => setReqAssignee(e.target.value)}
-                    className={fieldCls('free')}>
-                    <option value="">요청 안 함 (내가 진행)</option>
-                    {employees.map(e => (
-                      <option key={e.id} value={e.id}>
-                        {e.name}{[e.team, e.employment_type === 'parttime' ? '아르바이트' : e.position].filter(Boolean).length ? ` (${[e.team, e.employment_type === 'parttime' ? '아르바이트' : e.position].filter(Boolean).join(' · ')})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                <div className="w-full md:w-[28rem]">
+                  <label className={label}>주문 진행 담당 <span className="font-normal text-slate-600">— 요청 대기 · 진행 중 주문(발주 미완료) 수</span></label>
+                  <StaffPickList employees={employees} value={reqAssignee} onChange={setReqAssignee}
+                    workload={workload} noneLabel="요청 안 함 (내가 진행)" />
                 </div>
                 <div className="flex-1 min-w-[16rem]">
                   <label className={label}>요청 메모 (선택)</label>
