@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>상담 요청 흐름 시안</title>
+<style>
+  :root{
+    --ink:#0f172a; --ink2:#334155; --ink3:#64748b; --line:#94a3b8; --rule:#cbd5e1; --head:#e2e8f0; --soft:#f1f5f9; --page:#f8fafc; --navy:#0f172a;
+    --red:#b91c1c; --redbg:#fee2e2; --amber:#92400e; --amberbg:#fef3c7; --green:#047857; --greenbg:#d1fae5; --blue:#1d4ed8; --bluebg:#dbeafe;
+    --violet:#6d28d9; --violetbg:#ede9fe;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#e5e7eb;color:var(--ink);font:14px/1.5 "Malgun Gothic","Apple SD Gothic Neo",Arial,sans-serif;word-break:keep-all}
+  .wrap{max-width:1400px;margin:0 auto;padding:24px 16px 80px}
+  h1{font-size:24px;margin:0 0 4px}
+  h2{font-size:18px;margin:40px 0 6px;padding-top:14px;border-top:3px solid var(--navy)}
+  h3{font-size:14px;margin:0 0 8px}
+  .lead{color:var(--ink2);margin:0 0 14px}
+  .note{color:var(--ink2);font-size:13px;margin:6px 0 12px}
+  .screen{background:var(--page);border:1px solid var(--rule);border-radius:14px;padding:18px;overflow-x:auto}
+  .card{background:#fff;border:1px solid var(--rule);border-radius:12px;padding:14px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .sp{flex:1}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .btn.pri{background:var(--navy);border-color:var(--navy);color:#fff}
+  .btn.blue{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+  .btn.danger{color:var(--red);border-color:#fca5a5}
+  .btn.sm{height:28px;padding:0 10px;font-size:12px}
+  .chip{display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:600;color:var(--ink2)}
+  .chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+  /* 1번 — 두 칸 묶음 버튼 */
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+  .seg button{all:unset;cursor:pointer;height:32px;padding:0 14px;font-size:13px;font-weight:700;color:var(--ink2);display:inline-flex;align-items:center}
+  .seg button+button{border-left:1px solid var(--line)}
+  .seg button.on{background:var(--navy);color:#fff}
+  .seglab{font-size:12px;color:var(--ink3);margin-right:6px}
+  .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+  .kpi{background:#fff;border:1px solid var(--rule);border-radius:12px;padding:10px 12px}
+  .kpi.on{border-color:var(--navy);box-shadow:inset 0 0 0 1px var(--navy)}
+  .kpi .l{font-size:12px;color:var(--ink2)} .kpi .v{font-size:20px;font-weight:700}
+  table{border-collapse:collapse;width:100%;font-size:13px;background:#fff}
+  thead th{background:var(--head);color:var(--ink);font-weight:700;text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);white-space:nowrap;font-size:12px}
+  tbody td{padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .date{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+  .new{outline:2px solid #22c55e;outline-offset:-2px;border-radius:4px}
+  .muted{color:var(--ink3)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap}
+  .b-prog{background:var(--bluebg);color:var(--blue)}
+  .b-conv{background:var(--violetbg);color:var(--violet)}
+  .b-done{background:var(--greenbg);color:var(--green)}
+  .b-close{background:var(--soft);color:var(--ink2);border:1px solid var(--rule)}
+  .b-wait{background:var(--amberbg);color:var(--amber)}
+  .b-red{background:var(--redbg);color:var(--red)}
+  .sub{display:block;font-size:12px;color:var(--ink3);margin-top:2px;white-space:nowrap}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:12px;color:var(--ink2);font-weight:600}
+  .inp{height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;display:flex;align-items:center;background:#fff;font-size:13px}
+  .inp.auto{background:var(--soft);color:var(--ink2)}
+  .inp.pick{background:#eff6ff}
+  textarea.inp{height:64px;padding:8px 10px;font:inherit;font-size:13px;resize:none;width:100%}
+  /* 진행 이력 */
+  .tl{list-style:none;margin:0;padding:0}
+  .tl li{position:relative;padding:0 0 14px 26px}
+  .tl li::before{content:'';position:absolute;left:7px;top:6px;bottom:-6px;width:2px;background:var(--rule)}
+  .tl li:last-child::before{display:none}
+  .tl .dot{position:absolute;left:0;top:3px;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px var(--line);background:var(--line)}
+  .tl .dot.req{background:#1d4ed8;box-shadow:0 0 0 1px #1d4ed8}
+  .tl .dot.mv{background:#c2410c;box-shadow:0 0 0 1px #c2410c}
+  .tl .dot.ok{background:#047857;box-shadow:0 0 0 1px #047857}
+  .tl .dot.now{background:#fff;box-shadow:0 0 0 2px #c2410c}
+  .tl .t{font-weight:700}
+  .tl .w{font-size:12px;color:var(--ink3);margin-left:6px}
+  .tl .why{margin-top:3px;font-size:13px;color:var(--ink2);background:var(--soft);border-radius:8px;padding:6px 10px;display:inline-block}
+  /* 다이얼로그 */
+  .dlg{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 32px rgba(15,23,42,.18);width:560px;max-width:100%;padding:18px}
+  .dlg h3{font-size:16px}
+  .opt{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-bottom:1px solid var(--rule);font-size:13px}
+  .opt.sel{background:#eff6ff}
+  .opt:last-child{border-bottom:0}
+  .load{display:flex;gap:6px;flex-wrap:wrap}
+  .pill{font-size:12px;font-weight:700;border-radius:999px;padding:1px 8px;white-space:nowrap}
+  .pill.req{background:var(--amberbg);color:var(--amber)}
+  .pill.ord{background:var(--bluebg);color:var(--blue)}
+  .pill.zero{background:var(--soft);color:var(--ink3)}
+  .list{border:1px solid var(--line);border-radius:10px;overflow:hidden;max-height:260px}
+  .warn{font-size:12px;color:var(--amber);background:var(--amberbg);border:1px solid #fcd34d;border-radius:8px;padding:6px 10px;margin-top:8px}
+  .rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+  .rules .card p{margin:4px 0 0;color:var(--ink2);font-size:13px}
+</style>
+</head>
+<body><div class="wrap">
+<h1>상담일지 — 요청 흐름 · 주문일 · 종결 시안</h1>
+<p class="lead">2026-11-26 사용자 피드백 6건 반영안. 초록 테두리 = 새로 생기거나 바뀌는 곳. 색 · 글자는 UI 통일 기준(slate 한 계열)을 따릅니다.</p>
+
+<h2>1 · 2 · 3번 — 상담 목록</h2>
+<p class="note">① "내 것만 / 전체 직원"을 두 칸 묶음 버튼으로(관리자급만 보임). ② 상담일 바로 오른쪽에 <b>주문일</b>(주문서의 주문일, 전환 전엔 빈칸, 주문 2건이면 "외 1"). ③ 상태에 <b>종결 · 발주 완료</b>(자동)와 <b>종결 · 사유</b>(수동)를 나눠 표시.</p>
+<div class="screen">
+  <div class="row" style="margin-bottom:12px"><h3 style="margin:0;font-size:20px">상담일지</h3><span class="sp"></span><button class="btn">선택 복사해 새 상담</button><button class="btn pri">+ 상담 기록</button></div>
+  <div class="kpis">
+    <div class="kpi on"><div class="l">내 상담 (요청받은 것 포함)</div><div class="v">24</div></div>
+    <div class="kpi"><div class="l">나에게 요청됨 (진행 대기)</div><div class="v" style="color:var(--amber)">2</div></div>
+    <div class="kpi"><div class="l">내가 요청함 (진행 대기 · 처리 불가)</div><div class="v">3</div></div>
+    <div class="kpi"><div class="l">주문 입력됨 (이번 달 요청 · 회신 포함)</div><div class="v" style="color:var(--green)">11</div></div>
+  </div>
+  <div class="card" style="margin-bottom:12px">
+    <div class="row"><div class="inp" style="flex:1;min-width:260px;color:var(--ink3)">검색 — 업체 · 지점 · 담당자 · 보내는분 · 상품명 · 메모</div></div>
+    <div class="row" style="margin-top:8px">
+      <span class="chip on">전체</span><span class="chip">진행중</span><span class="chip">주문전환</span><span class="chip">종결</span>
+      <span style="width:8px"></span><span class="chip on">구분 전체</span><span class="chip">주문</span><span class="chip">문의</span><span class="chip">요청</span>
+      <span class="sp"></span>
+      <span class="new" style="display:inline-flex;align-items:center;padding:2px"><span class="seglab">보기</span><span class="seg"><button class="on">내 것만</button><button>전체 직원</button></span></span>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>상담일</th><th class="new">주문일</th><th>구분</th><th>업체(은행)</th><th>부서(지점)</th><th>담당자</th><th>상품명</th><th class="num">수량</th><th class="num">판매합계</th><th>주문 진행</th><th>상태</th></tr></thead>
+    <tbody>
+      <tr><td class="date">11-26</td><td class="date muted">-</td><td><span class="badge b-prog">주문</span></td><td><b>하나은행</b></td><td>강남지점</td><td>장재훈 지점장님</td><td>요아럽 바이탈라이징 바디케어세트</td><td class="num">16</td><td class="num">216,000</td>
+        <td><span class="badge b-wait">대기</span> 김주연<span class="sub">요청 홍창의 · 넘김 1회</span></td><td><span class="badge b-prog">진행중</span></td></tr>
+      <tr><td class="date">11-24</td><td class="date">11-25</td><td><span class="badge b-prog">주문</span></td><td><b>KB국민은행</b></td><td>연희동지점</td><td>김현주 팀장님</td><td>깨끗한나라 오곡물티슈 캡 100매</td><td class="num">40</td><td class="num">52,000</td>
+        <td>김보현<span class="sub">주문 입력 · 부분발주</span></td><td><span class="badge b-conv">주문전환</span></td></tr>
+      <tr><td class="date">11-20</td><td class="date">11-21<span class="sub">외 1</span></td><td><span class="badge b-prog">주문</span></td><td><b>신한라이프</b></td><td>방배지점</td><td>이지형 님</td><td>요아럽 블랙에디션 바디케어세트</td><td class="num">30</td><td class="num">420,000</td>
+        <td>김승현<span class="sub">완료 회신</span></td><td><span class="badge b-done">종결 · 발주 완료</span></td></tr>
+      <tr><td class="date">11-18</td><td class="date muted">-</td><td><span class="badge b-close">문의</span></td><td><b>우리은행</b></td><td>석계역지점</td><td>허재원 계장님</td><td class="muted">품목 없음</td><td class="num"></td><td class="num"></td>
+        <td class="muted">-</td><td><span class="badge b-close">종결 · 고객 취소</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="rules" style="margin-top:12px">
+  <div class="card"><b>주문일</b><p>그 상담으로 만든 주문서의 주문일(취소 주문 제외). 전환 전에는 빈칸. 2건 이상이면 가장 이른 날 + "외 N", 마우스를 올리면 주문번호 목록. 상세 화면에도 상담일 오른쪽에 같은 값(읽기 전용, 누르면 주문으로 이동).</p></div>
+  <div class="card"><b>종결 · 발주 완료 (자동)</b><p>연결된 주문(취소 제외)의 품목이 모두 발주서에 들어가면 — 주문 목록의 '발주완료'와 같은 기준. 저장하지 않고 볼 때마다 계산하므로 주문을 고쳐 발주할 품목이 다시 생기면 '주문전환'으로 돌아갑니다.</p></div>
+  <div class="card"><b>종결 · 사유 (수동, 지금처럼)</b><p>주문 없이 끝난 상담(문의만, 고객 취소 등) — 지금처럼 사유를 골라 직접 종결 · 재개. 표시는 "종결 · {사유}". 상태 칩 '종결'은 두 가지를 함께 보여줍니다.</p></div>
+</div>
+
+<h2>4 · 6번 — 상담 상세 (요청자가 볼 때)</h2>
+<p class="note">요청자는 <b>진행 이력</b>으로 지금 누가 맡고 있는지, 왜 넘어갔는지 봅니다. <b>요청 취소</b> · <b>다른 직원에게 재요청</b> 버튼이 따로 있고, 재요청은 사유 필수.</p>
+<div class="screen">
+  <div class="card" style="margin-bottom:12px">
+    <div class="row" style="gap:14px">
+      <div class="field" style="width:150px"><label>상담일</label><div class="inp">2026-11-26</div></div>
+      <div class="field new" style="width:150px"><label>주문일</label><div class="inp auto">전환 전</div></div>
+      <div class="field" style="width:110px"><label>구분</label><div class="inp">주문</div></div>
+      <div class="field" style="width:200px"><label>업체(은행)</label><div class="inp pick">하나은행</div></div>
+      <div class="field" style="width:200px"><label>부서(지점)</label><div class="inp pick">강남지점</div></div>
+      <div class="field" style="width:200px"><label>담당자</label><div class="inp pick">장재훈 지점장님</div></div>
+    </div>
+  </div>
+  <div class="card new">
+    <div class="row"><h3 style="margin:0">주문 진행 요청</h3><span class="badge b-wait">진행 대기</span><span class="muted" style="font-size:13px">지금 진행자 <b style="color:var(--ink)">김주연</b> · 요청 11-26 10:12 · 넘김 1회</span>
+      <span class="sp"></span><button class="btn">다른 직원에게 재요청</button><button class="btn danger">요청 취소</button></div>
+    <div style="margin-top:14px">
+      <ul class="tl">
+        <li><span class="dot req"></span><span class="t">홍창의 → 김보현 요청</span><span class="w">11-26 10:12</span><div class="why">메모: 12/3 출고 맞춰서 발주까지 부탁해요</div></li>
+        <li><span class="dot mv"></span><span class="t">김보현 → 김주연 넘김</span><span class="w">11-26 13:40</span><div class="why">사유: 오늘 오후 외근 — 김주연 대리가 요아럽 담당이라 넘깁니다</div></li>
+        <li><span class="dot now"></span><span class="t">김주연 진행 중</span><span class="w">주문서 전환 전</span></li>
+      </ul>
+      <p class="note" style="margin:0">이후 단계도 같은 줄에 이어집니다: <b>주문 입력</b>(주문번호 · 입력자) → <b>완료 회신</b>(완료 / 변경 있음 / 처리 불가) · 요청 취소 · 재요청(사유).</p>
+    </div>
+  </div>
+</div>
+
+<div class="grid2" style="margin-top:14px">
+  <div class="dlg">
+    <h3>다른 직원에게 재요청</h3>
+    <p class="note" style="margin-top:0">지금 진행자 김주연에게는 "요청이 다른 직원에게 넘어갔습니다" 알림이 갑니다.</p>
+    <div class="field"><label>받을 직원 (5번 업무량 함께 표시)</label>
+      <div class="list">
+        <div class="opt"><span><b>김보현</b> <span class="muted">영업지원팀 · 주임</span></span><span class="load"><span class="pill req">요청 대기 1</span><span class="pill ord">진행 중 주문 6</span></span></div>
+        <div class="opt sel"><span><b>김승현</b> <span class="muted">영업지원팀 · 사원</span></span><span class="load"><span class="pill zero">요청 대기 0</span><span class="pill ord">진행 중 주문 2</span></span></div>
+        <div class="opt"><span><b>한정호</b> <span class="muted">영업지원팀 · 사원</span></span><span class="load"><span class="pill req">요청 대기 3</span><span class="pill ord">진행 중 주문 4</span></span></div>
+      </div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>재요청 사유 <span style="color:var(--red)">(필수)</span></label><textarea class="inp">김주연 대리 휴가 — 김승현 사원에게 다시 요청합니다</textarea></div>
+    <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn">닫기</button><button class="btn pri">재요청</button></div>
+  </div>
+  <div class="dlg">
+    <h3>요청 취소</h3>
+    <p class="note" style="margin-top:0">취소하면 이 상담은 내가 직접 진행하는 상태로 돌아가고, 진행자 김주연에게 "요청이 취소됐습니다" 알림이 갑니다. 이력에 남습니다. 주문으로 전환된 뒤에는 취소할 수 없습니다.</p>
+    <div class="field"><label>취소 사유 (선택)</label><textarea class="inp" placeholder="예: 고객이 주문을 미뤘습니다"></textarea></div>
+    <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn">닫기</button><button class="btn danger">요청 취소</button></div>
+  </div>
+</div>
+
+<h2>4번 — 진행자(요청받은 직원)가 볼 때</h2>
+<p class="note">지금 있는 "주문서로 전환"과 "처리 불가 회신" 옆에 <b>다른 직원에게 넘기기</b>(사유 필수). 넘기면 새 진행자와 요청자에게 알림.</p>
+<div class="screen">
+  <div class="card">
+    <div class="row"><h3 style="margin:0">나에게 온 주문 진행 요청</h3><span class="muted" style="font-size:13px">요청 홍창의 · 11-26 10:12 → 김보현이 넘김 13:40</span></div>
+    <div class="why" style="margin-top:8px;font-size:13px;background:var(--soft);border-radius:8px;padding:8px 12px;color:var(--ink2)">메모: 12/3 출고 맞춰서 발주까지 부탁해요 · 넘긴 사유: 오늘 오후 외근 — 김주연 대리가 요아럽 담당이라 넘깁니다</div>
+    <div class="row" style="margin-top:12px"><span class="sp"></span><button class="btn">처리 불가 회신</button><button class="btn new">다른 직원에게 넘기기</button><button class="btn blue">주문서로 전환</button></div>
+  </div>
+  <div class="dlg" style="margin-top:14px">
+    <h3>다른 직원에게 넘기기</h3>
+    <div class="field"><label>받을 직원</label>
+      <div class="list">
+        <div class="opt sel"><span><b>김승현</b> <span class="muted">영업지원팀 · 사원</span></span><span class="load"><span class="pill zero">요청 대기 0</span><span class="pill ord">진행 중 주문 2</span></span></div>
+        <div class="opt"><span><b>한정호</b> <span class="muted">영업지원팀 · 사원</span></span><span class="load"><span class="pill req">요청 대기 3</span><span class="pill ord">진행 중 주문 4</span></span></div>
+      </div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>넘기는 사유 <span style="color:var(--red)">(필수)</span></label><textarea class="inp" placeholder="요청자가 진행 이력에서 봅니다"></textarea></div>
+    <div class="warn">넘긴 뒤에는 이 상담이 내 '나에게 요청됨'에서 빠집니다. 요청자(홍창의)와 받을 직원에게 알림이 갑니다.</div>
+    <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn">닫기</button><button class="btn pri">넘기기</button></div>
+  </div>
+</div>
+
+<h2>5번 — 처음 요청할 때 담당 고르기</h2>
+<p class="note">지금의 "주문 진행 담당" 고르는 칸이 목록형으로 바뀌어, 이름 옆에 업무량이 보입니다. 숫자는 고르는 순간 기준.</p>
+<div class="screen">
+  <div class="card" style="max-width:760px">
+    <h3>주문 진행 요청 <span class="muted" style="font-weight:400;font-size:12px">상담만 하고 주문 입력은 다른 직원에게 맡길 때 · 비워두면 내가 직접 진행</span></h3>
+    <div class="row" style="align-items:flex-start;gap:14px">
+      <div class="field new" style="width:380px"><label>주문 진행 담당</label>
+        <div class="list">
+          <div class="opt"><span class="muted">요청 안 함 (내가 진행)</span><span></span></div>
+          <div class="opt"><span><b>김보현</b> <span class="muted">영업지원팀 · 주임</span></span><span class="load"><span class="pill req">요청 대기 1</span><span class="pill ord">진행 중 주문 6</span></span></div>
+          <div class="opt sel"><span><b>김주연</b> <span class="muted">영업지원팀 · 대리</span></span><span class="load"><span class="pill zero">요청 대기 0</span><span class="pill ord">진행 중 주문 3</span></span></div>
+          <div class="opt"><span><b>김승현</b> <span class="muted">영업지원팀 · 사원</span></span><span class="load"><span class="pill zero">요청 대기 0</span><span class="pill ord">진행 중 주문 2</span></span></div>
+        </div>
+      </div>
+      <div class="field" style="flex:1;min-width:220px"><label>요청 메모 (선택)</label><div class="inp" style="color:var(--ink3)">예: 11/10 출고 맞춰서 발주까지 부탁해요</div></div>
+    </div>
+  </div>
+  <div class="rules" style="margin-top:12px">
+    <div class="card"><b>요청 대기</b><p>그 직원에게 와 있는 주문 진행 요청 중 아직 주문서로 전환하지 않은 것(취소 · 넘긴 것 제외).</p></div>
+    <div class="card"><b>진행 중 주문</b><p>그 직원이 입력한 주문(취소 제외) 중 발주가 끝나지 않은 것 — 주문 목록의 미발주 · 부분발주. 3번 종결 기준과 같은 뜻("아직 일이 남은 주문").</p></div>
+  </div>
+</div>
+
+<h2>함께 바뀌는 것 · 그대로인 것</h2>
+<div class="card"><ul style="margin:0;padding-left:18px;color:var(--ink2)">
+  <li>진행 이력은 새 표 하나(마이그레이션 711)에 쌓입니다 — 요청 · 넘김 · 재요청 · 취소 · 처리 불가. 주문 입력 · 완료 회신은 기존 기록(주문 · 515 회신)을 이어 붙여 보여줍니다. 711 적용 전 요청에는 이력이 "요청" 한 줄만.</li>
+  <li>알림(PC 알림 포함): 넘김 → 새 진행자 · 요청자 / 재요청 → 새 진행자 · 이전 진행자 / 취소 → 진행자.</li>
+  <li>요청 가능 조건(지점 · 담당자 마스터 연결), 요청받은 직원은 상담 수정 불가, 아침 재알림, 완료 회신 규칙은 그대로.</li>
+  <li>요청자 = 처음 요청한 직원(상담 작성자 또는 관리자급). 넘겨도 요청자는 바뀌지 않아 끝까지 진행을 봅니다.</li>
+</ul></div>
+</div></body></html>
