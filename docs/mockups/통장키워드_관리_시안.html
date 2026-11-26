@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>키워드 관리 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .lab { font-size:11px; font-weight:bold; color:#64748b; margin-bottom:8px; }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .chip { border-radius:8px; padding:5px 11px; font-size:12.5px; color:#475569; background:#f1f5f9; }
+  .chip.on { background:#0f172a; color:#fff; }
+  .chip.nw { outline:2px solid #3b82f6; outline-offset:1px; }
+  .sep { width:1px; height:18px; background:#e2e8f0; margin:0 4px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:920px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:9px 8px; border-bottom:1px solid #f1f5f9; vertical-align:top; line-height:1.5; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; }
+  th.hl, td.hl { background:#eff6ff; }
+  .st { font-size:11px; font-weight:bold; padding:3px 8px; border-radius:999px; white-space:nowrap; }
+  .ok { background:#dcfce7; color:#166534; } .pt { background:#fef3c7; color:#92400e; } .no { background:#f1f5f9; color:#64748b; }
+  .btn { display:inline-block; border-radius:7px; padding:2px 8px; font-size:11px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.blue { border-color:#c7d2fe; background:#eef2ff; color:#4338ca; font-weight:bold; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; padding:5px 11px; font-size:12px; }
+  .ord { color:#0f172a; font-variant-numeric:tabular-nums; }
+  .mut { color:#94a3b8; } .am { color:#b45309; }
+  .tag { font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; white-space:nowrap; }
+  .t-auto { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); overflow:hidden; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .modal .mb { padding:14px 16px; }
+  .modal .mf { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; }
+  .seg { display:flex; gap:4px; margin-left:auto; }
+  .seg span { border:1px solid #cbd5e1; border-radius:7px; padding:3px 9px; font-size:11.5px; color:#475569; font-weight:normal; }
+  .seg span.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .list { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+  .list .lh { background:#f8fafc; padding:7px 10px; font-size:11.5px; color:#64748b; border-bottom:1px solid #e2e8f0; }
+  .list .li { padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:12.5px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .list .li:last-child { border-bottom:none; }
+  .list .li .a { margin-left:auto; font-weight:bold; font-variant-numeric:tabular-nums; }
+  .list .li.sel { background:#eff6ff; }
+  .prev { margin-top:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 11px; font-size:12px; line-height:1.7; }
+
+  .fgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px 12px; margin-top:12px; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:4px; }
+  .f .in { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:12.5px; background:#fff; color:#0f172a; }
+  .f .in.ph { color:#94a3b8; }
+  .pick { display:flex; gap:5px; flex-wrap:wrap; }
+  .pick span { border:1px solid #cbd5e1; border-radius:8px; padding:6px 13px; font-size:12.5px; color:#475569; background:#fff; }
+  .pick span.on { background:#0f172a; color:#fff; border-color:#0f172a; font-weight:bold; }
+  .pick span.dis { background:#f1f5f9; color:#cbd5e1; border-color:#e2e8f0; }
+  .newbox { border:2px solid #3b82f6; border-radius:10px; padding:10px 12px; background:#eff6ff; margin-top:12px; }
+  .newbox .row { display:flex; gap:24px; flex-wrap:wrap; }
+  .req { color:#dc2626; }
+  .bad { background:#fee2e2; color:#991b1b; }
+  .t-warn { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+  .t-none { background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; }
+  .t-src { background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; }
+  .bd-card { background:#e0e7ff; color:#3730a3; } .bd-inv { background:#fae8ff; color:#86198f; } .bd-tr { background:#ccfbf1; color:#115e59; }
+
+
+  .hid { border:1px dashed #94a3b8; background:#f8fafc; border-radius:8px; padding:7px 11px; font-size:12px; color:#475569; margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .hid.new { border:2px solid #3b82f6; background:#eff6ff; }
+  .li.off { background:#f8fafc; color:#94a3b8; }
+  .kd { font-size:11px; padding:1px 7px; border-radius:999px; border:1px solid #cbd5e1; color:#475569; background:#fff; white-space:nowrap; }
+  .kd.tx { border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff; } .kd.ex { border-color:#fde68a; color:#92400e; background:#fffbeb; }
+
+
+  tr.cx td { background:#fff7ed; }
+  tr.dead td { color:#94a3b8; } tr.dead td.amt { text-decoration:line-through; }
+  .cn { background:#ffedd5; color:#9a3412; } .cw { background:#fef3c7; color:#92400e; } .cd { background:#e2e8f0; color:#475569; }
+  .tip { position:relative; display:inline-block; cursor:help; border-bottom:1px dotted #94a3b8; }
+  .tipbox { display:inline-block; margin-top:5px; background:#0f172a; color:#fff; border-radius:8px; padding:7px 10px; font-size:11.5px; line-height:1.6; font-weight:normal; white-space:normal; max-width:280px; }
+  .combo { border:1px solid #cbd5e1; border-radius:8px; background:#fff; overflow:hidden; max-width:360px; }
+  .combo .q { padding:7px 10px; border-bottom:1px solid #e2e8f0; font-size:12.5px; }
+  .combo .opt { padding:6px 10px; font-size:12.5px; color:#334155; }
+  .combo .opt.on { background:#eff6ff; color:#1d4ed8; font-weight:bold; }
+  .combo .opt mark { background:#fde68a; color:inherit; }
+  .neg { color:#b91c1c; }
+  .sub { padding-left:18px; position:relative; } .sub:before { content:"└"; position:absolute; left:4px; color:#94a3b8; }
+
+
+  .tabs { display:flex; gap:2px; border-bottom:1px solid #e2e8f0; margin-bottom:12px; flex-wrap:wrap; }
+  .tabs span { padding:8px 14px; font-size:13px; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabs span.on { color:#0f172a; font-weight:bold; border-color:#0f172a; }
+  .tabs span.gone { text-decoration:line-through; color:#cbd5e1; }
+  .bar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .sel { border:1px solid #cbd5e1; border-radius:8px; padding:5px 9px; font-size:12.5px; background:#fff; color:#334155; }
+  .srch { border:1px solid #cbd5e1; border-radius:8px; padding:5px 10px; font-size:12.5px; background:#fff; color:#94a3b8; min-width:220px; }
+  .cnt { font-size:11px; opacity:.75; margin-left:3px; }
+  .s-un { background:#fee2e2; color:#991b1b; } .s-pp { background:#ffedd5; color:#9a3412; } .s-mw { background:#fef3c7; color:#92400e; } .s-pm { background:#e0e7ff; color:#3730a3; } .s-dn { background:#dcfce7; color:#166534; }
+  tr.open td { background:#f8fafc; }
+  .inner { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; }
+  .who { color:#64748b; font-size:11px; display:block; }
+
+
+  .lk { color:#1d4ed8; text-decoration:underline; text-decoration-style:dotted; cursor:pointer; }
+  .fbar { border:2px solid #3b82f6; border-radius:10px; padding:8px 10px; background:#eff6ff; margin-bottom:10px; }
+  .kv { display:grid; grid-template-columns:90px 1fr; gap:4px 10px; font-size:12.5px; }
+  .kv span:nth-child(odd) { color:#64748b; }
+
+
+  .combo { border:1px solid #cbd5e1; border-radius:8px; background:#fff; overflow:hidden; max-width:360px; }
+  .combo .q { padding:7px 10px; border-bottom:1px solid #e2e8f0; font-size:12.5px; }
+  .combo .opt { padding:6px 10px; font-size:12.5px; color:#334155; }
+  .combo .opt.on { background:#eff6ff; color:#1d4ed8; font-weight:bold; }
+  .combo .opt mark { background:#fde68a; color:inherit; }
+
+  .s-pr { background:#e2e8f0; color:#334155; }
+</style>
+<style>
+  .step { display:inline-block; font-size:11px; font-weight:bold; padding:2px 7px; border-radius:6px; margin-right:4px; }
+  .s-done { background:#dcfce7; color:#166534; } .s-now { background:#dbeafe; color:#1e40af; } .s-wait { background:#f1f5f9; color:#64748b; }
+  .cand { border:1px solid #cbd5e1; border-radius:8px; padding:6px 8px; margin-bottom:5px; background:#f8fafc; }
+  .cand.strong { background:#f0fdf4; border-color:#bbf7d0; }
+  .cand .r { font-size:11px; color:#475569; }
+  .kw { margin-top:5px; font-size:11.5px; color:#1e293b; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:4px 7px; }
+  .tag { font-size:11px; padding:1px 6px; border-radius:5px; background:#ede9fe; color:#5b21b6; font-weight:bold; }
+  .note { font-size:12px; color:#334155; line-height:1.7; }
+  .note b { color:#0f172a; }
+  .q { background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:10px 14px; font-size:12.5px; line-height:1.7; }
+</style>
+<style>
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
+  @media (max-width:800px){ .kpis { grid-template-columns:repeat(2,1fr); } }
+  .kpi { background:#fff; border:1px solid #cbd5e1; border-radius:12px; padding:10px 14px; }
+  .kpi.on { border-color:#0f172a; box-shadow:0 0 0 1px #0f172a; }
+  .kpi .l { font-size:12px; color:#475569; } .kpi .v { font-size:18px; font-weight:bold; color:#0f172a; margin-top:2px; } .kpi .s { font-size:11.5px; color:#64748b; }
+  .kw { display:inline-flex; align-items:center; gap:4px; border:1px solid #94a3b8; border-radius:999px; padding:2px 4px 2px 9px; font-size:12px; margin:2px 3px 2px 0; background:#fff; }
+  .kw .x { width:16px; height:16px; border-radius:999px; background:#f1f5f9; color:#475569; font-size:11px; display:inline-flex; align-items:center; justify-content:center; }
+  .kw.dup { border-color:#f59e0b; background:#fffbeb; }
+  .kw.sus { border-color:#ef4444; background:#fef2f2; }
+  .kw .n { color:#64748b; font-size:11px; }
+  .add { display:inline-flex; gap:4px; align-items:center; margin-top:3px; }
+  .add input { border:1px solid #94a3b8; border-radius:6px; padding:2px 6px; font-size:12px; width:120px; }
+  .search { border:1px solid #94a3b8; border-radius:8px; padding:5px 10px; font-size:12.5px; width:260px; }
+  .legend span { margin-right:12px; font-size:12px; color:#475569; }
+</style>
+</head>
+<body><div class="frame">
+<h1>점검 · 정리 도구 › 키워드 관리</h1>
+<div class="chips" style="margin:10px 0 4px;border-bottom:1px solid #cbd5e1;padding-bottom:0;gap:0">
+  <span style="padding:7px 14px;border-bottom:2px solid #0f172a;font-weight:bold;font-size:13px">통장 키워드</span>
+  <span style="padding:7px 14px;color:#64748b;font-size:13px">계산서 키워드</span>
+</div>
+<p class="desc">2026-11-26 · 새 화면(회계 · 재무 › 점검 · 정리 도구 그룹 › <b>키워드 관리</b>, 경로 <b>/keywords?tab=bank | invoice</b>). 두 탭은 같은 모양 — 아래는 통장 키워드 탭. 통장 키워드 = 통장 입금의 입금자 · 적요를 보고 거래처를 알아보는 말.
+통장 분류(자동 거래처 연결) · 결제 확인 매칭 대기 "키워드 일치" · 입금대장이 쓴다. 계산서 키워드(매출처 연결 키워드 화면)와는 별개. 데이터는 예시. 마이그레이션 없음.</p>
+
+<div class="kpis">
+  <div class="kpi on"><div class="l">키워드 있는 거래처</div><div class="v">48곳</div><div class="s">키워드 112개</div></div>
+  <div class="kpi"><div class="l">다른 거래처와 겹침</div><div class="v" style="color:#b45309">3개</div><div class="s">겹치면 자동 연결이 둘 다 건너뜀</div></div>
+  <div class="kpi"><div class="l">의심 키워드</div><div class="v" style="color:#b91c1c">2개</div><div class="s">숫자만 · 2글자 · 흔한 말</div></div>
+  <div class="kpi"><div class="l">최근 6개월 안 쓰임</div><div class="v">17개</div><div class="s">걸린 입금 0건</div></div>
+</div>
+
+<div class="chips">
+  <span class="chip on">전체</span><span class="chip">매출처</span><span class="chip">매입처</span>
+  <span class="sep"></span>
+  <input class="search" placeholder="거래처 이름 · 키워드 검색">
+</div>
+<p class="legend"><span><span class="kw dup" style="padding:1px 8px">겹침</span> 다른 거래처에도 있음</span><span><span class="kw sus" style="padding:1px 8px">의심</span> 뜻 없는 말일 수 있음</span><span><span class="n">숫자</span> = 최근 6개월 걸린 입금 수(누르면 통장 내역)</span></p>
+
+<div class="panel new"><div class="scroll"><table>
+  <tr><th>거래처</th><th>구분</th><th>통장 키워드</th><th class="n">걸린 입금<small>최근 6개월</small></th></tr>
+  <tr><td>하나은행 철산동지점<small class="ord">매출처 허브 →</small></td><td>매출처</td>
+    <td><span class="kw">홍길동 <span class="n">12</span><span class="x">×</span></span><span class="kw">철산동 <span class="n">5</span><span class="x">×</span></span>
+      <div class="add"><input placeholder="키워드 추가"><span class="btn">추가</span></div></td><td class="n">17</td></tr>
+  <tr><td>KB국민은행 잠실지점</td><td>매출처</td>
+    <td><span class="kw dup">김영희 <span class="n">3</span><span class="x">×</span></span><span class="kw">국민잠실 <span class="n">8</span><span class="x">×</span></span>
+      <div style="font-size:11.5px;color:#b45309">"김영희" — KB국민은행 잠실새내지점에도 있음 (자동 연결은 둘 다 건너뜀)</div>
+      <div class="add"><input placeholder="키워드 추가"><span class="btn">추가</span></div></td><td class="n">11</td></tr>
+  <tr><td>푸본현대생명</td><td>매출처</td>
+    <td><span class="kw sus">이체 <span class="n">214</span><span class="x">×</span></span><span class="kw">푸본현대 <span class="n">6</span><span class="x">×</span></span>
+      <div style="font-size:11.5px;color:#b91c1c">"이체" — 흔한 말이라 다른 입금까지 걸릴 수 있음</div>
+      <div class="add"><input placeholder="키워드 추가"><span class="btn">추가</span></div></td><td class="n">220</td></tr>
+</table></div></div>
+
+<h2>계산서 키워드 탭 — 다른 점만</h2>
+<div class="panel new"><p class="note">
+저장 칸 = 거래처의 계산서 키워드(<code>vendors.match_aliases</code>). 홈택스 계산서의 <b>상대 상호</b>로 거래처를 알아볼 때 쓰고, 그 밖에 거래처 이름을 바꿀 때 <b>옛 이름</b>이 자동으로 들어가며 청구처 · 거래처 이름 검색에도 쓰인다.<br>
+<b>걸린 계산서</b> = 최근 6개월 매출 · 매입 계산서 중 상대 상호에 키워드가 들어 있는 건수(누르면 계산서 내역을 그 키워드로 검색).<br>
+삭제 확인 창에 "옛 이름 · 별칭 검색에서도 빠집니다"를 함께 안내한다. 이미 연결된 계산서는 그대로.<br>
+의심 · 겹침 · 안 쓰임 기준은 통장 탭과 같다.<br>
+지금의 "매출처 연결 키워드" · "매입처 연결 키워드" 화면은 그대로 둔다 — 그 화면의 본업은 <b>ERP 주문 고객명 → 거래처 연결</b>(별칭)이고, 거래처 펼침 편집에서 계산서 키워드도 고칠 수 있다(같은 칸이라 어느 쪽에서 고쳐도 같다).
+</p></div>
+
+<h2>동작</h2>
+<div class="panel"><p class="note">
+<b>× 삭제</b>: 확인 창 한 번("'이체'를 푸본현대생명 통장 키워드에서 뺍니다. 이미 연결된 통장 입금 · 매칭은 그대로입니다") — 앞으로의 추천 · 자동 연결에만 영향.<br>
+<b>추가</b>: 2글자 이상. 다른 거래처에 같은 키워드가 있으면 저장은 하고 겹침 경고(지금 거래처 수정 화면과 같은 규칙).<br>
+<b>걸린 입금 수</b>: 최근 6개월 통장 입금 중 입금자 · 적요에 키워드가 들어 있는 건수. 누르면 통장 내역을 그 키워드로 검색해서 연다.<br>
+<b>의심</b>: 숫자만 · 2글자 · 흔한 말(이체 · 입금 · 송금 · 대체 · 인터넷 · 모바일 …) — 결제 확인에서 자동 기록할 때 막는 목록과 같다. 기존에 들어간 것을 찾는 용도.<br>
+<b>권한</b>: 보기 = 점검 · 정리 도구 조회, 추가 · 삭제 = 점검 · 정리 도구 수정.<br>
+<b>한계</b>: 누가 · 언제 넣었는지는 저장돼 있지 않아 보여 줄 수 없다(키워드는 거래처 칸에 목록으로만 저장). 필요하면 기록 표를 따로 만들어야 한다(마이그레이션).
+</p></div>
+</div></body></html>

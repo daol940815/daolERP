@@ -839,3 +839,7 @@
   ① 매칭 전 카드 결제 기록도 뺀다(제안대로) ② 현금영수증이 붙은 통장 입금도 뺀다. 카드 = max(주문 카드 매칭 순액, 카드 결제 기록 합(취소 줄 뺌)) — 같은 결제를 두 번 빼지 않게.
   `lib/invoice-cover.ts` `loadNonInvoiceCover` → 연결 창 후보(order-invoice-match, 주문 줄 "카드 · 영수증 N원 제외"), 저장 재검사(invoice-candidates recheckLinks), 계산서 확인 탭 증빙 없음 필요 금액(payment-guide). 마이그레이션 없음.
 - 2026-11-26 사용자 확인: D261112-015 계산서 연결 — 카드분 제외 잔액 · 1:1 연결 이상 없음(배포 후 실데이터 확인 완료).
+- **2026-11-26 사용자 요청 — 통장 키워드 관리 화면**: 시안 `docs/mockups/통장키워드_관리_시안.html`(새 화면, 점검 · 정리 도구 그룹). 사용자 제안: "키워드 관리"로 묶고 통장 키워드 · 계산서 키워드 탭 — 시안 반영(/keywords?tab=bank|invoice), 확인 대기.
+- **2026-11-26 사용자 "진행해줘" — 키워드 관리 화면 구현(빌드 통과, 실데이터 미검증)**: 메뉴 이름 변경 · 넣은 사람 기록은 하지 않음(답 없음 → 기본값, 마이그레이션 없음).
+  화면 `/keywords`(점검 · 정리 도구 › 키워드 관리, 탭 bank | invoice) — `app/(dashboard)/keywords/`, 서버 `lib/keyword-admin.ts`(걸린 수 = 최근 6개월 통장 입금 입금자 · 적요 / 계산서 상대 상호, 겹침 = 병합 제외 다른 거래처, 의심 = 숫자만 · 2글자 이하 · 흔한 말),
+  API `/api/keywords` GET · PATCH(add | remove, API_OWNERS tools). 걸린 수 누르면 `/transactions?q=` · `/tax-invoices?q=`(계산서 내역에 ?q= 검색 지원 추가 — 기간 전체로 열림). 도움말 항목 신설.

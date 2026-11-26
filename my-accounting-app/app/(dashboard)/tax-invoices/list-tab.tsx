@@ -619,9 +619,10 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
   const [statusFilter, setStatusFilter] = useState<'all' | 'matched' | 'partial' | 'unmatched'>('all')
   // 기본 조회는 2026년부터 — 2025년은 시작일을 비우거나 넓혀서 조회.
   // 단, 특정 계산서 딥링크(?invoiceId=) 진입 시에는 기간을 비워 과거 계산서도 바로 보이게 한다.
-  const [dateFrom, setDateFrom]       = useState(() => searchParams.get('invoiceId') ? '' : getPeriodRange('당월').from)
-  const [dateTo, setDateTo]           = useState(() => searchParams.get('invoiceId') ? '' : getPeriodRange('당월').to)
-  const [search, setSearch]           = useState('')
+  // ?q= (키워드 관리의 '걸린 계산서', 2026-11-26) — 검색어를 채우고 기간은 전체로 연다
+  const [dateFrom, setDateFrom]       = useState(() => searchParams.get('invoiceId') || searchParams.get('q') ? '' : getPeriodRange('당월').from)
+  const [dateTo, setDateTo]           = useState(() => searchParams.get('invoiceId') || searchParams.get('q') ? '' : getPeriodRange('당월').to)
+  const [search, setSearch]           = useState(() => searchParams.get('q') ?? '')
   const [searchField, setSearchField] = useState<'all' | 'counterparty' | 'item' | 'note' | 'approval' | 'biz' | 'amount' | 'memo'>('all')
   // 계정과목 필터 (2026-11-11 사용자 요청: 목록 필터만) — '' = 전체, 'none' = 미분류, 그 외 = 확정 계정 id.
   // 불러온 행에서 거르므로 합계·선택·일괄 작업도 걸러진 행 기준이 된다.
