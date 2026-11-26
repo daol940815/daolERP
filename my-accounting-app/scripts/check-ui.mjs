@@ -17,8 +17,8 @@ const rules = [
   { re: /\b(?:bg|text|border|ring|from|via|to|fill|stroke|outline|decoration|divide|shadow)-\[#[0-9a-fA-F]{3,8}\]/g, msg: '클래스에 색 코드 직접 — Tailwind 색 이름으로' },
   { re: /\b(?:bg|text|border|ring|from|via|to|divide)-(?:zinc|neutral|stone)-\d{2,3}\b/g, msg: '기본 회색은 slate · gray 만 (zinc · neutral · stone 금지)' },
 ]
-// 경고(실패 아님) — UI 통일 기준(2026-11-25): 회색은 slate 한 계열, 12px 보다 작은 글자 금지. `node scripts/ui-codemod.mjs` 로 한 번에 고친다.
-//  병행 세션이 작업 중인 브랜치가 있어 당분간 경고로만 둔다 — 전 트랙 반영 뒤 실패로 올릴 예정.
+// UI 통일 기준(2026-11-25): 회색은 slate 한 계열, 12px 보다 작은 글자 금지. 2026-11-26 부터 **실패**(4단계 — 그 전에는 경고).
+//  걸리면 `node scripts/ui-codemod.mjs` 를 한 번 돌리면 고쳐진다(여러 번 돌려도 같음). 어두운 화면(사이드바 · 알림 · 업무 선택 · 로그인 · 출근 위젯)은 검사하지 않는다.
 const softRules = [
   { re: /\b(?:text|bg|border|ring|divide|from|via|to|placeholder)-gray-\d{2,3}\b/g, msg: 'gray 회색' },
   { re: /\btext-\[0\.(?:625|65625|6875|71875)rem\]/g, msg: '12px 보다 작은 글자' },
@@ -35,11 +35,17 @@ for (const f of files) {
     if (f.endsWith('.tsx')) inlineHex += (line.match(/['"]#[0-9a-fA-F]{6}['"]/g) ?? []).length
   })
 }
+const softTotal = Object.values(soft).reduce((a, n) => a + n, 0)
+if (softTotal) {
+  console.error(`\n[check-ui] 실패 — UI 통일 기준에 안 맞는 표기 ${softTotal}곳 (${Object.entries(soft).map(([k, n]) => `${k} ${n}`).join(' · ')})`)
+  console.error('  고치는 법: my-accounting-app 에서  node scripts/ui-codemod.mjs  를 한 번 실행한 뒤 다시 빌드 (자동으로 slate · text-xs 로 바뀝니다)')
+  console.error('  기준: CLAUDE.md UI 관례 › UI 통일 기준 · docs/ui-design-track.md')
+  process.exit(1)
+}
 if (errors.length) {
   console.error(`\n[check-ui] 실패 ${errors.length}건 — 직원별 글자 크기 · 색 테마가 이 부분에 적용되지 않습니다`)
   errors.slice(0, 40).forEach(e => console.error('  - ' + e))
   if (errors.length > 40) console.error(`  … 외 ${errors.length - 40}건`)
   process.exit(1)
 }
-for (const [k, n] of Object.entries(soft)) console.warn(`[check-ui] 경고 — ${k} ${n}곳: node scripts/ui-codemod.mjs 로 통일 기준에 맞출 것`)
 console.log(`[check-ui] 통과 — 파일 ${files.length} · 인라인 색 코드 ${inlineHex}곳(차트 · 의미 색, 테마 대상 아님)`)

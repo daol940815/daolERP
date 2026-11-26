@@ -90,7 +90,7 @@
   **`600번대` 매입처 허브 트랙(인수인계: docs/purchase-hub-track.md)** /
   `700번대` 상담·영업·업무일지 트랙(인수인계: docs/consultation-journal-track.md) /
   **`800번대` 요아럽 샘플 재고 트랙(인수인계: docs/sample-stock-track.md)** /
-  **UI 디자인 트랙(마이그레이션 없음, 인수인계: docs/ui-design-track.md — 엑셀형 셀 표 · 묶음 색 · 전체 색감(선명도), 2026-11-25 개설. 통일 기준 확정 · 1단계(색 · 글자) 적용 2026-11-25)** /
+  **UI 디자인 트랙(마이그레이션 없음, 인수인계: docs/ui-design-track.md — 엑셀형 셀 표 · 묶음 색 · 전체 색감(선명도), 2026-11-25 개설. 통일 기준 확정 · 1~4단계 적용 2026-11-25~26 — 색 · 글자 → 공용 부품 → 화면 이전 → 빌드 검사)** /
   **도움말 트랙(마이그레이션 없음, 인수인계: docs/help-track.md — 화면별 도움말 `lib/help-registry.ts` 단일 원천, 질문하기 = 업무 요청,
   2026-11-03 1차 배포)** /
   `900번대` 업무요청 트랙(인수인계: docs/work-request-track.md — 900 적용 2026-10-16, 901 비공개 열 적용 2026-11-02,
@@ -142,7 +142,7 @@
 3. **DB 변경 루틴**: 승인 → 드라이런(대조 통계) → 실행 → 검증 보고(건수 대사·표본 대조).
 4. **배포 루틴**: **도움말 갱신**(화면을 고쳤으면 `lib/help-registry.ts`의 그 화면 항목 — `updated` 날짜 + `changes`에 한 줄, 새 화면은
    항목 신설 또는 `HELP_PENDING`에 추가) → 빌드 통과(`npm run build` — 앞단 `check-help`가 도움말 누락을 실패로, 화면보다 오래된
-   도움말을 경고로 낸다. `check-ui`가 고정 px 글자 · 직접 색 코드를 실패로 낸다) → 브랜치 커밋·push → 원격 main pull → `--no-ff` 병합 → push.
+   도움말을 경고로 낸다. `check-ui`가 고정 px 글자 · 직접 색 코드 · gray 회색 · 12px 미만 글자를 실패로 낸다) → 브랜치 커밋·push → 원격 main pull → `--no-ff` 병합 → push.
 5. **화면 신설 루틴**: 시안(HTML) → 사용자 확인 → 구현. 목록 화면은 UI 관례의
    KPI+칩 필터 패턴을 따른다.
 
@@ -224,7 +224,7 @@
   Badge · Chip · KpiGrid · KpiCard · TableCard · `tbl` 표 클래스) · `components/ui/modal.tsx`(Modal) · `components/ui/cell-grid.tsx`(엑셀형 입력 표 — CellBand · CellHead ·
   CellInput · CellSelect · CellCalc · SummaryPill, 묶음 색 품목 회색 · 판매 파랑 · 매입 주황 · 결과 초록). 견본 화면 `/me/ui-kit`(메뉴 없음).
   **새 화면 · 고치는 화면은 이 부품을 쓴다 — 파일마다 `inp` · `btn` · `card` 상수를 새로 만들지 말 것.** 입력 칸 종류는 바탕으로(흰 = 직접 입력 · 옅은 파랑 = 목록(마스터)에서 선택 · 회색 = 자동). 여러 줄 입력 칸(textarea)은 `fieldBox({ area: true })` — `fieldBox()` · `fieldCls()` 는 높이가 고정이라 textarea 에 쓰면 한 줄로 눌린다.
-  옛 표기가 섞인 브랜치는 `node scripts/ui-codemod.mjs`(여러 번 돌려도 같음)로 맞춘다 — main 병합 충돌 시 자기 쪽 내용을 고른 뒤 실행. `check-ui` 가 gray · 작은 글자를 경고한다.
+  옛 표기가 섞인 브랜치는 `node scripts/ui-codemod.mjs`(여러 번 돌려도 같음)로 맞춘다 — main 병합 충돌 시 자기 쪽 내용을 고른 뒤 실행. `check-ui` 가 gray · 12px 미만 글자를 **실패**로 낸다(2026-11-26, 4단계) — 걸리면 codemod 를 한 번 돌리면 된다.
 - **기간 필터 표준(2026-09-30 확정)**: 기간이 있는 목록·분석 화면은 `components/ui/PeriodPresets.tsx`
   한 줄(최근 7일·최근 30일·당월·전월·1~4분기·상반기·하반기·당년·전년·전체 기간)을 필터 바 위에
   두고 날짜 from~to는 필터 바에 둔다. "전체 기간"은 `DATA_START`(lib/period-presets.ts)부터 —
