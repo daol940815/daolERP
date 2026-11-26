@@ -29,7 +29,7 @@ interface Group {
   amount: number
   links: { orderId: string; taxInvoiceId: string; amount: number; issueDate: string }[]
 }
-interface OpenOrder { id: string; order_no: string; order_date: string; net_amount: number; remaining: number; vendor_name?: string; vat?: Vat | 'mixed' }
+interface OpenOrder { id: string; order_no: string; order_date: string; net_amount: number; remaining: number; vendor_name?: string; vat?: Vat | 'mixed'; other_paid?: number }
 // foreign: '다른 거래처 계산서에서 찾기'로 추가한 계산서 (이 매출처 · 청구처가 아닌 거래처 명의, 2026-11-17)
 interface OpenInvoice { id: string; issue_date: string; total_amount: number; item_name: string | null; remaining: number; vendor_name?: string; foreign?: boolean; vendor_id?: string | null; counterparty_name?: string | null; tax_type?: string | null }
 
@@ -359,6 +359,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
                       <VatBadge v={o.vat} muted={off} />
                       {off && <span className="shrink-0 px-1 py-px rounded bg-red-100 text-red-700 text-xs font-semibold whitespace-nowrap">구분 다름</span>}
                       <span className="ml-auto tabular-nums font-medium whitespace-nowrap">{won(o.remaining)}</span>
+                      {(o.other_paid ?? 0) > 0 && <span className="shrink-0 text-slate-500 whitespace-nowrap" title="카드 · 현금영수증으로 받은 금액은 계산서로 덮을 금액이 아니라 잔액에서 뺐습니다">카드 · 영수증 {won(o.other_paid!)} 제외</span>}
                     </label>
                     )
                   })}

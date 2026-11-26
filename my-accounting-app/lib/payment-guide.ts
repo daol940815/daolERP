@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { loadNonInvoiceCover } from './invoice-cover'
 import { evidenceAppeared, loadLiveNoEvidence, splitTaxable, type NoEvidenceVat } from './no-evidence'
 import { fetchAllRows } from './fetch-all-rows'
 import { kstToday, type Editor } from './orders-portal'
@@ -273,8 +274,10 @@ export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: 
   rows.sort((a, b) => a.order_date.localeCompare(b.order_date))
 
   // 후보 계산서 — 금액이 같고 날짜가 가까운 매출 계산서(다른 거래처 명의 포함). 표시만 하고 연결은 사람이 누른다
+  // 증빙 없음의 필요 금액 = 청구 금액 − 카드 · 현금영수증으로 받은 금액 − 연결된 계산서 (2026-11-26)
+  const cover = await loadNonInvoiceCover(admin, rows.filter(r => r.issue === 'no_evidence').map(r => r.order_id))
   for (const r of rows) {
-    r.need = r.issue === 'no_hometax' ? (r.record_amount ?? 0) : r.issue === 'no_evidence' ? Math.max(0, r.net - r.invoice_amount) : 0
+    r.need = r.issue === 'no_hometax' ? (r.record_amount ?? 0) : r.issue === 'no_evidence' ? Math.max(0, r.net - (cover.get(r.order_id)?.total ?? 0) - r.invoice_amount) : 0
   }
   const needs = Array.from(new Set(rows.map(r => r.need).filter(n => n > 0)))
   if (needs.length) {

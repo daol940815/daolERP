@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { loadNonInvoiceCover } from '@/lib/invoice-cover'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { syncRecordsForOrders } from '@/lib/payment-records'
@@ -196,10 +197,12 @@ async function recheckLinks(
     addOrder.set(l.orderId, (addOrder.get(l.orderId) ?? 0) + l.amount)
     addInvoice.set(l.taxInvoiceId, (addInvoice.get(l.taxInvoiceId) ?? 0) + l.amount)
   }
+  const cover = await loadNonInvoiceCover(admin, Array.from(addOrder.keys()))   // 카드 · 현금영수증으로 받은 금액 (2026-11-26)
   for (const [id, add] of Array.from(addOrder)) {
     const o = orders.get(id)!
-    const left = (netByOrder.get(id) ?? 0) - (linkedByOrder.get(id) ?? 0)
-    if (add > left) return `주문 ${o.order_no ?? ''}의 계산서 미연결 금액은 ${won(Math.max(0, left))}입니다. ${won(add)}은 연결할 수 없습니다. (다른 사람이 먼저 연결했을 수 있습니다 — 화면을 새로 고쳐 주세요)`
+    const c = cover.get(id)
+    const left = (netByOrder.get(id) ?? 0) - (c?.total ?? 0) - (linkedByOrder.get(id) ?? 0)
+    if (add > left) return `주문 ${o.order_no ?? ''}의 계산서 미연결 금액은 ${won(Math.max(0, left))}입니다${c ? `(카드 ${won(c.card)} · 현금영수증 ${won(c.receipt)}으로 받은 금액 제외)` : ''}. ${won(add)}은 연결할 수 없습니다. (다른 사람이 먼저 연결했을 수 있습니다 — 화면을 새로 고쳐 주세요)`
   }
   for (const [id, add] of Array.from(addInvoice)) {
     const v = invoices.get(id)!
