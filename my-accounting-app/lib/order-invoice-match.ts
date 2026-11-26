@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { loadNonInvoiceCover } from './invoice-cover'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { MATCH_RULES } from '@/lib/matching-rules'
 import { loadBillingFamily } from '@/lib/billing'
@@ -24,9 +25,10 @@ export interface LinkOrder {
   order_no: string
   order_date: string
   net_amount: number
-  remaining: number   // 순매출 - 기연결 계산서 금액
+  remaining: number   // 청구 금액 − 카드 · 현금영수증으로 받은 금액 − 기연결 계산서 금액 (2026-11-26)
   vendor_name?: string // 청구처 가족 범위일 때 주문처(부서) 이름
   vat?: OrderVat       // 계산서 발행 기록에 적은 과세 구분 (없으면 미기재 · 기록 없음)
+  other_paid?: number  // 카드 · 현금영수증으로 받아 잔액에서 뺀 금액 (2026-11-26)
 }
 export interface LinkInvoice {
   id: string
@@ -198,14 +200,17 @@ export async function buildInvoiceLinkCandidates(
   }
 
   const recVat = await loadRecordedInvoiceVat(admin, orderIds)
+  // 카드 · 현금영수증으로 받은 금액은 계산서로 덮을 금액이 아니다 (2026-11-26)
+  const cover = await loadNonInvoiceCover(admin, orderIds)
   const orders: LinkOrder[] = orderRows
     .map(o => {
       const net = netByOrder.get(o.id) ?? 0
       const ov = o.customer_alias_id ? aliasVendor.get(o.customer_alias_id) : undefined
       return {
-        id: o.id, order_no: o.order_no, order_date: o.order_date, net_amount: net, remaining: net - (allocByOrder.get(o.id) ?? 0),
+        id: o.id, order_no: o.order_no, order_date: o.order_date, net_amount: net, remaining: net - (cover.get(o.id)?.total ?? 0) - (allocByOrder.get(o.id) ?? 0),
         ...(isRoot && ov ? { vendor_name: nameOf.get(ov) } : {}),
         ...(recVat.has(o.id) ? { vat: recVat.get(o.id) } : {}),
+        ...(cover.get(o.id) ? { other_paid: cover.get(o.id)!.total } : {}),
       }
     })
     .filter(o => o.remaining > 0)
