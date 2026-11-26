@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { contactLabel } from '@/lib/contact-label'
 import type { IndividualCustomerOpt } from './form-shared'
 
-import { btnCls } from '@/components/ui/kit'
+import { btnCls, fieldBox, labelCls } from '@/components/ui/kit'
 // 신규 개인 고객 등록 (115, 시안 docs/mockups/개인고객_분리_시안.html 탭 2)
 // 같은 이름의 개인 고객이 있으면 경고 — 같은 분이면 그 고객을 고르고, 다른 분이면 전화번호를 넣어야 등록된다.
 // 등록하면 인물 + 고객 전용 매출처("개인 {이름}")가 함께 생긴다.
@@ -23,8 +23,8 @@ export default function IndividualRegister({ groupId, employees, initial, onDone
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [dups, setDups] = useState<IndividualCustomerOpt[]>([])
-  const label = 'block text-xs font-medium text-slate-600 mb-0.5'
-  const inp = 'border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm'
+  const label = labelCls
+  const inp = fieldBox({ noWidth: true })
 
   const submit = async (forceNew: boolean) => {
     if (!name.trim() || !staff) return

@@ -222,7 +222,7 @@ export default function PoSendPage() {
   const secTitle = 'text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap'
   const stepNo = 'inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-900 text-white text-xs shrink-0'
   const sub = 'text-xs font-normal text-slate-500'
-  const inputCls = 'w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm disabled:opacity-60'
+  const inputCls = fieldBox()
 
   return (
     <div>

@@ -4,7 +4,7 @@ import { Fragment, useState } from 'react'
 import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/payments/ReasonPicker'
 import { CARD_ENTRIES, CARD_ENTRY_LABEL, REC_VATS, REC_VAT_LABEL, kindLabel, type CardEntry, type RecVat } from '@/lib/payment-kind'
 
-import { btnCls } from '@/components/ui/kit'
+import { btnCls, fieldBox, labelCls } from '@/components/ui/kit'
 // 결제 기록 (1300, 2026-11-13 사용자 확정 — 시안 docs/mockups/결제처리_시안.html)
 // 1차 수기 입력: 카드결제 / 계좌이체 / 계산서 발행. 기록만으로는 미수가 줄지 않는다('확인 대기').
 // 2차 결제 확인(수금 · 정산 작업 › 결제 확인)에서 원본과 대조해 확정하면 미수가 줄고 기록은 잠긴다.
@@ -193,8 +193,7 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
     </div>
   )
 
-  const inputCls = 'w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
-  const labelCls = 'block text-xs text-slate-600 mb-1'
+  const inputCls = fieldBox()
 
   return (
     <div className="mb-3 pb-3 border-b border-slate-200">

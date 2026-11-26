@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import AnnualReport from './annual-report'
 import { termMonthlyInterest } from '@/lib/loan-math'
 
-import { btnCls, chipCls } from '@/components/ui/kit'
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => (n ?? 0).toLocaleString('ko-KR')
 const eok = (n: number) => `${(n / 1e8).toFixed(2)}억`
 const manwon = (n: number) => `${Math.round(n / 1e4).toLocaleString('ko-KR')}만`
@@ -246,7 +246,7 @@ export default function LoansPage() {
     load()
   }
 
-  const input = 'mt-1 w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const input = fieldBox({ extra: 'mt-1' })
   const chip = (key: string, label: string, count?: number) => (
     <button key={key} onClick={() => setFilter(key)}
       className={chipCls(filter === key, 'whitespace-nowrap')}>
@@ -662,7 +662,7 @@ export default function LoansPage() {
                 <input type="text" value={form.loan_account_no} placeholder="예: 47598009367842"
                   onChange={e => setForm(f => ({ ...f, loan_account_no: e.target.value }))} className={input} /></label>
               <label className="block col-span-2"><span className="text-xs text-slate-600">메모</span>
-                <textarea rows={2} value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} className={input} /></label>
+                <textarea rows={2} value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} className={fieldBox({ area: true, extra: 'mt-1' })} /></label>
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setEditing(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm hover:bg-slate-50">취소</button>

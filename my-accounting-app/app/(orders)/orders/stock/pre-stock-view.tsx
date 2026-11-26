@@ -8,7 +8,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { STOCK_VAT_NOTE } from '@/lib/stock-cost'
 
-import { btnCls, chipCls, kpiLabelCls } from '@/components/ui/kit'
+import { btnCls, chipCls, fieldBox, kpiLabelCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => Math.round(n ?? 0).toLocaleString('ko-KR')
 const mmdd = (d: string | null) => (d ? d.slice(5).replace('-', '/') : '-')
 
@@ -334,7 +334,7 @@ function StocktakeDialog({ rows, today, onClose, onDone }: { rows: Row[]; today:
     } catch (e) { setErr(e instanceof Error ? e.message : '저장 실패') }
     setSaving(false)
   }
-  const field = 'w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm'
+  const field = fieldBox()
   return (
     <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[70] p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-5" onClick={e => e.stopPropagation()}>

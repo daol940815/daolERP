@@ -248,7 +248,7 @@ export default function GuideTab() {
                   </div>
                 </div>
                 <label className="block text-xs text-slate-600 mb-1">내용</label>
-                <textarea value={cMemo} onChange={e => setCMemo(e.target.value)} rows={2} placeholder="예: 담당자 부재, 내일 다시 연락" className={inputCls} />
+                <textarea value={cMemo} onChange={e => setCMemo(e.target.value)} rows={2} placeholder="예: 담당자 부재, 내일 다시 연락" className={fieldBox({ area: true })} />
                 <div className="grid grid-cols-2 gap-2.5 mt-2.5">
                   <div>
                     <label className="block text-xs text-slate-600 mb-1">입금 약속일 (선택)</label>

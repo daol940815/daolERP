@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { GRANT_KIND_LABEL, GRANT_SOURCE_LABEL, type GrantKind } from '@/lib/leave-balance'
 import { fetchBalance, fmt, type BalanceRes } from './types'
 
-import { btnCls, chipCls } from '@/components/ui/kit'
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 // 연차 관리 › 부여 내역 — 기본 · 보상 · 이월 · 조정 원장. 엑셀 오른쪽 "보상 일일 연차 · 이월 보상" 표를 대신한다.
 // 잘못 넣은 부여는 지우지 않고 "취소"로 남긴다(누가 · 언제 · 왜).
 const KIND_TONE: Record<GrantKind, string> = {
@@ -59,7 +59,7 @@ export default function GrantsTab() {
     .filter(g => showCanceled || g.status === 'active')
     .filter(g => kind === 'all' || g.kind === kind)
     .filter(g => !q.trim() || (g.employee_name ?? '').includes(q.trim()) || (g.reason ?? '').includes(q.trim())), [data, showCanceled, kind, q])
-  const inp = 'w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm'
+  const inp = fieldBox()
   const Chip = ({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) => (
     <button onClick={onClick} className={chipCls(on)}>{children}</button>
   )

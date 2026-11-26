@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RosterItemCandidate, RosterRowInput } from '@/lib/delivery-roster'
 
+import { btnCls } from '@/components/ui/kit'
 // 개별 배송 명단 카드 (707, 2026-11-09 사용자 확정 — 시안 docs/mockups/개별배송명단_시안.html v2.2)
 //  - 폼에는 요약(KPI · 미리보기 3행)만, 행 편집은 "명단 열기" 전용 패널(드로어 · 문제 필터 · 검색 · 50행 페이지)
 //  - 표준 양식 엑셀만 업로드(헤더 고정) · 재업로드 = 교체 · 원본 파일 보관 · 다운로드 기록
@@ -205,9 +206,9 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
   if (!key) return null
   if (!applies && !roster && !loading) return null
 
-  const btn = 'px-2.5 py-1 text-xs border border-slate-400 rounded-md text-slate-800 bg-white hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap'
+  const btn = btnCls('secondary', 'sm')
   const btnBlue = 'px-2.5 py-1 text-xs border border-blue-200 rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 whitespace-nowrap'
-  const btnDark = 'px-2.5 py-1 text-xs rounded-md text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap'
+  const btnDark = btnCls('primary', 'sm')
   const badge = 'inline-block px-1.5 py-px rounded-full text-xs font-semibold whitespace-nowrap'
   const fromConsult = !!(orderId && roster?.consultation_id)
   const preview = rows.slice(0, 3)
