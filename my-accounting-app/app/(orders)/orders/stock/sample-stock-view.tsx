@@ -502,7 +502,7 @@ export default function SampleStockView() {
                       <td className="border-b border-slate-200 px-2.5 py-2">
                         {m.purpose === 'sales' && badge('bg-slate-100 text-slate-700', '영업샘플')}
                         {m.purpose === 'gift' && badge('bg-pink-50 text-pink-700', '선물증정')}
-                        {!m.purpose && m.move_type === 'out' && <span className="text-slate-400">미지정</span>}
+                        {!m.purpose && m.move_type === 'out' && <span className="text-slate-500">미지정</span>}
                         {!m.purpose && m.move_type !== 'out' && <span className="text-slate-400">-</span>}
                       </td>
                       <td className="border-b border-slate-200 px-2.5 py-2 max-w-[220px] truncate" title={m.dest_name ?? ''}>{m.dest_name ?? <span className="text-slate-400">-</span>}</td>
@@ -512,7 +512,7 @@ export default function SampleStockView() {
                       </td>
                       <td className="border-b border-slate-200 px-2.5 py-2 max-w-[180px] truncate text-slate-600" title={m.note ?? ''}>{m.note ?? ''}</td>
                       <td className="border-b border-slate-200 px-2.5 py-2 whitespace-nowrap text-slate-600">
-                        {m.source === 'excel' ? <span className="text-slate-400">이관분</span> : m.created_by_name ?? <span className="text-slate-400">-</span>}
+                        {m.source === 'excel' ? <span className="text-slate-500">이관분</span> : m.created_by_name ?? <span className="text-slate-400">-</span>}
                       </td>
                     </tr>
                   ))}

@@ -275,7 +275,7 @@ export default function EmployeesPage() {
                             <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-amber-50 text-amber-700">계정 미발급</span>
                           )}
                         </>
-                      : <span className="text-slate-400 text-xs">미발급</span>}
+                      : <span className="text-slate-500 text-xs">미발급</span>}
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap">
                     <button onClick={() => setPermTarget(r)} disabled={!permReady}
@@ -352,7 +352,7 @@ function LeaveApprovalLine({ rows }: { rows: Emp[] }) {
             <b className="text-xs text-slate-600">{l}차</b>
             {at(l).length
               ? at(l).map(r => <span key={r.id} className={`px-2 py-0.5 rounded-full text-xs ${tone[l]}`}>{r.name}{r.position ? ` ${r.position}` : ''}</span>)
-              : <span className="text-xs text-slate-400">없음</span>}
+              : <span className="text-xs text-slate-500">없음</span>}
           </span>
         ))}
       </div>

@@ -707,7 +707,7 @@ function ErpAliasesContent() {
                       <td className="py-2 px-3 whitespace-nowrap">
                         {a.vendors?.biz_number
                           ? <span className="text-xs text-slate-700">{a.vendors.biz_number}</span>
-                          : <span className="text-xs text-slate-400">{a.vendor_id ? '미등록' : '-'}</span>}
+                          : <span className="text-xs text-slate-500">{a.vendor_id ? '미등록' : '-'}</span>}
                       </td>
                       <td className="py-2 px-3">
                         {a.vendor_id ? chipList(a.vendors?.match_aliases, '미등록') : <span className="text-xs text-slate-400">-</span>}

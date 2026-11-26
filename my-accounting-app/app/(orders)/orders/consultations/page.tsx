@@ -294,7 +294,7 @@ export default function ConsultationsPage() {
                   </td>
                   {all && <td className="py-2 px-3 text-xs">{r.writer ?? '-'}</td>}
                   <td className="py-2 px-3 text-xs">
-                    {r.item_name ?? <span className="text-slate-400">품목 없음</span>}
+                    {r.item_name ?? <span className="text-slate-500">품목 없음</span>}
                     {/* 할인·단가변경은 품목 줄에서 바로 보이게 (실무자 피드백 2) */}
                     {r.has_discount && (
                       <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-600">할인</span>

@@ -444,7 +444,7 @@ function CardExpensesContent() {
                         className="text-left min-w-[60px] px-1 py-1 rounded hover:bg-slate-100 text-slate-600"
                         title="클릭하여 분류 수정"
                       >
-                        {r.classification ?? <span className="text-slate-400">분류 +</span>}
+                        {r.classification ?? <span className="text-slate-500">분류 +</span>}
                       </button>
                     )}
                   </td>

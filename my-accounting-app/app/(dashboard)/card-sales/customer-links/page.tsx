@@ -186,7 +186,7 @@ export default function CardCustomerLinksPage() {
                           {!s.vendor_id && <span className="block text-amber-600 mt-0.5">이 별칭은 아직 거래처 미연결 — 별칭 관리에서 먼저 연결하거나 아래에서 직접 선택</span>}
                         </span>
                       ) : (
-                        <span className="text-slate-400">대응 없음</span>
+                        <span className="text-slate-500">대응 없음</span>
                       )}
                     </td>
                     {canEdit && <td className="px-3 py-2">

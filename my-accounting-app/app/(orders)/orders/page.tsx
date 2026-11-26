@@ -424,8 +424,8 @@ export default function OrdersHomePage() {
                       <td className="py-2 px-3">
                         {/* 취소 주문 — 줄 전체를 가로지르는 빨간 직선 하나 (2026-11-25 사용자 요청). 줄(tr)이 기준이라 칸마다 끊기지 않고, 눌러지지 않게 pointer-events-none */}
                         {r.canceled_at && <span aria-hidden className="pointer-events-none absolute left-2 right-2 top-1/2 h-0.5 -translate-y-1/2 bg-red-600" />}
-                        <div className="tabular-nums text-xs font-semibold">{r.order_date}</div>
-                        <div className="tabular-nums text-xs text-slate-500">{r.order_no ?? '-'}</div>
+                        <div className="tabular-nums text-xs font-semibold whitespace-nowrap">{r.order_date}</div>
+                        <div className="tabular-nums text-xs text-slate-500 whitespace-nowrap">{r.order_no ?? '-'}</div>
                       </td>
                       <td className="py-2 px-3 font-semibold">{r.bank_name ?? '(주문처 미상)'}</td>
                       <td className="py-2 px-3">
@@ -441,7 +441,7 @@ export default function OrdersHomePage() {
                           <div className="text-xs text-slate-500 tabular-nums whitespace-nowrap">{[r.phone, r.contact].filter(Boolean).join(' · ')}</div>
                         )}
                       </td>
-                      <td className="py-2 px-3">
+                      <td className="py-2 px-3 whitespace-nowrap">
                         {/* 직원 = 상담자여도 둘 다 표기 (2026-11-05 사용자 요청 — 예: 김승현 / 김승현) */}
                         {r.staff_name ?? '-'}
                         <span className="text-slate-500"> / {r.channel ?? '-'}</span>
