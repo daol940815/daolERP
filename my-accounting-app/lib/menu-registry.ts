@@ -104,6 +104,7 @@ export const MENU: MenuGroup[] = [
   { key: 'tools', area: 'finance', label: '점검 · 정리 도구', foldDefault: true, items: [
     { label: '매출처 연결 키워드', href: '/erp-aliases?type=customer', prefix: '/erp-aliases' },
     { label: '매입처 연결 키워드', href: '/erp-aliases?type=purchase', prefix: '/erp-aliases?type=purchase' },
+    { label: '키워드 관리', href: '/keywords' },   // 통장 키워드 · 계산서 키워드 탭 (2026-11-26)
     { label: '거래처 중복 정리', href: '/vendor-dedup' },
     { label: '거래처 정산 대조', href: '/reports/vendor-reconciliation' },
     { label: '이중계상 검사', href: '/reports/double-count' },
@@ -273,6 +274,7 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey | MenuGroupKey[] 
   { prefix: '/api/reports/vat-estimate', group: 'closing' },
   // 점검 · 정리 도구
   { prefix: '/api/erp-aliases', group: 'tools' },
+  { prefix: '/api/keywords', group: 'tools' },
   { prefix: '/api/reports/double-count', group: 'tools' },
   { prefix: '/api/reports/vendor-reconciliation', group: 'tools' },
   { prefix: '/api/reports/erp-special', group: 'tools' },
