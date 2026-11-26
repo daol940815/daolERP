@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>통장 키워드 관리 시안</title>
+<title>키워드 관리 시안</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
@@ -150,8 +150,12 @@
 </style>
 </head>
 <body><div class="frame">
-<h1>점검 · 정리 도구 › 통장 키워드</h1>
-<p class="desc">2026-11-26 · 새 화면(회계 · 재무 › 점검 · 정리 도구 그룹, 경로 <b>/bank-keywords</b>). 통장 키워드 = 통장 입금의 입금자 · 적요를 보고 거래처를 알아보는 말.
+<h1>점검 · 정리 도구 › 키워드 관리</h1>
+<div class="chips" style="margin:10px 0 4px;border-bottom:1px solid #cbd5e1;padding-bottom:0;gap:0">
+  <span style="padding:7px 14px;border-bottom:2px solid #0f172a;font-weight:bold;font-size:13px">통장 키워드</span>
+  <span style="padding:7px 14px;color:#64748b;font-size:13px">계산서 키워드</span>
+</div>
+<p class="desc">2026-11-26 · 새 화면(회계 · 재무 › 점검 · 정리 도구 그룹 › <b>키워드 관리</b>, 경로 <b>/keywords?tab=bank | invoice</b>). 두 탭은 같은 모양 — 아래는 통장 키워드 탭. 통장 키워드 = 통장 입금의 입금자 · 적요를 보고 거래처를 알아보는 말.
 통장 분류(자동 거래처 연결) · 결제 확인 매칭 대기 "키워드 일치" · 입금대장이 쓴다. 계산서 키워드(매출처 연결 키워드 화면)와는 별개. 데이터는 예시. 마이그레이션 없음.</p>
 
 <div class="kpis">
@@ -182,6 +186,15 @@
       <div style="font-size:11.5px;color:#b91c1c">"이체" — 흔한 말이라 다른 입금까지 걸릴 수 있음</div>
       <div class="add"><input placeholder="키워드 추가"><span class="btn">추가</span></div></td><td class="n">220</td></tr>
 </table></div></div>
+
+<h2>계산서 키워드 탭 — 다른 점만</h2>
+<div class="panel new"><p class="note">
+저장 칸 = 거래처의 계산서 키워드(<code>vendors.match_aliases</code>). 홈택스 계산서의 <b>상대 상호</b>로 거래처를 알아볼 때 쓰고, 그 밖에 거래처 이름을 바꿀 때 <b>옛 이름</b>이 자동으로 들어가며 청구처 · 거래처 이름 검색에도 쓰인다.<br>
+<b>걸린 계산서</b> = 최근 6개월 매출 · 매입 계산서 중 상대 상호에 키워드가 들어 있는 건수(누르면 계산서 내역을 그 키워드로 검색).<br>
+삭제 확인 창에 "옛 이름 · 별칭 검색에서도 빠집니다"를 함께 안내한다. 이미 연결된 계산서는 그대로.<br>
+의심 · 겹침 · 안 쓰임 기준은 통장 탭과 같다.<br>
+지금의 "매출처 연결 키워드" · "매입처 연결 키워드" 화면은 그대로 둔다 — 그 화면의 본업은 <b>ERP 주문 고객명 → 거래처 연결</b>(별칭)이고, 거래처 펼침 편집에서 계산서 키워드도 고칠 수 있다(같은 칸이라 어느 쪽에서 고쳐도 같다).
+</p></div>
 
 <h2>동작</h2>
 <div class="panel"><p class="note">
