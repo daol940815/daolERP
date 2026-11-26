@@ -182,10 +182,10 @@ function NewVendorModal({ tx, vendors, onClose, onCreated }: {
           </p>
         )}
         {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
-        <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className={btnCls('secondary', 'md', 'flex-1')}>취소</button>
+        <div className="flex gap-2 mt-5 justify-end">
+          <button onClick={onClose} className={btnCls('secondary', 'md')}>취소</button>
           <button onClick={submit} disabled={saving}
-            className={btnCls('primary', 'md', 'flex-1')}>
+            className={btnCls('primary', 'md')}>
             {saving ? '등록 중...' : '등록하고 이 거래에 연결'}
           </button>
         </div>
@@ -1445,8 +1445,8 @@ function TransactionsContent() {
                 <p className={`text-xs mt-2 ${journalPreview.data.balanced ? 'text-slate-500' : 'text-red-600'}`}>
                   차변 {(journalPreview.data.debit ?? 0).toLocaleString()} / 대변 {(journalPreview.data.credit ?? 0).toLocaleString()} {journalPreview.data.balanced ? '✓ 균형' : '불균형'}
                 </p>
-                <div className="flex gap-2 mt-4">
-                  <button onClick={() => setJournalPreview(null)} className={btnCls('secondary', 'md', 'flex-1')}>닫기</button>
+                <div className="flex gap-2 mt-4 justify-end">
+                  <button onClick={() => setJournalPreview(null)} className={btnCls('secondary', 'md')}>닫기</button>
                   <button
                     onClick={async () => {
                       const id = journalPreview.tx.id

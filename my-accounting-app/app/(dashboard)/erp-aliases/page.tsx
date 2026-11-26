@@ -244,12 +244,12 @@ function VendorModal({
             />
           </div>
         </div>
-        <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className={btnCls('secondary', 'md', 'flex-1')}>취소</button>
+        <div className="flex gap-2 mt-5 justify-end">
+          <button onClick={onClose} className={btnCls('secondary', 'md')}>취소</button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className={btnCls('primary', 'md', 'flex-1')}
+            className={btnCls('primary', 'md')}
           >
             {saving ? '저장 중...' : '저장'}
           </button>

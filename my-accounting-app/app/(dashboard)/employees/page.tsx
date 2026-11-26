@@ -202,7 +202,7 @@ export default function EmployeesPage() {
               비밀번호는 인증 서버 최소 기준(6자)만 넘으면 됩니다. 권한은 등록 후 권한 버튼에서 지정합니다(기본 없음).
             </p>
             <button onClick={create} disabled={busy}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+              className={btnCls('primary', 'md')}>
               등록
             </button>
           </div>

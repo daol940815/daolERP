@@ -315,7 +315,7 @@ export default function MyAttendancePage() {
                 className={fieldBox()} />
             </div>
             <button onClick={requestLeave} disabled={busy || formDays === 0}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+              className={btnCls('primary', 'md')}>
               신청
             </button>
             {formDays != null && (

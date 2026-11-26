@@ -102,10 +102,10 @@ export function CandidateModal({ vendorId, vendorName, onClose, onApplied }: {
                 </label>
               ))}
             </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={onClose} className={btnCls('secondary', 'md', 'flex-1')}>닫기</button>
+            <div className="flex gap-2 mt-5 justify-end">
+              <button onClick={onClose} className={btnCls('secondary', 'md')}>닫기</button>
               <button onClick={apply} disabled={applying || checked.size === 0}
-                className={btnCls('primary', 'md', 'flex-1')}>
+                className={btnCls('primary', 'md')}>
                 {applying ? '연결 중...' : `선택 ${checked.size}개 그룹 연결 확정`}
               </button>
             </div>

@@ -226,7 +226,7 @@ export default function RulesTab() {
               캘린더에 표시
             </label>
             <button onClick={save} disabled={busy}
-              className="ml-auto px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+              className={btnCls('primary', 'md', 'ml-auto')}>
               {form.id ? '수정' : '등록'}
             </button>
             {form.id && (

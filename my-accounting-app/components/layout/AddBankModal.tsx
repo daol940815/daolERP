@@ -82,17 +82,17 @@ export default function AddBankModal({ onClose, onSaved }: { onClose: () => void
             />
           </div>
         </div>
-        <div className="flex gap-2 mt-5">
+        <div className="flex gap-2 mt-5 justify-end">
           <button
             onClick={onClose}
-            className={btnCls('secondary', 'md', 'flex-1')}
+            className={btnCls('secondary', 'md')}
           >
             취소
           </button>
           <button
             onClick={handleSave}
             disabled={saving || linked !== null}
-            className={btnCls('primary', 'md', 'flex-1')}
+            className={btnCls('primary', 'md')}
           >
             {saving ? '저장 중...' : linked !== null ? '✓ 등록 완료' : '등록'}
           </button>
