@@ -95,10 +95,10 @@ export default function KeywordTabView({ tab }: { tab: Tab }) {
       </KpiGrid>
 
       <div className="flex items-center gap-1.5 flex-wrap mb-3">
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="거래처 이름 · 키워드 검색" className={fieldBox({ noWidth: true, extra: 'w-64 mr-1.5' })} />
         {([['all', '전체'], ['customer', '매출처'], ['vendor', '매입처']] as const).map(([k, l]) => (
           <button key={k} onClick={() => setKind(k)} className={chipCls(kind === k)}>{l}</button>
         ))}
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="거래처 이름 · 키워드 검색" className={fieldBox({ noWidth: true, extra: 'ml-auto w-64' })} />
       </div>
 
       {loading ? <div className="text-center py-20 text-slate-500">불러오는 중...</div>
