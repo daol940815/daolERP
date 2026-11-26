@@ -19,9 +19,9 @@ function Card({
   label, value, sub, href, valueClass = 'text-slate-900',
 }: { label: string; value: string; sub?: string; href?: string; valueClass?: string }) {
   const inner = (
-    <div className="bg-white rounded-xl border border-slate-300 p-5 shadow-sm h-full">
-      <p className="text-xs text-slate-500 mb-1.5">{label}</p>
-      <p className={`text-xl font-bold ${valueClass}`}>{value}</p>
+    <div className="bg-white rounded-xl border border-slate-300 px-3.5 py-2.5 h-full">
+      <p className="text-xs font-bold text-slate-700">{label}</p>
+      <p className={`text-xl font-extrabold tabular-nums ${valueClass}`}>{value}</p>
       {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
     </div>
   )

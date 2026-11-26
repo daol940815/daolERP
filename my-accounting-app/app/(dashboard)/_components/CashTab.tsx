@@ -430,25 +430,25 @@ export default async function CashTab({ searchParams }: {
         <>
           <h2 className="text-sm font-semibold text-slate-800 mb-3">전체 자금 요약{hasPeriod ? ` (${pTo} 기준)` : ''}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8">
-            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 p-4 hover:shadow-md transition-shadow">
-              <p className="text-xs text-slate-500 mb-1">보유 현금</p>
-              <p className="text-lg font-bold text-slate-900">{fmt(heldCash)}</p>
+            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 px-3.5 py-2.5 hover:border-slate-500">
+              <p className="text-xs font-bold text-slate-700">보유 현금</p>
+              <p className="text-xl font-extrabold tabular-nums text-slate-900">{fmt(heldCash)}</p>
             </Link>
-            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 p-4 hover:shadow-md transition-shadow">
-              <p className="text-xs text-slate-500 mb-1">마이너스통장 사용액</p>
-              <p className="text-lg font-bold text-red-500">{fmt(overdraftUsedTotal)}</p>
+            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 px-3.5 py-2.5 hover:border-slate-500">
+              <p className="text-xs font-bold text-slate-700">마이너스통장 사용액</p>
+              <p className="text-xl font-extrabold tabular-nums text-red-500">{fmt(overdraftUsedTotal)}</p>
             </Link>
-            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 p-4 hover:shadow-md transition-shadow">
-              <p className="text-xs text-slate-500 mb-1">마이너스통장 미사용한도</p>
-              <p className="text-lg font-bold text-emerald-600">{fmt(overdraftAvailableTotal)}</p>
+            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 px-3.5 py-2.5 hover:border-slate-500">
+              <p className="text-xs font-bold text-slate-700">마이너스통장 미사용한도</p>
+              <p className="text-xl font-extrabold tabular-nums text-emerald-600">{fmt(overdraftAvailableTotal)}</p>
             </Link>
-            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 p-4 hover:shadow-md transition-shadow">
-              <p className="text-xs text-slate-500 mb-1">순현금/순차입 포지션</p>
-              <p className={`text-lg font-bold ${netCash < 0 ? 'text-red-500' : 'text-slate-900'}`}>{fmt(netCash)}</p>
+            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 px-3.5 py-2.5 hover:border-slate-500">
+              <p className="text-xs font-bold text-slate-700">순현금/순차입 포지션</p>
+              <p className={`text-xl font-extrabold tabular-nums ${netCash < 0 ? 'text-red-500' : 'text-slate-900'}`}>{fmt(netCash)}</p>
             </Link>
-            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 p-4 hover:shadow-md transition-shadow">
-              <p className="text-xs text-slate-500 mb-1">가용 자금</p>
-              <p className="text-lg font-bold text-blue-600">{fmt(availableFunds)}</p>
+            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 px-3.5 py-2.5 hover:border-slate-500">
+              <p className="text-xs font-bold text-slate-700">가용 자금</p>
+              <p className="text-xl font-extrabold tabular-nums text-blue-600">{fmt(availableFunds)}</p>
             </Link>
           </div>
         </>

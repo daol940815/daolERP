@@ -34,8 +34,8 @@ function Metric({
 }: { label: string; value: string; sub?: string; valueClass?: string; href?: string }) {
   const inner = (
     <>
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className={`text-lg font-bold mt-0.5 ${valueClass}`}>{value}</div>
+      <div className="text-xs font-bold text-slate-700">{label}</div>
+      <div className={`text-xl font-extrabold tabular-nums ${valueClass}`}>{value}</div>
       {sub && <div className="text-xs text-slate-500 mt-0.5">{sub}</div>}
     </>
   )

@@ -242,9 +242,9 @@ export default function AccountLedgerPage() {
 function SummaryBox({ label, value, accent }: { label: string; value: string; accent?: 'blue' | 'red' | 'dark' }) {
   const cls = accent === 'blue' ? 'text-blue-700' : accent === 'red' ? 'text-red-700' : accent === 'dark' ? 'text-slate-900' : 'text-slate-800'
   return (
-    <div className="border border-slate-300 rounded-lg px-4 py-2.5 flex-1 min-w-[140px]">
-      <p className="text-xs text-slate-500 mb-0.5">{label}</p>
-      <p className={`text-base font-bold ${cls}`}>{value}<span className="text-xs font-normal text-slate-500">원</span></p>
+    <div className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 flex-1 min-w-[140px]">
+      <p className="text-xs font-bold text-slate-700">{label}</p>
+      <p className={`text-xl font-extrabold tabular-nums ${cls}`}>{value}<span className="text-xs font-normal text-slate-500">원</span></p>
     </div>
   )
 }
