@@ -12,6 +12,7 @@ export interface OrderItemRow {
   id: string
   line_no: number
   parent_line_no: number | null
+  product_id?: string | null
   is_canceled: boolean
   item_code: string | null
   item_name: string | null
@@ -47,6 +48,26 @@ export function poPriceAndMemo(it: OrderItemRow): { price: number; memo: string 
     return { price: price - unit, memo: join(`개당 ${unit.toLocaleString('ko-KR')}원 할인 (할인 전 단가 ${price.toLocaleString('ko-KR')}원)`) }
   }
   return { price, memo: join(`매입할인 -${disc.toLocaleString('ko-KR')}원`) }
+}
+
+// 발주서 품목 줄에 적히는 값 — 발주서 생성(주문 상세)과 '수정 내용 반영'(519)이 같은 규칙을 쓴다.
+// 판매가 발주 매입처(요아럽 — 사용자 확정 2026-08-19): 단가 = 판매가, 배송비 = 판매 배송비, 합계 = 판매합계(할인 반영).
+// 택배비(2026-11-12 확정): 매입배송비가 0인 품목의 고객 택배비는 업체와 무관한 매출 — 판매가 발주의 배송비 · 합계에서도 뺀다.
+// 매입할인(708): 개당 할인은 할인 후 단가, 정액 할인은 비고에 할인액 — 판매가 발주는 판매 기준이라 해당 없음.
+export const saleShipOf = (it: OrderItemRow) => ((it.purchase_shipping ?? 0) > 0 ? (it.shipping_fee ?? 0) : 0)
+export const saleTotalOf = (it: OrderItemRow) => (it.line_total ?? 0) - ((it.shipping_fee ?? 0) - saleShipOf(it))
+export function poLineValues(it: OrderItemRow, useSale: boolean) {
+  const pm = useSale ? { price: it.sale_price ?? 0, memo: it.memo } : poPriceAndMemo(it)
+  return {
+    item_code: it.item_code,
+    item_name: it.item_name,
+    order_kind: it.order_kind,
+    quantity: it.quantity ?? 0,
+    purchase_price: pm.price,
+    purchase_shipping: (useSale ? saleShipOf(it) : it.purchase_shipping) ?? 0,
+    purchase_total: (useSale ? saleTotalOf(it) : it.purchase_total) ?? 0,
+    memo: pm.memo,
+  }
 }
 
 // POyymmdd-## 발번 (같은 날짜 내 순번)

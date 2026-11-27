@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import PoDetail from '../po-detail'
+import PoReviseModal from '../po-revise-modal'
 
 import { btnCls, fieldBox } from '@/components/ui/kit'
 // 주문 상세의 발주 섹션 (3단계, 시안 v3) — direct 주문 전용, 전 직원 사용 가능.
@@ -29,6 +30,7 @@ interface Po {
   send_method: string | null; sent_at: string | null; send_error: string | null
   email_to: string | null; status: string; created_at: string
   sender_name: string | null; item_count: number; broken_count: number
+  revisions?: { revised_at: string; reviser_name: string | null; summary: string; total_before: number; total_after: number }[]
   uses_custom_po?: boolean; po_use_sale_price?: boolean
 }
 
@@ -49,6 +51,7 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [emails, setEmails] = useState<Record<string, string>>({})   // group.key → email
   const [openPo, setOpenPo] = useState<string | null>(null)   // 내용 펼친 발주서
+  const [revisePo, setRevisePo] = useState<string | null>(null)   // '수정 내용 반영' 창을 연 발주서 (519)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -164,10 +167,9 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                     {p.sent_at.slice(0, 16).replace('T', ' ')}{p.sender_name ? ` · ${p.sender_name}` : ''}
                   </span>
                 )}
-                {p.status === 'active' && p.broken_count > 0 && (
-                  <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-600">
-                    주문 수정됨 — 품목 {p.broken_count}건 바뀜, 이 발주서 취소 후 재발주
-                  </span>
+                {(p.revisions?.length ?? 0) > 0 && (
+                  <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700"
+                    title="주문 수정 뒤 고친 내용을 업체에 다시 보내고 발주서에 반영한 기록이 있습니다">수정 반영</span>
                 )}
                 <span className="ml-auto flex items-center gap-1.5">
                   <button onClick={() => setOpenPo(v => v === p.id ? null : p.id)}
@@ -183,6 +185,20 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                   </Link>
                 </span>
               </div>
+              {p.status === 'active' && p.broken_count > 0 && (
+                <div className="mt-2 flex items-center gap-2 flex-wrap px-3 py-2 bg-red-50 rounded-lg">
+                  <span className="text-sm font-semibold text-red-700">주문 수정됨 — 품목 {p.broken_count}건 바뀜</span>
+                  <span className="text-xs text-slate-700">고친 내용을 업체에 다시 보냈으면 &lsquo;수정 내용 반영&rsquo;, 아직이면 발송 상세에서 수정본을 보내거나 발주 취소 후 재발주하세요.</span>
+                  <button onClick={() => setRevisePo(p.id)}
+                    className="ml-auto px-3 py-1.5 bg-blue-700 text-white rounded-lg text-xs font-semibold">수정 내용 반영</button>
+                </div>
+              )}
+              {(p.revisions ?? []).map((r, i) => (
+                <div key={i} className="mt-1.5 text-xs text-slate-700">
+                  {new Date(r.revised_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })} 수정 반영{r.reviser_name ? ` · ${r.reviser_name}` : ''} — {r.summary}
+                  {r.total_before !== r.total_after ? ` (합계 ${won(r.total_before)} → ${won(r.total_after)}원)` : ''}
+                </div>
+              ))}
               {p.send_error && p.status === 'active' && (
                 <div className="mt-1.5 text-xs text-red-600">최근 발송 실패: {p.send_error} — 발송 페이지에서 재시도하세요</div>
               )}
@@ -270,6 +286,11 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
               : '발주할 품목이 없습니다.'}
           </div>
         )
+      )}
+      {revisePo && (
+        <PoReviseModal poId={revisePo} sendHref={`/orders/purchase/${revisePo}?from=order`}
+          onClose={() => setRevisePo(null)}
+          onDone={msg => { setRevisePo(null); setNotice(msg); load(); router.refresh() }} />
       )}
     </div>
   )
