@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildPoExcel, sendPoMail, smtpReady } from '@/lib/purchase-orders'
 import { fillMailTemplate, poMailVars, poShippingLines } from '@/lib/po-form'
 import { findCustomPoForm } from '@/lib/custom-po'
+import { loadRevisions } from '@/lib/po-revise'
 import { loadPo, currentStaff, assembleForm, formExtraOf, one, poFileNameFor } from '@/lib/po-assemble'
 import { activeVendorForm, draftVendorForm, buildWithVendorForm, recordFormUsed } from '@/lib/po-vendor-form-server'
 
@@ -80,6 +81,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     for (const o of ois ?? []) canceledIds.add(o.id as string)
   }
 
+  const revisions = (await loadRevisions(admin, [data.po.id])).get(data.po.id) ?? []   // 수정 내용 반영 이력 (519)
   const vendorFlags = one(data.po.vendor)
   // form: 화면 미리보기용 양식 데이터 — 엑셀과 같은 조립 함수를 거친다
   const form = await assembleForm(admin, data, staff)
@@ -97,6 +99,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       sender_name: (l.sender as unknown as { name: string } | null)?.name ?? null,
       sender: undefined,
     })),
+    revisions,
     form,
     smtp_ready: smtpReady(),
     // 출력 양식 (2026-11-09): 업체 양식이면 버전 · 확인 목록, 사용 시작 전 버전만 있으면 안내

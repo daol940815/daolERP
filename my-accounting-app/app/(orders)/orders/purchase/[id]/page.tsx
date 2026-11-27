@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import PoDetail from '../../po-detail'
+import PoReviseModal from '../../po-revise-modal'
 import { fillMailTemplate, poMailVars, type PoExcelData } from '@/lib/po-form'
 
 import { btnCls, fieldBox } from '@/components/ui/kit'
@@ -49,6 +50,10 @@ export default function PoSendPage() {
   const [itemCount, setItemCount] = useState(0)
   const [smtpReady, setSmtpReady] = useState(false)
   const [logs, setLogs] = useState<SendLog[]>([])
+  // 수정 내용 반영 (519): 주문 수정으로 바뀐 발주서 줄 수 · 반영 이력 · 창
+  const [brokenCount, setBrokenCount] = useState(0)
+  const [revisions, setRevisions] = useState<{ revised_at: string; reviser_name: string | null; summary: string; total_before: number; total_after: number }[]>([])
+  const [revising, setRevising] = useState(false)
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [attachHint, setAttachHint] = useState<string | null>(null)
   const [presets, setPresets] = useState<Preset[]>([])
@@ -107,6 +112,10 @@ export default function PoSendPage() {
     setItemCount((json.items ?? []).length)
     setSmtpReady(!!json.smtp_ready)
     setLogs(json.send_logs ?? [])
+    setRevisions(json.revisions ?? [])
+    setBrokenCount(json.po?.status === 'active'
+      ? ((json.items ?? []) as { order_item_id: string | null; order_item_canceled?: boolean }[]).filter(it => !it.order_item_id || it.order_item_canceled).length
+      : 0)
     setTo(prev => prev || (json.po?.email_to ?? ''))
     const ps = await loadPresets()
     // 기본 프리셋 자동 적용 (아직 작성 전일 때만)
@@ -249,6 +258,13 @@ export default function PoSendPage() {
 
       {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
       {notice && <div className="mt-3 px-4 py-2.5 bg-emerald-50 text-emerald-700 text-sm rounded-lg">{notice}</div>}
+      {active && brokenCount > 0 && (
+        <div className="mt-3 flex items-center gap-2 flex-wrap px-4 py-2.5 bg-red-50 rounded-lg">
+          <span className="text-sm font-semibold text-red-700">주문 수정됨 — 품목 {brokenCount}건 바뀜</span>
+          <span className="text-sm text-slate-700">수정본을 보내거나 수동 발송 기록을 남긴 뒤 &lsquo;수정 내용 반영&rsquo;을 누르세요. 다시 보내지 않을 거면 발주 취소 후 재발주.</span>
+          <button onClick={() => setRevising(true)} className="ml-auto px-3 py-1.5 bg-blue-700 text-white rounded-lg text-sm font-semibold">수정 내용 반영</button>
+        </div>
+      )}
       {!smtpReady && active && (
         <div className="mt-3 px-4 py-2.5 bg-amber-50 text-amber-800 text-sm rounded-lg">
           메일 발송 미설정(SMTP 환경변수) — 엑셀 다운로드 후 수동 발송 기록으로 처리하세요.
@@ -446,8 +462,23 @@ export default function PoSendPage() {
             </div>
           ))}
           {!logs.length && <div className="py-2 text-xs text-slate-500">발송 이력 없음 — 아직 발송 전입니다</div>}
+          {revisions.map((r, i) => (
+            <div key={`rev-${i}`} className="py-2 text-xs">
+              <div className="flex items-center gap-2 flex-wrap">
+                {badge('bg-blue-50 text-blue-700', '수정 반영')}
+                <span className="tabular-nums text-slate-600">{new Date(r.revised_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                {r.reviser_name && <span className="text-slate-600">{r.reviser_name}</span>}
+              </div>
+              <div className="mt-0.5 text-slate-700">{r.summary}{r.total_before !== r.total_after ? ` (합계 ${won(r.total_before)} → ${won(r.total_after)}원)` : ''}</div>
+            </div>
+          ))}
         </div>
       </div>
+
+      {revising && (
+        <PoReviseModal poId={po.id} onClose={() => setRevising(false)}
+          onDone={msg => { setRevising(false); setNotice(msg); load() }} />
+      )}
 
       {/* 프리셋 관리 모달 */}
       {managing && (

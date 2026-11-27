@@ -204,7 +204,7 @@ export default function PoDetail({ poId }: { poId: string }) {
         {data.po?.email_to && <div>받는 이메일: <span className="text-slate-700">{data.po.email_to}</span></div>}
         {broken > 0 && (
           <div className="text-red-500">
-            발주 뒤 주문에서 바뀌거나 빠진 품목 {broken}건 — 이 발주서는 발주 시점 내용 그대로이고, 바뀐 품목은 주문에서 미발주로 표시됩니다. 이 발주서를 취소하고 바뀐 내용으로 다시 발주하세요(수정본 파일을 올려 보내도 주문의 발주 상태는 바뀌지 않습니다).
+            발주 뒤 주문에서 바뀌거나 빠진 품목 {broken}건 — 이 발주서는 발주 시점 내용 그대로이고, 바뀐 품목은 주문에서 미발주로 표시됩니다. 고친 내용을 업체에 다시 보냈으면 &lsquo;수정 내용 반영&rsquo;을 누르고, 아직이면 수정본을 보내거나 발주 취소 후 다시 발주하세요.
           </div>
         )}
       </div>

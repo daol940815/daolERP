@@ -36,9 +36,14 @@ export async function loadPo(admin: SupabaseClient, id: string) {
   if (error && /po_use_sale_price/i.test(error.message)) ({ data: po, error } = await sel(false))
   if (error || !po) return null
   const poRec = po as unknown as PoRecord
-  const { data: items } = await admin.from('erp_purchase_order_items')
-    .select('line_no, order_item_id, item_code, item_name, order_kind, quantity, purchase_price, purchase_shipping, purchase_total, memo')
-    .eq('po_id', id).order('line_no')
+  // '수정 내용 반영'에서 짝 없음으로 표시한 줄(519 removed_at)은 발주서 내용 · 엑셀에서 뺀다 — 미적용 DB면 조건 없이 다시 조회
+  const ITEM_COLS = 'line_no, order_item_id, item_code, item_name, order_kind, quantity, purchase_price, purchase_shipping, purchase_total, memo'
+  const first = await admin.from('erp_purchase_order_items')
+    .select(ITEM_COLS).eq('po_id', id).is('removed_at', null).order('line_no')
+  let items = first.data
+  if (first.error && /removed_at/i.test(first.error.message)) {
+    items = (await admin.from('erp_purchase_order_items').select(ITEM_COLS).eq('po_id', id).order('line_no')).data
+  }
   const baseCols = 'order_no, order_date, bank_name, branch_name, manager_name, contact, phone, consultation_id'
   // 배송지(513) 포함 조회 — 미적용 DB면 배송지 없이 재조회
   const withShip = await admin.from('erp_orders')
