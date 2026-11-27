@@ -90,7 +90,7 @@ export async function loadPurchaseSection(admin: SupabaseClient, orderId: string
     .eq('id', orderId).maybeSingle()
   if (oErr || !order) return { error: '주문을 찾을 수 없습니다.' }
 
-  const ITEM_COLS = 'id, line_no, parent_line_no, is_canceled, is_prepayment, item_code, item_name, order_kind, purchase_vendor_name, purchase_alias_id, quantity, purchase_price, purchase_shipping, purchase_total, sale_price, shipping_fee, line_total, memo'
+  const ITEM_COLS = 'id, line_no, parent_line_no, product_id, is_canceled, is_prepayment, item_code, item_name, order_kind, purchase_vendor_name, purchase_alias_id, quantity, purchase_price, purchase_shipping, purchase_total, sale_price, shipping_fee, line_total, memo'
   const loadItems = (cols: string) => admin.from('erp_order_items')
     .select(cols as typeof ITEM_COLS).eq('order_id', orderId).order('line_no')
   // 매입할인(708) · 재고 칸(1400) 열 포함 — 미적용 DB면 없이 다시 조회

@@ -17,6 +17,7 @@ interface GroupItem {
   sale_price: number | null; line_total: number | null
   memo: string | null
   po_id: string | null; po_no: string | null
+  is_fee?: boolean   // 비용 품목(퀵비 · 배송비 등) — 발주 판정 제외, 발주서에 넣는 것은 선택 (2026-11-27)
 }
 interface Group {
   key: string; alias_id: string | null; vendor_name: string
@@ -235,6 +236,12 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                         <span className="text-slate-500 tabular-nums w-8">{it.item_code ?? '-'}</span>
                         <span className="font-medium">{it.item_name}</span>
                         {it.order_kind && <span className="text-slate-500">{it.order_kind}</span>}
+                        {it.is_fee && (
+                          <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600"
+                            title="퀵비 · 배송비 같은 비용 품목은 주문할 물건이 아니라서 발주완료 판정에 넣지 않습니다. 매입처가 청구하는 비용이면 발주서에 함께 넣으세요.">
+                            비용 품목 · 발주 선택
+                          </span>
+                        )}
                         <span className="ml-auto tabular-nums">× {it.quantity ?? 0}</span>
                         <span className="tabular-nums w-24 text-right">{won(amountOf(it))}원</span>
                       </label>

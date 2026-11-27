@@ -34,12 +34,21 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
   const poNoById = new Map(pos.map(p => [p.id, p.po_no]))
 
+  // 비용 품목(품목 관리 '비용 품목' = is_shipping — 퀵비 · 배송비 · 설치비)은 발주 판정에서 빠진다 (2026-11-27, lib/orders-portal-list.ts)
+  // 발주서에 함께 넣을 수는 있으므로 목록에는 남기고 표시만 붙인다
+  const feeProducts = new Set<string>()
+  const pids = Array.from(new Set((items as { product_id?: string | null }[]).map(it => it.product_id).filter(Boolean))) as string[]
+  if (pids.length) {
+    const { data: fp, error: fpErr } = await admin.from('erp_products').select('id').in('id', pids).eq('is_shipping', true)
+    if (!fpErr) for (const p of fp ?? []) feeProducts.add(p.id as string)
+  }
+
   // 매입처별 품목 묶음 (취소 품목 제외) — 발주서 1장 = 주문 1건 × 매입처 1곳
   const groupMap = new Map<string, {
     key: string; alias_id: string | null; vendor_name: string
     vendor_id: string | null; email: string | null; payment_term: string | null
     uses_custom_po: boolean; po_use_sale_price: boolean
-    items: (OrderItemRow & { po_id: string | null; po_no: string | null })[]
+    items: (OrderItemRow & { po_id: string | null; po_no: string | null; is_fee: boolean })[]
   }>()
   for (const it of items as OrderItemRow[]) {
     if (it.is_canceled) continue
@@ -61,7 +70,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       groupMap.set(key, g)
     }
     const poId = poItemMap.get(it.id) ?? null
-    g.items.push({ ...it, po_id: poId, po_no: poId ? poNoById.get(poId) ?? null : null })
+    const pid = (it as { product_id?: string | null }).product_id
+    g.items.push({ ...it, po_id: poId, po_no: poId ? poNoById.get(poId) ?? null : null, is_fee: !!pid && feeProducts.has(pid) })
   }
 
   return NextResponse.json({

@@ -122,32 +122,46 @@ export async function loadPoStatusMap(
   }))
 
   // 주문별 유효 품목 수 대비 발주된 품목 수
-  const counts = new Map<string, { total: number; done: number }>()
-  const stockOnly = new Set<string>()   // 재고 출고 행이 있는 주문 — 발주할 품목이 하나도 없으면 발주 완료로 본다
+  type Row = { id: string; order_id: string; is_canceled: boolean; is_prepayment: boolean; stock_role?: string | null; product_id?: string | null }
+  const rows: Row[] = []
   await Promise.all(chunks.map(async ch => {
-    type Row = { id: string; order_id: string; is_canceled: boolean; is_prepayment: boolean; stock_role?: string | null }
     let r = await fetchAllRows<Row>((pf, pt) =>
-      admin.from('erp_order_items').select('id, order_id, is_canceled, is_prepayment, stock_role').in('order_id', ch).range(pf, pt),
+      admin.from('erp_order_items').select('id, order_id, is_canceled, is_prepayment, stock_role, product_id').in('order_id', ch).range(pf, pt),
     )
     if ('error' in r && /stock_role/i.test(r.error)) {   // 1400 미적용
       r = await fetchAllRows<Row>((pf, pt) =>
-        admin.from('erp_order_items').select('id, order_id, is_canceled, is_prepayment').in('order_id', ch).range(pf, pt),
+        admin.from('erp_order_items').select('id, order_id, is_canceled, is_prepayment, product_id').in('order_id', ch).range(pf, pt),
       )
     }
     if ('error' in r) return
-    for (const it of r.data) {
-      if (it.is_canceled || it.is_prepayment) continue   // 선결제는 발주 대상 아님
-      if (it.stock_role === 'out') { stockOnly.add(it.order_id); continue }   // 재고 출고는 사무실에서 직접 발송 — 발주 대상 아님 (1400)
-      let c = counts.get(it.order_id)
-      if (!c) { c = { total: 0, done: 0 }; counts.set(it.order_id, c) }
-      c.total += 1
-      if (linked.has(it.id)) c.done += 1
-    }
+    rows.push(...r.data)
   }))
+
+  // 비용 품목(품목 관리 '비용 품목' 체크 = is_shipping — 퀵비 · 배송비 · 설치비)은 주문할 물건이 아니라 발주 판정에서 뺀다
+  // (2026-11-27 사용자 결정). 매입처 발주서에 함께 넣는 것은 그대로 가능 — 넣지 않아도 부분발주가 되지 않을 뿐이다.
+  // 매입 금액은 주문 품목의 매입합계에 그대로 있으므로 미지급금 · 마진 집계에는 영향이 없다.
+  const feeProducts = new Set<string>()
+  const pids = Array.from(new Set(rows.filter(it => !it.is_canceled && it.product_id).map(it => it.product_id as string)))
+  await Promise.all(chunk(pids, 150).map(async ch => {
+    const { data, error } = await admin.from('erp_products').select('id').in('id', ch).eq('is_shipping', true)
+    if (!error) for (const p of data ?? []) feeProducts.add(p.id as string)   // 703 미적용이면 비용 품목 없음으로 본다
+  }))
+
+  const counts = new Map<string, { total: number; done: number }>()
+  const nothingToOrder = new Set<string>()   // 재고 출고 · 비용 품목만 있는 주문 — 발주할 품목이 하나도 없으면 발주 완료로 본다
+  for (const it of rows) {
+    if (it.is_canceled || it.is_prepayment) continue   // 선결제는 발주 대상 아님
+    if (it.stock_role === 'out') { nothingToOrder.add(it.order_id); continue }   // 재고 출고는 사무실에서 직접 발송 — 발주 대상 아님 (1400)
+    if (it.product_id && feeProducts.has(it.product_id)) { nothingToOrder.add(it.order_id); continue }   // 비용 품목 (2026-11-27)
+    let c = counts.get(it.order_id)
+    if (!c) { c = { total: 0, done: 0 }; counts.set(it.order_id, c) }
+    c.total += 1
+    if (linked.has(it.id)) c.done += 1
+  }
 
   for (const id of orderIds) {
     const c = counts.get(id)
-    if (!c && stockOnly.has(id)) { map.set(id, 'full'); continue }
+    if (!c && nothingToOrder.has(id)) { map.set(id, 'full'); continue }
     map.set(id, !c || c.done === 0 ? 'none' : c.done >= c.total ? 'full' : 'partial')
   }
   return map
